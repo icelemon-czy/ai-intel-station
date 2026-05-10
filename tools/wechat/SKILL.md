@@ -1,0 +1,29 @@
+---
+name: wechat-article-collection
+description: Collect WeChat Official Account (微信公众号) articles into the unified research workspace.
+author: GitHub Copilot
+version: "1.0.0"
+tags:
+  - wechat
+  - 微信
+  - 微信文章
+  - 公众号
+  - markdown
+  - research
+---
+
+# WeChat Article Collection
+
+Collect a WeChat Official Account article into the unified research workspace.
+
+## Usage
+
+```bash
+uv run research collect wechat "<WECHAT_ARTICLE_URL>"
+```
+
+## Notes
+
+- Runtime entrypoint: `research/cli.py`
+- Source implementation: `collect/wechat.py`
+- Root tests: `tests/test_wechat_collect.py` and `tests/test_wechat_e2e_live.py`

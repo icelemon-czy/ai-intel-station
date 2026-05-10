@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-intel-station"
+version = "0.1.0"
+description = "Unified operator surface for AI Intel Station"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "camoufox[geoip]",
+  "markdownify",
+  "beautifulsoup4",
+  "httpx",
+]
+
+[project.scripts]
+research = "research.cli:console_main"
+
+[tool.setuptools.packages.find]
+include = ["research*", "collect*", "library*", "briefing*", "publish*"]
+
+[tool.pytest.ini_options]
+markers = [
+  "e2e: live end-to-end tests that require external services or credentials",
+]

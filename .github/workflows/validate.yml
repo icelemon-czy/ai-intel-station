@@ -1,0 +1,181 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_remote_tests:
+        description: 'Trigger remote test execution'
+        required: false
+        default: 'false'
+
+jobs:
+  skill-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: All workflow skill roots must exist
+        run: |
+          set -e
+          fail=0
+          for root in .github/skills .claude/skills .Codex/skills; do
+            if [ ! -d "$root" ]; then
+              echo "::error::$root is missing"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Each workflow SKILL.md must have exactly one YAML front-matter block
+        run: |
+          set -e
+          fail=0
+          for root in .github/skills .claude/skills .Codex/skills; do
+            found=0
+            for f in "$root"/*/SKILL.md; do
+              [ -e "$f" ] || continue
+              found=1
+              # line 1 must be "---"
+              if [ "$(sed -n '1p' "$f")" != "---" ]; then
+                echo "::error file=$f,line=1::SKILL.md must start with '---' front-matter fence"
+                fail=1
+                continue
+              fi
+              # find closing fence among lines 2..30; reject if not found
+              close=$(awk 'NR>=2 && NR<=30 && /^---$/ {print NR; exit}' "$f")
+              if [ -z "$close" ]; then
+                echo "::error file=$f::no closing '---' for front-matter within first 30 lines"
+                fail=1
+                continue
+              fi
+              # reject duplicate top-level "name:" or "description:" anywhere in the file
+              dup_name=$(grep -c '^name:' "$f" || true)
+              dup_desc=$(grep -c '^description:' "$f" || true)
+              if [ "$dup_name" -gt 1 ] || [ "$dup_desc" -gt 1 ]; then
+                echo "::error file=$f::duplicate front-matter detected (name: x$dup_name, description: x$dup_desc). Each SKILL.md must have exactly one front-matter block."
+                fail=1
+              fi
+            done
+            if [ "$found" -eq 0 ]; then
+              echo "::error::$root has no workflow skill files"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Each workflow SKILL.md must declare name + description
+        run: |
+          set -e
+          fail=0
+          for root in .github/skills .claude/skills .Codex/skills; do
+            for f in "$root"/*/SKILL.md; do
+              [ -e "$f" ] || continue
+              if ! head -n 10 "$f" | grep -q '^name:'; then
+                echo "::error file=$f::missing 'name:' in front-matter"
+                fail=1
+              fi
+              if ! head -n 10 "$f" | grep -q '^description:'; then
+                echo "::error file=$f::missing 'description:' in front-matter"
+                fail=1
+              fi
+            done
+          done
+          exit $fail
+
+      - name: Skill trees stay in sync
+        run: |
+          set -e
+          ref_names=$(find .github/skills -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort)
+          ref_count=$(printf "%s\n" "$ref_names" | sed '/^$/d' | wc -l | tr -d ' ')
+          echo "Found $ref_count workflow skills under .github/skills/"
+
+          for root in .claude/skills .Codex/skills; do
+            names=$(find "$root" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort)
+            count=$(printf "%s\n" "$names" | sed '/^$/d' | wc -l | tr -d ' ')
+            echo "Found $count workflow skills under $root/"
+            if [ "$names" != "$ref_names" ]; then
+              echo "::error::$root skill names do not match .github/skills"
+              echo "--- .github/skills"
+              printf "%s\n" "$ref_names"
+              echo "--- $root"
+              printf "%s\n" "$names"
+              exit 1
+            fi
+          done
+
+          for skill in $ref_names; do
+            cmp -s ".github/skills/$skill/SKILL.md" ".claude/skills/$skill/SKILL.md" || {
+              echo "::error::.claude/skills/$skill/SKILL.md differs from .github copy"
+              exit 1
+            }
+            cmp -s ".github/skills/$skill/SKILL.md" ".Codex/skills/$skill/SKILL.md" || {
+              echo "::error::.Codex/skills/$skill/SKILL.md differs from .github copy"
+              exit 1
+            }
+          done
+
+          # Flag the common stale counts (11/12/14/15) in user-facing docs
+          bad=$(grep -rnE "\b(1[1245])\b[[:space:]]*(个)?[[:space:]]*([Ss]kill|常备 Skill|GitHub Copilot)" \
+                README.md README.zh.md slides.md WORKFLOW-ANALYSIS.md 2>/dev/null || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Docs reference a stale skill count (expected $ref_count):"
+            echo "$bad"
+            exit 1
+          fi
+
+      - name: No leftover /spec-fix references (renamed to /fix-bug)
+        run: |
+          # skip historical docs (CHANGELOG, WORKFLOW-ANALYSIS) and inline "原 /spec-fix" context
+          leftover=$(grep -rn "/spec-fix" .github/skills .claude/skills .Codex/skills entrypoints README.md README.zh.md slides.md 2>/dev/null \
+            | grep -vE '原.*/spec-fix|renamed|替换' || true)
+          if [ -n "$leftover" ]; then
+            echo "::error::Leftover '/spec-fix' references. Use '/fix-bug':"
+            echo "$leftover"
+            exit 1
+          fi
+
+  # ── Remote test dispatch (optional, requires self-hosted runner label) ──
+  remote-test:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[test-remote]'))
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check remote test configuration
+        id: check-config
+        run: |
+          # Look for test-remote.conf in the .ai/ directory of the target project
+          # This job is a reference template — actual remote execution depends on
+          # your infrastructure setup. Customize the steps below.
+          echo "Remote test dispatch triggered."
+          echo "To connect this to your test machine, choose one of:"
+          echo ""
+          echo "  Option A: Self-hosted runner"
+          echo "    1. Install GitHub Actions runner on your Windows machine"
+          echo "    2. Change 'runs-on' to 'self-hosted' with your labels"
+          echo ""
+          echo "  Option B: SSH dispatch (add secrets)"
+          echo "    1. Add TEST_HOST, TEST_PATH, TEST_CMD as repository secrets"
+          echo "    2. Uncomment the SSH step below"
+          echo ""
+          echo "  Option C: Local only (use ./compass test)"
+          echo "    No CI needed — run 'compass test' from your macOS terminal"
+
+      # ── Uncomment to enable SSH-based remote testing ──
+      # - name: Run tests on remote machine via SSH
+      #   env:
+      #     TEST_HOST: ${{ secrets.TEST_HOST }}
+      #     TEST_PATH: ${{ secrets.TEST_PATH }}
+      #     TEST_CMD: ${{ secrets.TEST_CMD }}
+      #   run: |
+      #     if [ -z "$TEST_HOST" ]; then
+      #       echo "::warning::TEST_HOST secret not configured. Skipping remote test."
+      #       exit 0
+      #     fi
+      #     echo "Dispatching test to $TEST_HOST..."
+      #     ssh -o StrictHostKeyChecking=no "$TEST_HOST" "cd $TEST_PATH && $TEST_CMD"
