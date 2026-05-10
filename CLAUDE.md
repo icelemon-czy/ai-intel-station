@@ -9,7 +9,7 @@ AI Intel Station（AI 情报站）— 本地优先的 AI 研究工作区。负�
 ## Business Architecture
 
 ```text
-research/
+ai-intel-station/
 ├── research/        # 统一 operator surface（collect / query / briefing / backfill）
 ├── collect/         # 按来源收集原始资料
 ├── library/         # 统一 ResearchItem、sidecar、查询
