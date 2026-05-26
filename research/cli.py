@@ -11,6 +11,7 @@ from collect.papers import CATEGORIES_HELP, fetch_papers_by_category, save_paper
 from collect.wechat import fetch_article, normalize_wechat_url
 from library.items import backfill_output_tree
 from library.query import query_research_items
+from workspace_web.server import serve_workspace
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -104,6 +105,10 @@ def run_backfill(output_root: Path) -> list[Path]:
     return backfill_output_tree(output_root)
 
 
+def run_web_workspace(output_root: Path) -> None:
+    serve_workspace(output_root)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Unified operator surface for AI Intel Station")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -146,6 +151,9 @@ def build_parser() -> argparse.ArgumentParser:
     backfill_parser = subparsers.add_parser("backfill", help="Backfill ResearchItem sidecars from historical Markdown")
     backfill_parser.add_argument("output_root", nargs="?", type=Path, default=DEFAULT_OUTPUT_ROOT)
 
+    web_parser = subparsers.add_parser("web", help="Launch the local web workspace")
+    web_parser.add_argument("-o", "--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+
     return parser
 
 
@@ -181,6 +189,10 @@ def main(argv: list[str] | None = None) -> int:
             until=args.until,
         )
         print(f"Saved briefing: {saved}")
+        return 0
+
+    if args.command == "web":
+        run_web_workspace(args.output_root)
         return 0
 
     written = run_backfill(args.output_root)

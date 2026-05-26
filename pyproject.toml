@@ -19,7 +19,7 @@ dependencies = [
 research = "research.cli:console_main"
 
 [tool.setuptools.packages.find]
-include = ["research*", "collect*", "library*", "briefing*", "publish*"]
+include = ["research*", "collect*", "library*", "briefing*", "publish*", "workspace_web*"]
 
 [tool.pytest.ini_options]
 markers = [
