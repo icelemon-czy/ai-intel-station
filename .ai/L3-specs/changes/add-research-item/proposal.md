@@ -45,6 +45,9 @@ drafting ──→ implementing ──→ pending-review ──→ approved ─�
 - `2026-05-10` — `—` → `drafting` by `/new-change` | 原因: 为统一跨渠道内容模型 ResearchItem 创建 proposal
 - `2026-05-10` — `drafting` → `implementing` by `/new-change` | 原因: 用户确认三源覆盖、输出兼容、允许 partial item、去重后置、历史产物全部回填
 - `2026-05-10` — `implementing` → `pending-review` by implementation | 原因: 共享模型、sidecar 接线、backfill 与新增测试已完成并通过
+- `2026-05-19` — `pending-review` → `review-failed` by `/review-tests` | 原因: 测试审查发现 runtime sidecar 持久化场景缺少直接测试，部分 normalization assertion 未完整对齐 Spec THEN
+- `2026-05-19` — `review-failed` → `implementing` by `/fix-bug` | 原因: 开始补齐 add-research-item 的测试覆盖缺口
+- `2026-05-19` — `implementing` → `pending-review` by `/fix-bug` | 原因: 已补齐 runtime sidecar 持久化、normalization 与 backfill preservation 测试，相关回归通过
 
 ## Why
 
@@ -80,7 +83,9 @@ drafting ──→ implementing ──→ pending-review ──→ approved ─�
 
 ## Review Feedback
 
-- [ ] 暂无
+- [x] 2026-05-19 review-tests: `save_repo()` / `save_search_results()` / `save_papers()` / `fetch_article()` 的 sidecar 持久化场景缺少直接文件系统测试；现有测试主要覆盖 builder 与 historical backfill，不能证明新增抓取输出会写同目录 sidecar。Resolved by `/fix-bug`: 新增 `test_save_repo_writes_markdown_and_research_item_sidecar`、`test_save_search_results_writes_markdown_and_jsonl_sidecar`、`test_save_papers_writes_markdown_and_research_item_sidecar`、`test_fetch_article_writes_markdown_images_and_research_item_sidecar`。
+- [x] 2026-05-19 review-tests: normalization 场景的 assertion 仍偏窄，未完整断言 GitHub timestamps / source-specific metadata、paper title/authors/summary/timestamps/categories、WeChat body summary metadata，以及 optional tag list 的空值降级。Resolved by `/fix-bug`: 补强 `tests/test_research_item.py` 中 GitHub / papers / WeChat normalization 与 optional metadata 断言。
+- [x] 2026-05-19 review-tests: `backfill_output_tree()` 测试只断言 sidecar 被写入，未断言原有 Markdown 文件在 backfill 后仍被保留。Resolved by `/fix-bug`: backfill 测试已断言原 Markdown 内容在回填后保持不变。
 
 ## Known Gaps
 

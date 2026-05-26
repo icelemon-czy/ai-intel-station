@@ -18,11 +18,15 @@
 
 ## Save Markdown Files
 
-1. **happy path**
+1. **covered: save_papers happy path**
+   Evidence: `tests/test_research_item.py::test_save_papers_writes_markdown_and_research_item_sidecar`
+   Covers: `arXiv-cs.AI/01-*.md` 和同目录 `<stem>.research-item.json`，并断言 paper title、authors、summary、published、categories、PDF metadata。
+
+2. **historical note**
    Input: 2 条 paper dict，`tmp_path` 作为输出目录。
    Expect: `arXiv-cs.AI/` 下生成 `01-*.md` 和 `02-*.md`。
 
-2. **edge case**
+3. **remaining gap: edge case**
    Input: 标题含特殊字符。
    Expect: 文件名被安全化，但 Markdown 标题保留原始含义。
 
