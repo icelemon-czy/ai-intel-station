@@ -56,8 +56,8 @@ Each supported capability SHALL have at least one documented command that can be
 
 #### Scenario: Follow workspace docs
 
-- **WHEN** an operator follows the command documented in `.ai` or tool README files
-- **THEN** the command reaches the real entrypoint instead of a placeholder file
+- **WHEN** an operator follows the command documented in `.ai` or workspace README files
+- **THEN** the command reaches the unified workspace operator surface instead of requiring a source-specific wrapper path
 
 ### Requirement: Explicit External Dependency Failure
 

@@ -1,35 +1,47 @@
 # 当前会话状态
 
 > ⚡ 每次对话必读 + 对话结束时更新
-> 这是 AI 的短期工作记忆，记录“上一步做到哪了、下一步该做什么”。
+> 这是 AI 的短期工作记忆，记录"上一步做到哪了、下一步该做什么"。
 
 ## 最后更新
 
-- **时间**: 2026-05-25
-- **对话主题**: 完成 `add-react-web-workspace-mvp` 的实现、验证与 pending-review 收尾
+- **时间**: 2026-05-27
+- **对话主题**: 将 Web 二期需求拆成 10 个 draft change proposal，等待用户 review 决定是否逐个走 `/new-change`
 
 ## 当前工作焦点
 
-**正在做**: `add-react-web-workspace-mvp` 已完成实现并进入 `pending-review`；当前队列共有 6 个 pending-review change
+**正在做**: 10 个 Web 二期 draft proposal 已写入 `changes/`，等待用户 review 与筛选；既有 pending-review / review 队列仍保留
+
+- `.ai/L3-specs/changes/clarify-web-navigation-and-page-purpose/` — `drafting`
+- `.ai/L3-specs/changes/add-library-selection-state-and-active-styling/` — `drafting`
+- `.ai/L3-specs/changes/add-first-run-empty-states-and-onboarding/` — `drafting`
+- `.ai/L3-specs/changes/upgrade-dashboard-from-overview-to-action-center/` — `drafting`
+- `.ai/L3-specs/changes/add-collect-workspace-shell/` — `drafting`
+- `.ai/L3-specs/changes/add-wechat-url-collection-form/` — `drafting`
+- `.ai/L3-specs/changes/add-github-and-papers-collection-forms/` — `drafting`
+- `.ai/L3-specs/changes/add-local-job-runner-and-job-history/` — `drafting`
+- `.ai/L3-specs/changes/add-scheduled-collection-and-refresh-policies/` — `drafting`
+- `.ai/L3-specs/changes/add-runtime-diagnostics-and-preflight-checks/` — `drafting`
 
 - `.ai/L3-specs/changes/add-react-web-workspace-mvp/` — `pending-review`
-
 - `.ai/L3-specs/changes/add-research-item/` — `pending-review`
-- `.ai/L3-specs/changes/add-research-operator-surface/`
+- `.ai/L3-specs/archive/add-research-operator-surface/` — `archived` ✅
 - `.ai/L3-specs/changes/separate-legacy-compatibility-layer/`
 - `.ai/L3-specs/changes/align-ai-context-with-business-architecture/`
 - `.ai/L3-specs/changes/restructure-research-architecture/`
 
-**涉及文件**:
-
-- `research/` — 统一 operator surface（collect / query / briefing / backfill）
-- `collect/` — GitHub / papers / WeChat 真实收集实现
-- `library/` — `ResearchItem`、sidecar 扫描、历史 backfill、本地查询
-- `briefing/` / `publish/` — 派生简报与 `output/briefing/` 落盘
-- `tests/` — 根级回归测试，含 WeChat 单测和 opt-in live e2e
-- `.ai/L1-codebase-map/*` / `.ai/L5-validation/*` — 导航、traceability、validation 规则已同步
+**下一步**: 用户 review 这 10 个 draft proposal，并决定优先触发哪些 `/new-change`
 
 ## 已完成（本轮）
+
+- [x] 将 Web 二期交互需求拆成 10 个独立 draft proposal，覆盖导航命名、Library 选中态、空状态、Dashboard 升级、Collect Workspace、WeChat 表单、GitHub/papers 表单、jobs、schedule、diagnostics
+- [x] 为每个 proposal 增加建议优先级、建议顺序和依赖关系，便于用户 review 后挑选真正要执行的 `/new-change`
+- [x] 更新 session 状态，使当前焦点从 review 队列临时切到“proposal review”阶段
+
+- [x] `/review-tests add-research-operator-surface` — 全量场景 7/7 覆盖，反模式 0 命中，测试全绿 ✅
+- [x] 写入审查报告 `.ai/L5-validation/reports/review-add-research-operator-surface-20260525.md`
+- [x] 将 `add-research-operator-surface` 状态从 `pending-review` 升为 `approved`
+- [x] 执行 `/archive-change add-research-operator-surface` — delta spec 合并、新建 `specs/research-operations/spec.md`、变更归档至 `archive/add-research-operator-surface/`
 
 - [x] 为 `add-react-web-workspace-mvp` 编写 8 个 Web MVP 场景测试，并确认红灯失败点集中在 `workspace_web` 模块与 `research web` 入口
 - [x] 实现 `workspace_web/service.py` 本地桥接层，覆盖 Dashboard、Library、Briefing 预览与保存
@@ -46,7 +58,7 @@
 - [x] 生成 `add-react-web-workspace-mvp/tasks.md`，将接续点推进到 Tests 组
 
 - [x] 按 `/new-change` 读取 workflow playbook、system spec、proposal template 与当前 changes 状态
-- [x] 回溯旧变更中“Web/TUI 不在第一阶段”的历史决策，确认本次是新的独立 change，而不是对旧 proposal 的补丁
+- [x] 回溯旧变更中"Web/TUI 不在第一阶段"的历史决策，确认本次是新的独立 change，而不是对旧 proposal 的补丁
 - [x] 起草 `.ai/L3-specs/changes/add-react-web-workspace-mvp/proposal.md`，将第一期范围收敛为 Dashboard / Library / Briefing Workspace
 - [x] 生成待确认的业务问题，准备在用户确认后进入 delta spec 与 tasks 阶段
 
@@ -66,14 +78,10 @@
 - [x] 将来源参考资料集中到 `tools/`，不再让旧 tool 目录占据 repo root 主表面
 - [x] 为根级 `pytest` 注册 `e2e` marker，清除测试 warning
 
-## 下一步具体动作
-
-1. [ ] 执行 `/review-tests add-react-web-workspace-mvp`，审查 Web MVP 测试是否覆盖到位，尤其是 live UI 与 startup path 风险
-2. [ ] 审查通过后，回到 `/review-tests add-research-item` 队列，继续清理已有 pending-review 变更
-3. [ ] 如 reviewer 需要更强证据，可补浏览器级 smoke 或 `research web` 的启动脚本包装
-
 ## 测试状态
 
+- ✅ `/opt/homebrew/opt/python@3.10/bin/python3.10 -m pytest tests/test_restructure_research_architecture.py`
+  - 结果：`8 passed`
 - ✅ `python3 -m pytest tests/test_web_workspace.py`
   - 结果：`8 passed`
 - ✅ `python3 -m pytest tests/test_web_workspace.py tests/test_restructure_research_architecture.py`
@@ -86,10 +94,6 @@
   - 结果：`8 passed`
 - ✅ `python3 -m pytest tests/test_research_item.py tests/test_restructure_research_architecture.py`
   - 结果：`16 passed`
-- ✅ `PYTHONPATH=.venv/lib/python3.10/site-packages python3 -m pytest tests/test_research_item.py tests/test_restructure_research_architecture.py tests/test_wechat_collect.py`
-  - 结果：`30 passed`
-- ✅ `PYTHONPATH=.venv/lib/python3.10/site-packages python3 -m pytest`
-  - 结果：`32 passed, 1 skipped`
 - ⚠️ `uv run --with pytest python -m pytest tests/test_research_item.py`
   - 结果：sandbox 无法访问 `~/.cache/uv`，提权自动审批超时；本轮用 `python3` 完成目标文件验证
 - ✅ `uv run --with pytest python -m pytest tests/test_wechat_collect.py`
@@ -99,6 +103,7 @@
 
 ## 阻塞 / 待确认
 
+- 这 10 个 proposal 目前都处于 `drafting`；需要用户 review 后决定哪些进入正式 `/new-change` 确认流程
 - Twitter 仍未进入系统边界；当前只保留 `tools/twitter/README.md` 作为占位说明
 - GitHub / papers 仍缺真实外部依赖 smoke 或更强自动化测试
 - WeChat live e2e 仍为 opt-in；未设置 `WECHAT_E2E_URLS` 时应继续 skip
