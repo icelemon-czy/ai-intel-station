@@ -6,11 +6,17 @@
 ## 最后更新
 
 - **时间**: 2026-05-27
-- **对话主题**: 将 Web 二期需求拆成 10 个 draft change proposal，等待用户 review 决定是否逐个走 `/new-change`
+- **对话主题**: 实现 2 个 collect 闭环提案（output_root 修复 + UI 回归覆盖）
 
 ## 当前工作焦点
 
-**正在做**: 10 个 Web 二期 draft proposal 已写入 `changes/`，等待用户 review 与筛选；既有 pending-review / review 队列仍保留
+**已完成本轮 TDD 循环，等待 /review-tests**
+
+- `.ai/L3-specs/changes/align-web-collect-with-local-output-truth/` — `pending-review` ✅
+- `.ai/L3-specs/changes/add-collect-workspace-ui-regression-coverage/` — `pending-review` ✅
+
+- `.ai/L3-specs/changes/standardize-web-collect-result-summaries/` — `drafting`（待后续）
+- `.ai/L3-specs/changes/refresh-web-workspace-after-collect-run/` — `drafting`（待后续）
 
 - `.ai/L3-specs/changes/clarify-web-navigation-and-page-purpose/` — `drafting`
 - `.ai/L3-specs/changes/add-library-selection-state-and-active-styling/` — `drafting`
@@ -26,13 +32,27 @@
 - `.ai/L3-specs/changes/add-react-web-workspace-mvp/` — `pending-review`
 - `.ai/L3-specs/changes/add-research-item/` — `pending-review`
 - `.ai/L3-specs/archive/add-research-operator-surface/` — `archived` ✅
-- `.ai/L3-specs/changes/separate-legacy-compatibility-layer/`
-- `.ai/L3-specs/changes/align-ai-context-with-business-architecture/`
-- `.ai/L3-specs/changes/restructure-research-architecture/`
 
-**下一步**: 用户 review 这 10 个 draft proposal，并决定优先触发哪些 `/new-change`
+**下一步**: 执行 `/review-tests align-web-collect-with-local-output-truth` 或 `/review-tests add-collect-workspace-ui-regression-coverage`
 
 ## 已完成（本轮）
+
+- [x] 选定 2 个最有价值的 collect 闭环提案进入 TDD 循环：`align-web-collect-with-local-output-truth` + `add-collect-workspace-ui-regression-coverage`
+- [x] 为两个提案创建 delta spec（`specs/*/spec.md`）和 `tasks.md`
+- [x] 更新 `tests/test_web_workspace.py`：
+  - 新增 3 个 WEB-COLLECT-PERSIST 测试（确认对 output_root 的正确传递）
+  - 新增 1 个 WEB-UI-REGRESS 测试（确认所有 navigation section 都有 React 渲染分支）
+  - 更新 `test_run_collect_papers` 增加 `save_papers` mock 断言
+  - 更新 `test_run_collect_wechat` 改为 async mock
+- [x] 实现 `workspace_web/service.py` — `run_collect()` 增加 `output_root: Path | None = None` 参数，修复 3 个 handler（GitHub 写 `/tmp/output` → `root/github`；papers 补 `save_papers()` 落盘调用；WeChat 改用 `asyncio.run()` 正确执行 async）
+- [x] 实现 `workspace_web/server.py` — POST `/api/collect/run` 透传 `output_root`
+- [x] 运行测试：`tests/test_web_workspace.py` 29/29 通过，全套 60/60（除预存在 `markdownify` 缺依赖外）
+- [x] 将两个提案推进到 `pending-review`
+
+- [x] 诊断 Web 二期 proposal 与当前实现的偏差，确认 `workspace_web` 已有 collect 导航与 API，但 `web/src/App.jsx` 缺少 `collect` section 的实际渲染
+- [x] 在 React 前端补齐 Collect Workspace 页面壳层，接入 `/api/collect/sources`、`/api/collect/form/:source`、`/api/collect/run`
+- [x] 在 Collect Workspace 明确标注当前只支持手动 Run now；jobs history、schedule 和 refresh policy 尚未进入前端显示
+- [x] 运行 `npm --prefix web run build`，前端构建通过，新的 collect 页面已产出到 `workspace_web/static/`
 
 - [x] 将 Web 二期交互需求拆成 10 个独立 draft proposal，覆盖导航命名、Library 选中态、空状态、Dashboard 升级、Collect Workspace、WeChat 表单、GitHub/papers 表单、jobs、schedule、diagnostics
 - [x] 为每个 proposal 增加建议优先级、建议顺序和依赖关系，便于用户 review 后挑选真正要执行的 `/new-change`

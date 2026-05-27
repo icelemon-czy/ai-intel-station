@@ -13,6 +13,12 @@ async function requestJson(path, options) {
   return response.json();
 }
 
+function buildCollectFieldDefaults(fields) {
+  return Object.fromEntries(
+    fields.map((field) => [field.name, field.default ?? (field.type === "boolean" ? false : "")]),
+  );
+}
+
 function useWorkspaceNavigation() {
   const [navigation, setNavigation] = useState([]);
   const [activeSection, setActiveSection] = useState(window.location.hash.replace("#", "") || "dashboard");
@@ -321,6 +327,150 @@ function BriefingSection() {
   );
 }
 
+function CollectSection() {
+  const [sources, setSources] = useState([]);
+  const [activeSource, setActiveSource] = useState("github");
+  const [formDefinition, setFormDefinition] = useState(null);
+  const [fieldValues, setFieldValues] = useState({});
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    requestJson("/api/collect/sources").then((payload) => {
+      startTransition(() => {
+        setSources(payload);
+        if (payload[0]?.id) {
+          setActiveSource(payload[0].id);
+        }
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    requestJson(`/api/collect/form/${activeSource}`).then((payload) => {
+      startTransition(() => {
+        setFormDefinition(payload);
+        setFieldValues(buildCollectFieldDefaults(payload.fields || []));
+        setResult(null);
+        setErrorMessage("");
+      });
+    });
+  }, [activeSource]);
+
+  function updateField(name, value) {
+    setFieldValues((current) => ({ ...current, [name]: value }));
+  }
+
+  async function runCollect(event) {
+    event?.preventDefault();
+    setLoading(true);
+    setErrorMessage("");
+    try {
+      const payload = await requestJson("/api/collect/run", {
+        method: "POST",
+        body: JSON.stringify({ source: activeSource, fields: fieldValues }),
+      });
+      startTransition(() => {
+        setResult(payload);
+        setLoading(false);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setResult(null);
+        setErrorMessage(error.message);
+        setLoading(false);
+      });
+    }
+  }
+
+  return (
+    <section className="collect-layout">
+      <form className="panel collect-panel" onSubmit={runCollect}>
+        <p className="eyebrow">Collect workspace</p>
+        <h2>{formDefinition?.label || activeSource}</h2>
+        <p className="supporting">{formDefinition?.description || "Choose a source and run a manual collection."}</p>
+
+        <div>
+          <span className="field-label">Source</span>
+          <div className="source-list">
+            {sources.map((source) => (
+              <button
+                key={source.id}
+                type="button"
+                className={`source-switch ${source.id === activeSource ? "active" : ""}`}
+                onClick={() => setActiveSource(source.id)}
+              >
+                {source.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {formDefinition?.fields?.map((field) => {
+          if (field.type === "boolean") {
+            return (
+              <label key={field.name} className="inline-toggle">
+                <input
+                  type="checkbox"
+                  checked={Boolean(fieldValues[field.name])}
+                  onChange={(event) => updateField(field.name, event.target.checked)}
+                />
+                <div>
+                  <strong>{field.label}</strong>
+                  <p className="supporting">{field.description || "Toggle this option for the current source."}</p>
+                </div>
+              </label>
+            );
+          }
+
+          return (
+            <label key={field.name}>
+              {field.label}
+              <input
+                type={field.type === "number" ? "number" : "text"}
+                value={fieldValues[field.name] ?? ""}
+                placeholder={field.placeholder || ""}
+                onChange={(event) => updateField(field.name, event.target.value)}
+              />
+            </label>
+          );
+        })}
+
+        <div className="action-row">
+          <button type="submit">{loading ? "Running collection…" : "Run now"}</button>
+          <div className="collect-mode-note">
+            <span className="field-label">Execution mode</span>
+            <p className="supporting">Manual run only</p>
+          </div>
+        </div>
+
+        <p className="supporting">Scheduled collection, refresh policies, and job history are separate follow-up surfaces and are not rendered in this page yet.</p>
+      </form>
+
+      <div className="collect-sidecar">
+        <div className="panel collect-result-panel">
+          <p className="eyebrow">Run status</p>
+          {errorMessage ? <p className="status-banner error">{errorMessage}</p> : null}
+          {result ? <p className={`status-banner ${result.status || "pending"}`}>{result.message}</p> : null}
+          {!errorMessage && !result ? <p>Run a source-specific collection to inspect the current payload and result summary.</p> : null}
+          {loading ? <p>Collecting with the local runtime…</p> : null}
+          {result?.result ? <pre className="json-preview">{JSON.stringify(result.result, null, 2)}</pre> : null}
+        </div>
+
+        <div className="panel collect-result-panel">
+          <p className="eyebrow">What is not here yet</p>
+          <ul className="plain-list compact-list">
+            <li>Queued / running / failed job history timeline</li>
+            <li>Scheduled collection and refresh policy controls</li>
+            <li>Dashboard freshness badges fed by the jobs layer</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function App() {
   const { navigation, activeSection, setActiveSection } = useWorkspaceNavigation();
 
@@ -351,6 +501,7 @@ export default function App() {
         {activeSection === "dashboard" ? <DashboardSection /> : null}
         {activeSection === "library" ? <LibrarySection /> : null}
         {activeSection === "briefing" ? <BriefingSection /> : null}
+        {activeSection === "collect" ? <CollectSection /> : null}
       </main>
     </div>
   );

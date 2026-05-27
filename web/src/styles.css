@@ -71,7 +71,8 @@ select {
 
 .tabbar button,
 .action-row button,
-.search-panel button {
+.search-panel button,
+.source-switch {
   border: 1px solid var(--line);
   border-radius: 999px;
   background: rgba(255, 252, 245, 0.72);
@@ -83,7 +84,8 @@ select {
 
 .tabbar button.active,
 .search-panel button,
-.action-row button {
+.action-row button,
+.source-switch.active {
   background: linear-gradient(135deg, var(--accent) 0%, #115e59 100%);
   color: #f8fffd;
 }
@@ -94,7 +96,8 @@ select {
 
 .tabbar button:hover,
 .action-row button:hover,
-.search-panel button:hover {
+.search-panel button:hover,
+.source-switch:hover {
   transform: translateY(-1px);
 }
 
@@ -109,7 +112,8 @@ select {
 
 .dashboard-grid,
 .library-layout,
-.briefing-layout {
+.briefing-layout,
+.collect-layout {
   display: grid;
   gap: 18px;
 }
@@ -169,12 +173,25 @@ select {
   margin: 0;
 }
 
+.source-switch {
+  padding: 10px 16px;
+}
+
 .library-layout {
   grid-template-columns: 320px minmax(0, 1fr) minmax(280px, 360px);
 }
 
 .briefing-layout {
   grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+}
+
+.collect-layout {
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+}
+
+.collect-sidecar {
+  display: grid;
+  gap: 18px;
 }
 
 .search-panel,
@@ -184,10 +201,43 @@ select {
   align-content: start;
 }
 
+.collect-panel,
+.collect-result-panel {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
 .search-panel label,
 .control-panel label {
   display: grid;
   gap: 8px;
+}
+
+.collect-panel label {
+  display: grid;
+  gap: 8px;
+}
+
+.inline-toggle {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+}
+
+.inline-toggle input {
+  width: auto;
+  margin-top: 3px;
+}
+
+.inline-toggle strong {
+  display: block;
+}
+
+.collect-mode-note {
+  border: 1px dashed var(--line);
+  border-radius: 20px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.42);
 }
 
 input,
@@ -271,6 +321,35 @@ pre {
   white-space: pre-wrap;
 }
 
+.json-preview {
+  min-height: 260px;
+}
+
+.status-banner {
+  margin: 0;
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-weight: 600;
+}
+
+.status-banner.success {
+  background: rgba(15, 118, 110, 0.12);
+  color: #0b5c55;
+}
+
+.status-banner.error {
+  background: rgba(181, 84, 45, 0.14);
+  color: #7c3517;
+}
+
+.status-banner.pending {
+  background: rgba(21, 34, 36, 0.08);
+}
+
+.compact-list {
+  gap: 10px;
+}
+
 .shimmer {
   min-height: 260px;
 }
@@ -278,7 +357,8 @@ pre {
 @media (max-width: 1024px) {
   .dashboard-grid,
   .library-layout,
-  .briefing-layout {
+  .briefing-layout,
+  .collect-layout {
     grid-template-columns: 1fr;
   }
 

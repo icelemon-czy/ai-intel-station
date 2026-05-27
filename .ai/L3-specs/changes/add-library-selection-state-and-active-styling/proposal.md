@@ -1,6 +1,6 @@
 # add-library-selection-state-and-active-styling
 
-> **状态**: drafting
+> **状态**: pending-review
 > **创建**: 2026-05-27
 > **父变更** (parent-change): add-react-web-workspace-mvp
 > **嵌套深度** (depth): 0  <!-- 不得 ≥ 2，防止 /fix-bug 递归 -->

@@ -9,9 +9,12 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from .service import (
     build_dashboard_overview,
+    get_collect_form,
     get_library_item_detail,
+    list_collect_sources,
     list_library_items,
     preview_briefing,
+    run_collect,
     save_briefing,
     workspace_sections,
 )
@@ -85,6 +88,13 @@ def _create_handler(output_root: Path):
                     return
                 _json_response(self, payload)
                 return
+            if parsed.path == "/api/collect/sources":
+                _json_response(self, list_collect_sources())
+                return
+            if parsed.path.startswith("/api/collect/form/"):
+                source = parsed.path.split("/")[-1]
+                _json_response(self, get_collect_form(source))
+                return
             if parsed.path.startswith("/api/"):
                 _json_response(self, {"error": "Unknown API path"}, status=HTTPStatus.NOT_FOUND)
                 return
@@ -122,6 +132,11 @@ def _create_handler(output_root: Path):
                         until=payload.get("until"),
                     ),
                 )
+                return
+            if parsed.path == "/api/collect/run":
+                source = payload.get("source", "")
+                fields = payload.get("fields", {})
+                _json_response(self, run_collect(source, fields, output_root=output_root))
                 return
             _json_response(self, {"error": "Unknown API path"}, status=HTTPStatus.NOT_FOUND)
 
