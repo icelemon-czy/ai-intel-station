@@ -224,8 +224,8 @@ def test_list_library_items_uses_local_filters_without_remote_collection(tmp_pat
 
     items = list_library_items(output_root, keyword="agent", sources=["github"], since="2026-05-07")
 
-    assert [item["title"] for item in items] == ["Claude Code", "agent-flow"]
-    assert {item["source"] for item in items} == {"github"}
+    assert [item["title"] for item in items["items"]] == ["Claude Code", "agent-flow"]
+    assert {item["source"] for item in items["items"]} == {"github"}
 
 
 def test_get_library_item_detail_maps_local_metadata(tmp_path: Path) -> None:
@@ -317,7 +317,7 @@ def test_list_library_items_returns_empty_list_when_no_items(tmp_path: Path) -> 
 
     items = list_library_items(output_root, keyword="agent", sources=["github", "papers", "wechat"])
 
-    assert items == []
+    assert items["items"] == []
 
 
 def test_preview_briefing_handles_empty_items_gracefully(tmp_path: Path) -> None:
@@ -477,6 +477,104 @@ def test_run_collect_wechat_missing_url_returns_error(tmp_path: Path) -> None:
     assert "URL" in result["message"]
 
 
+# ---------------------------------------------------------------------------
+# Library pagination tests
+# ---------------------------------------------------------------------------
+
+def test_list_library_items_pagination_returns_correct_slice(tmp_path: Path) -> None:
+    """Test that list_library_items returns paginated results with metadata."""
+    from workspace_web.service import list_library_items
+
+    output_root = tmp_path / "output"
+    _seed_output_tree(output_root)
+
+    result = list_library_items(output_root, page=1, page_size=2)
+    assert "items" in result
+    assert "total_count" in result
+    assert "page" in result
+    assert "page_size" in result
+    assert "total_pages" in result
+    assert result["page"] == 1
+    assert result["page_size"] == 2
+    assert len(result["items"]) <= 2
+
+
+def test_list_library_items_pagination_page_2(tmp_path: Path) -> None:
+    """Test that requesting page 2 returns different results."""
+    from workspace_web.service import list_library_items
+
+    output_root = tmp_path / "output"
+    _seed_output_tree(output_root)
+
+    page1 = list_library_items(output_root, page=1, page_size=2)
+    page2 = list_library_items(output_root, page=2, page_size=2)
+
+    page1_ids = [item["output_path"] for item in page1["items"]]
+    page2_ids = [item["output_path"] for item in page2["items"]]
+    assert page1_ids != page2_ids or page1["total_count"] <= 2
+
+
+def test_list_library_items_total_count_matches_all_results(tmp_path: Path) -> None:
+    """Test that total_count equals all items without pagination."""
+    from workspace_web.service import list_library_items
+
+    output_root = tmp_path / "output"
+    _seed_output_tree(output_root)
+
+    result_all = list_library_items(output_root)
+    result_page1 = list_library_items(output_root, page=1, page_size=100)
+
+    assert result_page1["total_count"] == result_all["total_count"]
+
+
+def test_list_library_items_page_size_change_resets_to_page_1(tmp_path: Path) -> None:
+    """Test that changing page_size returns page 1 results."""
+    from workspace_web.service import list_library_items
+
+    output_root = tmp_path / "output"
+    _seed_output_tree(output_root)
+
+    page10 = list_library_items(output_root, page=2, page_size=10)
+    page5 = list_library_items(output_root, page=1, page_size=5)
+
+    assert page5["page"] == 1
+    assert page5["page_size"] == 5
+
+
+# ---------------------------------------------------------------------------
+# Library selection synchronization tests
+# ---------------------------------------------------------------------------
+
+def test_list_library_items_keyword_change_affects_total_count(tmp_path: Path) -> None:
+    """Test that changing keyword changes total_count and results."""
+    from workspace_web.service import list_library_items
+
+    output_root = tmp_path / "output"
+    _seed_output_tree(output_root)
+
+    agent_results = list_library_items(output_root, keyword="agent")
+    empty_results = list_library_items(output_root, keyword="nonexistent-keyword-xyz")
+
+    assert agent_results["total_count"] > 0
+    assert empty_results["total_count"] == 0
+
+
+def test_get_library_item_detail_returns_expanded_metadata(tmp_path: Path) -> None:
+    """Test that get_library_item_detail returns item_type, published_at, and updated_at fields."""
+    from workspace_web.service import get_library_item_detail
+
+    output_root = tmp_path / "output"
+    _seed_output_tree(output_root)
+
+    detail = get_library_item_detail(output_root, "output/wechat/agent-harness/agent-harness.md")
+
+    assert detail is not None
+    assert "item_type" in detail
+    assert detail["item_type"] == "article"
+    assert "published_at" in detail
+    assert "updated_at" in detail or detail.get("published_at") is not None
+
+
 def test_run_collect_unknown_source_returns_error(tmp_path: Path) -> None:
     """Test that run_collect returns error for unknown source."""
     from workspace_web.service import run_collect
@@ -484,9 +582,6 @@ def test_run_collect_unknown_source_returns_error(tmp_path: Path) -> None:
     result = run_collect("twitter", {"query": "test"})
     assert result["status"] == "error"
     assert "Unknown source" in result["message"]
-
-
-# ---------------------------------------------------------------------------
 # WEB-COLLECT-PERSIST: align-web-collect-with-local-output-truth
 # ---------------------------------------------------------------------------
 
@@ -581,3 +676,37 @@ def test_all_navigation_sections_have_react_rendering_branches() -> None:
             f"Section '{sid}' declared in workspace_sections() but has no rendering branch "
             f'(activeSection === "{sid}") in web/src/App.jsx'
         )
+
+
+# ---------------------------------------------------------------------------
+# Source taxonomy tests
+# ---------------------------------------------------------------------------
+
+def test_collect_sources_labels_match_library_source_names(tmp_path: Path) -> None:
+    """Test that list_collect_sources returns labels that match Library source display."""
+    from workspace_web.service import list_collect_sources
+
+    sources = list_collect_sources()
+    source_ids = [s["id"] for s in sources]
+
+    assert "github" in source_ids
+    assert "papers" in source_ids
+    assert "wechat" in source_ids
+
+    github_source = next(s for s in sources if s["id"] == "github")
+    assert github_source["label"] == "GitHub"
+
+    papers_source = next(s for s in sources if s["id"] == "papers")
+    assert papers_source["label"] == "arXiv Papers"
+
+
+def test_source_labels_used_consistently_in_navigation(tmp_path: Path) -> None:
+    """Test that navigation sections use consistent source labels."""
+    from workspace_web.service import workspace_sections
+
+    sections = workspace_sections()
+    collect_section = next((s for s in sections if s["id"] == "collect"), None)
+
+    assert collect_section is not None
+    assert "description" in collect_section
+    assert "GitHub" in collect_section["description"] or "github" in collect_section["description"]

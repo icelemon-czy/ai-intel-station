@@ -71,12 +71,16 @@ def _create_handler(output_root: Path):
                 return
             if parsed.path == "/api/library":
                 sources = params.get("source") or None
+                page = int(params.get("page", [1])[0]) if params.get("page") else 1
+                page_size = int(params.get("page_size", [20])[0]) if params.get("page_size") else 20
                 payload = list_library_items(
                     output_root,
                     keyword=params.get("keyword", [None])[0],
                     sources=sources,
                     since=params.get("since", [None])[0],
                     until=params.get("until", [None])[0],
+                    page=page,
+                    page_size=page_size,
                 )
                 _json_response(self, payload)
                 return

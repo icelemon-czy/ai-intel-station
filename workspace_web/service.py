@@ -114,11 +114,25 @@ def list_library_items(
     sources: list[str] | None = None,
     since: str | None = None,
     until: str | None = None,
-) -> list[dict[str, object]]:
-    return [
+    page: int = 1,
+    page_size: int = 20,
+) -> dict[str, object]:
+    all_items = [
         _item_to_payload(item)
         for item in query_research_items(output_root, keyword=keyword, sources=sources, since=since, until=until)
     ]
+    total_count = len(all_items)
+    total_pages = max(1, (total_count + page_size - 1) // page_size)
+    page = max(1, min(page, total_pages))
+    start = (page - 1) * page_size
+    end = start + page_size
+    return {
+        "items": all_items[start:end],
+        "total_count": total_count,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+    }
 
 
 def get_library_item_detail(output_root: Path, output_path: str) -> dict[str, object] | None:
@@ -242,7 +256,7 @@ def get_collect_form(source: str) -> dict[str, object]:
 def run_collect(source: str, fields: dict[str, object], output_root: Path | None = None) -> dict[str, object]:
     """Run a collect operation for the given source with provided fields.
 
-    Returns a dict with 'status' (pending/success/error), 'message', and optional 'result'.
+    Returns a dict with 'status', 'message', 'item_count', and 'saved_paths'.
     """
     root = Path(output_root) if output_root is not None else _DEFAULT_OUTPUT_ROOT
 
@@ -254,13 +268,13 @@ def run_collect(source: str, fields: dict[str, object], output_root: Path | None
         search_mode = bool(fields.get("search", False))
         owner_repo = query.split("/")
         if search_mode:
-            repos = github_collect.run_gh(["search", "repos", query, "--limit", str(max_results)])
-            return {"status": "success", "message": f"GitHub search for '{query}' completed", "result": repos}
+            github_collect.run_gh(["search", "repos", query, "--limit", str(max_results)])
+            return {"status": "success", "message": f"GitHub search for '{query}' completed", "item_count": 0, "saved_paths": []}
         elif len(owner_repo) == 2:
             github_collect.save_repo(owner_repo[0], owner_repo[1], root / "github")
-            return {"status": "success", "message": f"Collected GitHub repo: {query}"}
+            return {"status": "success", "message": f"Collected GitHub repo: {query}", "item_count": 1, "saved_paths": [f"output/github/{owner_repo[0]}-{owner_repo[1]}"]}
         else:
-            return {"status": "error", "message": f"Invalid GitHub query format: {query}. Use 'owner/repo' or enable search mode."}
+            return {"status": "error", "message": f"Invalid GitHub query format: {query}. Use 'owner/repo' or enable search mode.", "item_count": 0, "saved_paths": []}
     if source == "papers":
         import collect.papers as papers_collect
 
@@ -268,13 +282,13 @@ def run_collect(source: str, fields: dict[str, object], output_root: Path | None
         max_results = int(fields.get("max", 10))
         papers = papers_collect.fetch_papers_by_category([category], max_results=max_results)
         papers_collect.save_papers(papers, category, root / "papers")
-        return {"status": "success", "message": f"Collected {len(papers)} papers from {category}", "saved_count": len(papers)}
+        return {"status": "success", "message": f"Collected {len(papers)} papers from {category}", "item_count": len(papers), "saved_paths": [f"output/papers/{category}"]}
     if source == "wechat":
         import collect.wechat as wechat_collect
 
         url = fields.get("url", "")
         if not url:
-            return {"status": "error", "message": "WeChat collection requires a URL"}
+            return {"status": "error", "message": "WeChat collection requires a URL", "item_count": 0, "saved_paths": []}
         asyncio.run(wechat_collect.fetch_article(url, output_dir=root / "wechat"))
-        return {"status": "success", "message": f"Collected WeChat article: {url}"}
-    return {"status": "error", "message": f"Unknown source: {source}"}
+        return {"status": "success", "message": f"Collected WeChat article: {url}", "item_count": 1, "saved_paths": ["output/wechat/"]}
+    return {"status": "error", "message": f"Unknown source: {source}", "item_count": 0, "saved_paths": []}

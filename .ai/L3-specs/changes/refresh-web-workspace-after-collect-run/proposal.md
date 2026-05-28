@@ -1,6 +1,6 @@
 # refresh-web-workspace-after-collect-run
 
-> **状态**: drafting
+> **状态**: pending-review
 > **创建**: 2026-05-27
 > **父变更** (parent-change): standardize-web-collect-result-summaries
 > **嵌套深度** (depth): 0  <!-- 不得 ≥ 2，防止 /fix-bug 递归 -->

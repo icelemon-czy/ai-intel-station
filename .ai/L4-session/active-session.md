@@ -5,12 +5,22 @@
 
 ## 最后更新
 
-- **时间**: 2026-05-27
-- **对话主题**: 实现 2 个 collect 闭环提案（output_root 修复 + UI 回归覆盖）
+- **时间**: 2026-05-29
+- **对话主题**: 分析 Web Library / Collect 新反馈，并拆成新的 draft change proposals
 
 ## 当前工作焦点
 
-**已完成本轮 TDD 循环，等待 /review-tests**
+**当前在做**: 将最新的 5 个 Web 反馈拆成独立变更，供后续逐个 `/new-change` 确认
+
+- `.ai/L3-specs/changes/add-library-result-pagination-and-position-cues/` — `drafting`
+- `.ai/L3-specs/changes/expand-library-item-detail-with-inline-preview-and-local-open/` — `drafting`
+- `.ai/L3-specs/changes/align-web-source-labels-between-library-and-collect/` — `drafting`
+
+说明：
+- 用户反馈“看不出当前正在看哪个 result”已命中现有 `.ai/L3-specs/changes/add-library-selection-state-and-active-styling/`，本轮不重复建单
+- 用户质疑“web 里没用 React”经代码核对后不成立；这是认知澄清，不单独立项
+
+**已完成上一轮 TDD 循环，等待 /review-tests**
 
 - `.ai/L3-specs/changes/align-web-collect-with-local-output-truth/` — `pending-review` ✅
 - `.ai/L3-specs/changes/add-collect-workspace-ui-regression-coverage/` — `pending-review` ✅
@@ -37,6 +47,8 @@
 
 ## 已完成（本轮）
 
+- [x] 分析 5 条新反馈与当前实现的映射关系，确认：分页缺失、详情过薄、来源标签漂移是新的独立需求；结果选中态已有 existing change；React 技术栈已存在
+- [x] 新增 3 个 draft proposal：`add-library-result-pagination-and-position-cues`、`expand-library-item-detail-with-inline-preview-and-local-open`、`align-web-source-labels-between-library-and-collect`
 - [x] 选定 2 个最有价值的 collect 闭环提案进入 TDD 循环：`align-web-collect-with-local-output-truth` + `add-collect-workspace-ui-regression-coverage`
 - [x] 为两个提案创建 delta spec（`specs/*/spec.md`）和 `tasks.md`
 - [x] 更新 `tests/test_web_workspace.py`：

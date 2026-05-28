@@ -124,10 +124,14 @@ function LibrarySection() {
   const [items, setItems] = useState([]);
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   const sourceSummary = useMemo(() => form.sources.join(", "), [form.sources]);
 
-  async function runSearch(event) {
+  async function runSearch(event, newPage = 1) {
     event?.preventDefault();
     setLoading(true);
     const params = new URLSearchParams();
@@ -135,17 +139,34 @@ function LibrarySection() {
     if (form.since) params.set("since", form.since);
     if (form.until) params.set("until", form.until);
     form.sources.forEach((source) => params.append("source", source));
+    params.set("page", String(newPage));
+    params.set("page_size", String(pageSize));
     const payload = await requestJson(`/api/library?${params.toString()}`);
     startTransition(() => {
-      setItems(payload);
-      setDetail(payload[0] || null);
+      setItems(payload.items || []);
+      setTotalCount(payload.total_count || 0);
+      setTotalPages(payload.total_pages || 1);
+      setPage(payload.page || newPage);
+      setDetail(payload.items?.[0] || null);
       setLoading(false);
     });
   }
 
   useEffect(() => {
-    runSearch();
+    runSearch(null, 1);
   }, []);
+
+  function handlePageSizeChange(event) {
+    const newSize = parseInt(event.target.value, 10);
+    setPageSize(newSize);
+    setPage(1);
+    runSearch(null, 1);
+  }
+
+  function goToPage(newPage) {
+    if (newPage < 1 || newPage > totalPages) return;
+    runSearch(null, newPage);
+  }
 
   async function selectItem(outputPath) {
     const payload = await requestJson(`/api/library/item?output_path=${encodeURIComponent(outputPath)}`);
@@ -160,6 +181,9 @@ function LibrarySection() {
       return { ...current, sources: nextSources };
     });
   }
+
+  const currentStart = (page - 1) * pageSize + 1;
+  const currentEnd = Math.min(page * pageSize, totalCount);
 
   return (
     <section className="library-layout">
@@ -200,10 +224,21 @@ function LibrarySection() {
       <div className="panel result-panel">
         <p className="eyebrow">Results</p>
         {loading ? <p>Refreshing results…</p> : null}
+
+        <div className="pagination-info">
+          <span>第 {page} 页 / 共 {totalPages} 页</span>
+          <span>当前第 {currentStart} 条 / 共 {totalCount} 条</span>
+          <select value={pageSize} onChange={handlePageSizeChange}>
+            <option value="10">10 条/页</option>
+            <option value="20">20 条/页</option>
+            <option value="50">50 条/页</option>
+          </select>
+        </div>
+
         <ul className="result-list">
           {items.map((item) => (
             <li key={`${item.output_path}-${item.title}`}>
-              <button type="button" className="result-card" onClick={() => selectItem(item.output_path)}>
+              <button type="button" className={`result-card ${detail?.output_path === item.output_path ? "active" : ""}`} onClick={() => selectItem(item.output_path)}>
                 <span className="result-meta">{item.source}</span>
                 <strong>{item.title}</strong>
                 <p>{item.summary || "No summary"}</p>
@@ -211,6 +246,23 @@ function LibrarySection() {
             </li>
           ))}
         </ul>
+
+        <div className="pagination-controls">
+          <button type="button" onClick={() => goToPage(page - 1)} disabled={page <= 1}>上一页</button>
+          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            let pageNum = i + 1;
+            if (totalPages > 5) {
+              if (page > 3) pageNum = page - 2 + i;
+              if (page > totalPages - 2) pageNum = totalPages - 4 + i;
+            }
+            return (
+              <button key={pageNum} type="button" className={page === pageNum ? "active" : ""} onClick={() => goToPage(pageNum)}>
+                {pageNum}
+              </button>
+            );
+          })}
+          <button type="button" onClick={() => goToPage(page + 1)} disabled={page >= totalPages}>下一页</button>
+        </div>
       </div>
 
       <div className="panel detail-panel">
@@ -225,8 +277,16 @@ function LibrarySection() {
                 <dd>{detail.source}</dd>
               </div>
               <div>
+                <dt>Type</dt>
+                <dd>{detail.item_type || "unknown"}</dd>
+              </div>
+              <div>
                 <dt>Authors</dt>
                 <dd>{detail.authors?.join(", ") || "n/a"}</dd>
+              </div>
+              <div>
+                <dt>Published</dt>
+                <dd>{detail.published_at || detail.updated_at || "n/a"}</dd>
               </div>
               <div>
                 <dt>Tags</dt>
@@ -237,7 +297,10 @@ function LibrarySection() {
                 <dd>{detail.output_path}</dd>
               </div>
             </dl>
-            <a href={detail.canonical_url} target="_blank" rel="noreferrer">Open source link</a>
+            <div className="detail-actions">
+              <a href={detail.canonical_url} target="_blank" rel="noreferrer">Open source link</a>
+              <button type="button" onClick={() => window.open(`file://${detail.output_path}`)}>View Markdown</button>
+            </div>
           </>
         ) : (
           <p>Select a result to inspect the local metadata.</p>
@@ -452,8 +515,19 @@ function CollectSection() {
         <div className="panel collect-result-panel">
           <p className="eyebrow">Run status</p>
           {errorMessage ? <p className="status-banner error">{errorMessage}</p> : null}
-          {result ? <p className={`status-banner ${result.status || "pending"}`}>{result.message}</p> : null}
-          {!errorMessage && !result ? <p>Run a source-specific collection to inspect the current payload and result summary.</p> : null}
+          {result?.status === "success" ? (
+            <>
+              <p className={`status-banner ${result.status}`}>{result.message}</p>
+              <button type="button" className="cta-button" onClick={() => setActiveSection("library")}>
+                Go to Library to view collected items
+              </button>
+            </>
+          ) : (
+            <>
+              {result ? <p className={`status-banner ${result.status || "pending"}`}>{result.message}</p> : null}
+              {!errorMessage && !result ? <p>Run a source-specific collection to inspect the current payload and result summary.</p> : null}
+            </>
+          )}
           {loading ? <p>Collecting with the local runtime…</p> : null}
           {result?.result ? <pre className="json-preview">{JSON.stringify(result.result, null, 2)}</pre> : null}
         </div>
