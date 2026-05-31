@@ -48,10 +48,10 @@ The first-phase React Web workspace SHALL let the operator configure a briefing 
 
 ### Requirement: MVP Navigation Stays Within Phase-One Scope
 
-The first-phase React Web workspace SHALL limit the primary operator surface to Dashboard, Library, and Briefing Workspace.
+The first-phase React Web workspace SHALL limit the primary operator surface to Dashboard, Library, Briefing Workspace, and Collect Workspace.
 
 #### Scenario: Open the phase-one web navigation
 
 - **WHEN** the operator opens the first-phase local web workspace
-- **THEN** the primary navigation exposes Dashboard, Library, and Briefing Workspace
-- **AND** it does not expose collect or backfill execution controls in the MVP surface
+- **THEN** the primary navigation exposes Dashboard, Library, Briefing Workspace, and Collect Workspace
+- **AND** it does not expose backfill execution controls in the MVP surface
