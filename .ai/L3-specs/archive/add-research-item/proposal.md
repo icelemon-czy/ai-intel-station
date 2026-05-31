@@ -1,6 +1,6 @@
 # add-research-item
 
-> **状态**: pending-review
+> **状态**: approved
 > **创建**: 2026-05-10
 > **父变更** (parent-change): 无
 > **嵌套深度** (depth): 0  <!-- 不得 ≥ 2，防止 /fix-bug 递归 -->
