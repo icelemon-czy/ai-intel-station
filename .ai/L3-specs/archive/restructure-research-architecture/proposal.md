@@ -1,6 +1,6 @@
 # restructure-research-architecture
 
-> **状态**: pending-review
+> **状态**: approved
 > **创建**: 2026-05-10
 > **父变更** (parent-change): add-research-item
 > **嵌套深度** (depth): 1  <!-- 不得 ≥ 2，防止 /fix-bug 递归 -->
