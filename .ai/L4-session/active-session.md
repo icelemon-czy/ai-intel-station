@@ -5,12 +5,39 @@
 
 ## 最后更新
 
-- **时间**: 2026-05-29
-- **对话主题**: 分析 Web Library / Collect 新反馈，并拆成新的 draft change proposals
+- **时间**: 2026-06-04
+- **对话主题**: `/review-tests fix-backend-relative-output-root-resolution` 重审（fix-bug 补测后）→ ✅ Pass → `pending-review` → `approved`
 
 ## 当前工作焦点
 
-**当前在做**: 将最新的 5 个 Web 反馈拆成独立变更，供后续逐个 `/new-change` 确认
+**当前在做**: 持续推进 pending-review 队列的 review-tests。最新已通过：
+
+- `fix-backend-relative-output-root-resolution` → `approved`（2026-06-04，3/3 Scenario 全覆盖 + subprocess 真实调用 + 反向推理全过）
+
+- `.ai/L3-specs/changes/redesign-library-search-inspection-layout/` — `drafting`
+- `.ai/L3-specs/changes/add-library-safe-markdown-preview/` — `drafting`
+- `.ai/L3-specs/changes/replace-library-file-url-with-safe-local-actions/` — `drafting`
+
+说明：
+- 本轮只创建 proposal，不改运行时代码。
+- 拆分边界：布局信息架构 / 安全 Markdown 内联预览 / 替代 `file://` 的本地文件动作。
+- 当前需等待用户确认 proposal 及业务问题；确认后再自动执行 delta spec → tests → implementation。
+
+历史 Web 描述性文案 proposal 仍在队列中：
+
+- `.ai/L3-specs/changes/clarify-web-workspace-page-purpose-copy/` — `drafting`
+- `.ai/L3-specs/changes/add-first-run-empty-state-guidance/` — `drafting`
+- `.ai/L3-specs/changes/clarify-library-local-search-scope/` — `drafting`
+- `.ai/L3-specs/changes/clarify-briefing-generation-flow/` — `drafting`
+- `.ai/L3-specs/changes/add-collect-source-purpose-cards/` — `drafting`
+- `.ai/L3-specs/changes/standardize-collect-run-result-explanations/` — `drafting`
+
+说明：
+- 本轮按用户要求“一个接一个”处理 brainstorm 的前端描述性需求。
+- 当前已创建 6 个 draft proposal：页面目的说明、首次使用空状态、Library 本地搜索边界、Briefing 生成流程、Collect 来源用途卡片、Collect 运行结果解释。
+- 按 `new-change` 纪律，proposal 阶段需要等待用户确认；确认后自动进入规格化和 TDD 实现。
+
+历史待处理 Web proposal 线索：
 
 - `.ai/L3-specs/changes/add-library-result-pagination-and-position-cues/` — `drafting`
 - `.ai/L3-specs/changes/expand-library-item-detail-with-inline-preview-and-local-open/` — `drafting`
@@ -43,7 +70,7 @@
 - `.ai/L3-specs/changes/add-research-item/` — `pending-review`
 - `.ai/L3-specs/archive/add-research-operator-surface/` — `archived` ✅
 
-**下一步**: 执行 `/review-tests align-web-collect-with-local-output-truth` 或 `/review-tests add-collect-workspace-ui-regression-coverage`
+**下一步**: 等待用户选择并确认 Library UI 三个 proposal 中的一个或一组，并回答业务问题；确认后执行对应 `/new-change` 后续流程。建议顺序：`redesign-library-search-inspection-layout` → `add-library-safe-markdown-preview` → `replace-library-file-url-with-safe-local-actions`。
 
 ## 已完成（本轮）
 

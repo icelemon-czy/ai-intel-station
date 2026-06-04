@@ -8,12 +8,18 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .service import (
+    briefing_action_purposes,
+    briefing_flow_notes,
+    briefing_mode_purposes,
     build_dashboard_overview,
     get_collect_form,
     get_library_item_detail,
     list_collect_sources,
     list_library_items,
+    page_purpose_cards,
     preview_briefing,
+    PreviewError,
+    read_item_markdown,
     run_collect,
     save_briefing,
     workspace_sections,
@@ -92,8 +98,42 @@ def _create_handler(output_root: Path):
                     return
                 _json_response(self, payload)
                 return
+            if parsed.path == "/api/library/preview":
+                # Serve the raw Markdown file for an item sidecar. Output is
+                # text/markdown (not JSON) so the frontend can display it
+                # verbatim without re-parsing JSON quoting.
+                output_path = unquote(params.get("output_path", [""])[0])
+                try:
+                    body, content_type = read_item_markdown(output_root, output_path)
+                except PreviewError as exc:
+                    _json_response(self, {"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+                    return
+                except FileNotFoundError as exc:
+                    _json_response(self, {"error": str(exc)}, status=HTTPStatus.NOT_FOUND)
+                    return
+                content = body.encode("utf-8")
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(content)))
+                # No CORS / no cache — same-origin fetch from the workspace UI.
+                self.end_headers()
+                self.wfile.write(content)
+                return
             if parsed.path == "/api/collect/sources":
                 _json_response(self, list_collect_sources())
+                return
+            if parsed.path == "/api/briefing/metadata":
+                _json_response(
+                    self,
+                    {
+                        "flow_notes": briefing_flow_notes(),
+                        "mode_purposes": briefing_mode_purposes(),
+                        "action_purposes": briefing_action_purposes(),
+                    },
+                )
+                return
+            if parsed.path == "/api/page-purposes":
+                _json_response(self, page_purpose_cards())
                 return
             if parsed.path.startswith("/api/collect/form/"):
                 source = parsed.path.split("/")[-1]
@@ -168,9 +208,19 @@ def _create_handler(output_root: Path):
 
 
 def serve_workspace(output_root: Path, host: str = "127.0.0.1", port: int = 4173) -> None:
-    server = ThreadingHTTPServer((host, port), _create_handler(Path(output_root)))
+    # Resolve `output_root` to an absolute path. If the caller passes a
+    # relative path, the resolved value depends on the server's cwd at
+    # launch time, which is easy to get wrong (e.g. `python -c ...` started
+    # from `web/` would resolve `output` as `web/output`).
+    #
+    # We anchor relative paths to the project root (the parent of the
+    # `workspace_web/` package directory) so the same script works from
+    # any cwd. Absolute paths are passed through unchanged.
+    project_root = Path(__file__).resolve().parents[1]
+    absolute_root = (project_root / output_root).resolve() if not Path(output_root).is_absolute() else Path(output_root).resolve()
+    server = ThreadingHTTPServer((host, port), _create_handler(absolute_root))
     print(f"Serving AI Intel Station web workspace on http://{host}:{port}")
-    print(f"Using output root: {Path(output_root)}")
+    print(f"Using output root: {absolute_root}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
