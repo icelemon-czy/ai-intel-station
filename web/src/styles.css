@@ -33,7 +33,23 @@ select {
 .app-shell {
   max-width: 1320px;
   margin: 0 auto;
-  padding: 32px 20px 56px;
+  /* Right safe-area is 100px (was 80px) to give the main content
+     enough breathing room from the body background's bottom-right
+     orange gradient circle.  The gradient is
+     `radial-gradient(circle at bottom right, rgba(181, 84, 45, 0.14),
+     transparent 28%)` — visible up to ~28% of viewport width from
+     the right edge.  100px guarantees the content's right edge
+     always lands in the body's neutral (no gradient) zone on a
+     typical 1320px app-shell centered in a 1920px viewport.  Left
+     padding stays at 20px to keep the headline typography
+     left-anchored (matches the editorial "report" feel). */
+  padding: 32px 100px 56px 20px;
+}
+
+@media (max-width: 1024px) {
+  .app-shell {
+    padding: 32px 20px 56px;
+  }
 }
 
 .topbar {
@@ -340,32 +356,68 @@ select {
 
 .dashboard-grid {
   grid-template-columns: repeat(12, minmax(0, 1fr));
+  /* Explicit row gap so card rows do not collapse into the page purpose
+     section. */
+  row-gap: 18px;
 }
 
-.hero-card,
-.metric-card,
-.wide {
-  min-height: 180px;
+/* ── Dashboard top stack (full-width rows) ────────────────────────────────
+   The error banner, page-purpose card, and empty-state guidance each
+   occupy their own full-width row so they never share a column with the
+   hero card.  This is what fixes the "hero card floats over the page
+   purpose text" overlap. */
+.dashboard-grid > .poll-error-banner,
+.dashboard-grid > .page-purpose-card,
+.dashboard-grid > .empty-state-panel {
+  grid-column: 1 / -1;
+  align-self: start;
 }
 
+/* ── Hero card (LOCAL ARCHIVE) ─────────────────────────────────────────── */
 .hero-card {
-  grid-column: span 7;
-  background: linear-gradient(160deg, rgba(15, 118, 110, 0.92), rgba(18, 72, 76, 0.92));
+  grid-column: span 8;
+  align-self: start;
+  /* `min-height: 0` lets the card shrink to its content; the old
+     `min-height: 180px` forced an 180px row even when the headline was
+     short, which on narrow columns made it overflow the parent. */
+  min-height: 0;
+  background: linear-gradient(160deg, rgba(15, 118, 110, 0.88), rgba(17, 96, 89, 0.92));
   color: #ecfffb;
-  border-radius: 30px;
-  padding: 28px;
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: var(--shadow);
 }
 
 .hero-card .eyebrow {
-  color: rgba(236, 255, 251, 0.68);
+  color: rgba(236, 255, 251, 0.72);
 }
 
+/* ── Metric cards (Source coverage / Coverage gaps / Recent briefings /
+   Orphan markdown) ─────────────────────────────────────────────────────
+   These are real cards now, not bare divs.  The original CSS only set
+   `grid-column`, which is why the hero card visually dominated — the
+   other cards had no background, no border, no padding. */
 .metric-card {
-  grid-column: span 5;
+  grid-column: span 4;
+  align-self: start;
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
 }
 
 .metric-card.wide {
-  grid-column: span 6;
+  /* 4/12 to keep the 3-up row math (4 + 4 + 4 = 12).  The old `span 6`
+     only worked with a 2-up row that no longer matches the dashboard
+     top-stack. */
+  grid-column: span 4;
 }
 
 .source-list {
@@ -395,6 +447,15 @@ select {
 
 .source-switch {
   padding: 10px 16px;
+  /* Bump the default border to a higher-alpha rgba so the unselected
+     state is visibly outlined against the panel background.  The
+     shared `.tabbar button, ...` rule above uses `var(--line)`
+     (alpha 0.12) which fails WCAG 1.4.11 Non-text Contrast on the
+     cream paper background.  The `.source-switch.active` rule below
+     overrides background + color; the border-color override here
+     applies only to the unselected state. */
+  border-color: rgba(21, 34, 36, 0.32);
+  color: var(--ink);
 }
 
 .library-layout {
@@ -405,6 +466,25 @@ select {
   grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
 }
 
+/* The page-purpose card is rendered in the SAME 320–360px column as the
+   control-panel.  In a 320px column the `minmax(220px, 1fr)` of
+   `.page-purpose-grid` would overflow, and the card's 18px margin-bottom
+   stacks on top of the briefing-layout's 18px grid gap.  Drop the
+   margin (grid gap already spaces it) and let the sub-grid shrink. */
+.briefing-layout > .page-purpose-card {
+  margin-bottom: 0;
+  padding: 14px 16px;
+}
+
+.briefing-layout > .page-purpose-card .page-purpose-grid,
+.collect-layout > .page-purpose-card .page-purpose-grid {
+  /* The auto-fit `minmax(220px, 1fr)` collapses weirdly inside 320–420px
+     columns; force a single column so Reads / Produces stack vertically
+     with predictable spacing. */
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
 .collect-layout {
   grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
 }
@@ -412,6 +492,42 @@ select {
 .collect-sidecar {
   display: grid;
   gap: 18px;
+  /* Inner safe area so the panel border + drop shadow never touch the
+     right viewport edge even if `.app-shell`'s right padding is
+     reduced on narrow viewports. */
+  padding-right: 0;
+}
+
+/* ── Collect: compact first-run guidance ────────────────────────────────
+   The "FIRST RUN" empty-state panel stacks inside the collect form
+   before the actual inputs and Run-now button.  On a 1024×768 viewport
+   that pushes the submit button below the fold.  Compress the panel
+   inside `.collect-layout` so the form fits the initial viewport, and
+   expose a `<details> > <summary>` hook so a future JSX change can
+   collapse the guidance by default. */
+.collect-layout .empty-state-panel {
+  padding: 10px 12px;
+  gap: 6px;
+}
+
+.collect-layout .empty-state-panel p,
+.collect-layout .empty-state-panel li {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.collect-layout .empty-state-panel details > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: rgba(21, 34, 36, 0.72);
+  padding: 2px 0;
+}
+
+.collect-layout .empty-state-panel details > summary::-webkit-details-marker {
+  display: none;
 }
 
 .search-panel,
@@ -419,6 +535,26 @@ select {
   display: grid;
   gap: 14px;
   align-content: start;
+}
+
+/* Briefing-specific density tuning: the form lives in a narrow left
+   column (320–360px), so default 14px gutters leave too much vertical
+   whitespace and push "Preview / Save" below the fold. */
+.briefing-layout .control-panel {
+  gap: 10px;
+  /* Reserve a bottom safe-area so the sticky action row (which floats
+     16px above the viewport bottom and is ~74px tall) never covers
+     the form's last fields (Title input + SOURCES toggles).  100px =
+     16px (bar bottom offset) + 74px (bar content) + 10px breathing
+     room.  Without this, when the form's vertical content exceeds the
+     viewport height, the last form fields scroll under the sticky bar
+     and become un-clickable. */
+  padding-bottom: 100px;
+}
+
+.briefing-layout .control-panel label,
+.briefing-layout .control-panel .briefing-flow-note {
+  gap: 6px;
 }
 
 .collect-panel,
@@ -473,6 +609,11 @@ select {
   gap: 8px;
   padding: 16px 20px;
   margin-bottom: 18px;
+  /* Explicit base color so child `<dt>` / `<dd>` inherit a high-contrast
+     value.  Without this declaration, `var(--ink)` from the body is
+     inherited — which IS high contrast, but relying on inheritance is
+     brittle if a future style sets the card to a different color. */
+  color: var(--ink);
   background: linear-gradient(135deg, var(--accent-soft), rgba(15, 118, 110, 0.04));
   border: 1px solid var(--line);
   border-left: 4px solid var(--accent);
@@ -509,14 +650,25 @@ select {
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  /* Full-alpha `var(--ink)` is intentionally used here (NOT
+     `color: var(--ink); opacity: 0.7`).  The previous `opacity: 0.7`
+     multiplied with the green-gradient background, making the 11px
+     uppercase "READS" / "PRODUCES" labels nearly invisible on a
+     light-green card — on most screens the labels appeared blank.
+     Opaque ink gives the best contrast on the gradient while still
+     reading as secondary text. */
   color: var(--ink);
-  opacity: 0.7;
 }
 
 .page-purpose-grid dd {
   margin: 0;
   font-size: 13px;
   line-height: 1.4;
+  /* Explicit `color:` so dd never falls back to inheritance from
+     `.page-purpose-card` — that coupling was brittle and would have
+     silently hidden the dd text if a future style ever changed the
+     card's color. */
+  color: var(--ink);
 }
 
 .briefing-flow-note {
@@ -609,10 +761,30 @@ select {
 input,
 select {
   width: 100%;
-  border-radius: 14px;
+  /* 10px is the visual midpoint between a fully-rounded pill (14–20px)
+     and a sharp card edge (4–6px).  Pairs cleanly with the panel's
+     24–28px border-radius without stealing the panel's identity. */
+  border-radius: 10px;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.68);
-  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 10px 12px;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Replace the native browser <select> chrome with a custom chevron.
+   The native chevron varies wildly between Safari/Chrome/Firefox and
+   hugs the right edge, which is the "Mode dropdown looks native" bug. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, rgba(21, 34, 36, 0.55) 50%),
+    linear-gradient(135deg, rgba(21, 34, 36, 0.55) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 32px;
 }
 
 .date-row,
@@ -620,6 +792,37 @@ select {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Briefing's Preview / Save actions are the page's two primary calls to
+   action.  Pin them to the bottom of the viewport so the user never has
+   to scroll past the form / flow-note to reach them.  The frosted glass
+   pill keeps the buttons readable over scrolling content. */
+.briefing-layout .action-row {
+  position: sticky;
+  bottom: 16px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  grid-template-columns: none;
+  margin: 8px -22px -22px;
+  padding: 14px 22px;
+  background: rgba(255, 252, 245, 0.86);
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 28px 28px;
+  box-shadow: 0 16px 40px rgba(21, 34, 36, 0.18);
+  backdrop-filter: blur(18px);
+}
+
+/* On narrow viewports the right safe-area is reduced — pull the sticky
+   bar back to the panel edge in that case. */
+@media (max-width: 1024px) {
+  .briefing-layout .action-row {
+    margin: 8px 0 0;
+    border-radius: 18px;
+    border: 1px solid var(--line);
+  }
 }
 
 .plain-list,
@@ -728,10 +931,19 @@ pre {
     grid-template-columns: 1fr;
   }
 
-  .hero-card,
-  .metric-card,
-  .metric-card.wide {
-    grid-column: span 1;
+  .dashboard-grid > .hero-card,
+  .dashboard-grid > .metric-card,
+  .dashboard-grid > .metric-card.wide {
+    grid-column: 1 / -1;
+  }
+
+  /* Inner safe area for collect panels on narrow viewports — the
+     `.app-shell` right padding drops to 20px on mobile, so without
+     this the collect panels' right border would touch the viewport
+     edge once `.collect-sidecar` is stacked below `.collect-panel`. */
+  .collect-sidecar,
+  .collect-panel {
+    padding-right: 0;
   }
 }
 
