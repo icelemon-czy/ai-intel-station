@@ -1,18 +1,9 @@
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAutoRefresh } from "./autoRefresh.react.js";
+import { requestJson } from "./api.js";
+import DailyDiscoveryCard from "./DailyDiscoveryCard.jsx";
 
 const SOURCE_OPTIONS = ["github", "papers", "wechat"];
-
-async function requestJson(path, options) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
-  }
-  return response.json();
-}
 
 function buildCollectFieldDefaults(fields) {
   return Object.fromEntries(
@@ -226,6 +217,8 @@ function DashboardSection({ section, autoRefreshEnabled }) {
         <p>Dashboard, Library, and Briefing all read from the same local sidecar truth.</p>
       </div>
 
+      <DailyDiscoveryCard />
+
       <div className="metric-card">
         <p className="eyebrow">Source coverage</p>
         <div className="source-list">
@@ -238,47 +231,50 @@ function DashboardSection({ section, autoRefreshEnabled }) {
         </div>
       </div>
 
-      <div className="metric-card">
-        <p className="eyebrow">Coverage gaps</p>
-        {overview.missing_sources.length ? (
+      {overview.missing_sources.length ? (
+        <details className="metric-card">
+          <summary>
+            <span className="eyebrow">Coverage gaps</span>
+            <span className="muted"> — {overview.missing_sources.length} source(s) requested but empty</span>
+          </summary>
           <ul className="plain-list">
             {overview.missing_sources.map((source) => (
               <li key={source}>{source}</li>
             ))}
           </ul>
-        ) : (
-          <p>No missing sources in the current local archive.</p>
-        )}
-      </div>
+        </details>
+      ) : null}
 
-      <div className="metric-card wide">
-        <p className="eyebrow">Recent briefings</p>
-        {overview.recent_briefings.length ? (
+      {overview.recent_briefings.length ? (
+        <div className="metric-card wide">
+          <p className="eyebrow">Recent briefings</p>
           <ul className="plain-list">
             {overview.recent_briefings.map((entry) => (
               <li key={entry.path}>
                 <strong>{entry.title}</strong>
-                <span>{entry.path}</span>
+                <span className="muted">{entry.path}</span>
               </li>
             ))}
           </ul>
-        ) : (
-          <p>No briefing artifacts yet.</p>
-        )}
-      </div>
+        </div>
+      ) : null}
 
-      <div className="metric-card wide">
-        <p className="eyebrow">Orphan markdown</p>
-        {overview.orphan_markdown_paths.length ? (
+      {overview.orphan_markdown_paths.length ? (
+        <details className="metric-card wide">
+          <summary>
+            <span className="eyebrow">Orphan markdown</span>
+            <span className="muted"> — {overview.orphan_markdown_paths.length} file(s) without a sidecar</span>
+          </summary>
+          <p className="muted">
+            Run <code>uv run research backfill output</code> to generate sidecars from these files.
+          </p>
           <ul className="plain-list compact">
             {overview.orphan_markdown_paths.map((path) => (
               <li key={path}>{path}</li>
             ))}
           </ul>
-        ) : (
-          <p>No orphan markdown files detected.</p>
-        )}
-      </div>
+        </details>
+      ) : null}
     </section>
   );
 }
@@ -413,9 +409,13 @@ function LibrarySection({
           <p className="supporting">{searchNotes.filter}</p>
         </details>
         <form className="library-filter-form" onSubmit={runSearch}>
-          <label className="library-filter-keyword">
+          <label className="library-filter-keyword" aria-label="Search keyword">
             <span className="field-label">keyword</span>
-            <input value={form.keyword} onChange={(event) => setForm((current) => ({ ...current, keyword: event.target.value }))} />
+            <input
+              value={form.keyword}
+              onChange={(event) => setForm((current) => ({ ...current, keyword: event.target.value }))}
+              placeholder="e.g. agent harness, claude code, arxiv"
+            />
           </label>
           <div className="library-filter-sources">
             <span className="field-label">sources</span>
@@ -439,17 +439,40 @@ function LibrarySection({
             </label>
           </div>
           <button type="submit" className="library-filter-search">Search</button>
+          {form.keyword || form.since || form.until || form.sources.length ? (
+            <button
+              type="button"
+              className="library-filter-clear"
+              onClick={() => {
+                setForm({ keyword: "", sources: [], since: "", until: "" });
+                setPage(1);
+              }}
+            >
+              Clear filters
+            </button>
+          ) : null}
           <p className="library-filter-count">
-            current {currentStart}–{currentEnd} of {totalCount} · sources: {sourceSummary || "none"}
+            {totalCount === 0 ? (
+              "No results match your filters."
+            ) : (
+              <>Showing {currentStart}–{currentEnd} of {totalCount} · sources: {sourceSummary || "none"}</>
+            )}
           </p>
         </form>
       </header>
 
       <div className="library-workspace-grid">
         <div className="panel result-panel">
-          <p className="eyebrow">Results</p>
-          <p className="supporting">{searchNotes.result_source}</p>
-          {loading ? <p>Refreshing results…</p> : null}
+          <div className="result-panel-header">
+            <p className="eyebrow">Results</p>
+            <p className="supporting">{searchNotes.result_source}</p>
+          </div>
+          {loading ? (
+            <div className="loading-indicator" role="status" aria-live="polite">
+              <span className="spinner" aria-hidden="true" />
+              <span>Loading…</span>
+            </div>
+          ) : null}
 
           {!loading && items.length === 0 && emptyState ? (
             <div className="empty-state-panel" role="status">
@@ -476,22 +499,24 @@ function LibrarySection({
             ))}
           </ul>
 
-          <div className="pagination-controls">
-            <button type="button" onClick={() => goToPage(page - 1)} disabled={page <= 1}>上一页</button>
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum = i + 1;
-              if (totalPages > 5) {
-                if (page > 3) pageNum = page - 2 + i;
-                if (page > totalPages - 2) pageNum = totalPages - 4 + i;
-              }
-              return (
-                <button key={pageNum} type="button" className={page === pageNum ? "active" : ""} onClick={() => goToPage(pageNum)}>
-                  {pageNum}
-                </button>
-              );
-            })}
-            <button type="button" onClick={() => goToPage(page + 1)} disabled={page >= totalPages}>下一页</button>
-          </div>
+          {totalPages > 1 ? (
+            <div className="pagination-controls">
+              <button type="button" onClick={() => goToPage(page - 1)} disabled={page <= 1}>‹ Previous</button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum = i + 1;
+                if (totalPages > 5) {
+                  if (page > 3) pageNum = page - 2 + i;
+                  if (page > totalPages - 2) pageNum = totalPages - 4 + i;
+                }
+                return (
+                  <button key={pageNum} type="button" className={page === pageNum ? "active" : ""} onClick={() => goToPage(pageNum)}>
+                    {pageNum}
+                  </button>
+                );
+              })}
+              <button type="button" onClick={() => goToPage(page + 1)} disabled={page >= totalPages}>Next ›</button>
+            </div>
+          ) : null}
 
           <div className="pagination-info">
             <span>page size</span>
@@ -775,22 +800,6 @@ function CollectSection({ section, autoRefreshEnabled }) {
         <h2>{formDefinition?.label || activeSource}</h2>
         <p className="supporting">{formDefinition?.description || "Choose a source and run a manual collection."}</p>
 
-        {!result ? (
-          <div className="empty-state-panel" role="status">
-            <p className="eyebrow">First run</p>
-            <p className="empty-state-explanation">
-              Pick a source, fill the inputs above, then press <strong>Run now</strong>. Collected items will
-              land in <code>output/&lt;source&gt;/</code> and become searchable from the Library.
-            </p>
-            <ul className="plain-list">
-              <li>Use GitHub for a single repo or a search query.</li>
-              <li>Use arXiv Papers for category-based paper pulls.</li>
-              <li>Use WeChat for a single public-account article URL.</li>
-            </ul>
-            <p className="empty-state-key" hidden>empty_state</p>
-          </div>
-        ) : null}
-
         <div>
           <span className="field-label">Source</span>
           <div className="source-list">
@@ -807,10 +816,21 @@ function CollectSection({ section, autoRefreshEnabled }) {
           </div>
         </div>
 
+        {/* Dependency hint shown prominently so users see prerequisites
+            BEFORE clicking Run — not after a 500 error. */}
+        {formDefinition?.dependency_hint ? (
+          <div className="dependency-banner" role="note">
+            <strong>Prerequisite:</strong>{" "}
+            <span className="muted">{formDefinition.dependency_hint}</span>
+          </div>
+        ) : null}
+
         {formDefinition ? (
-          <aside className="purpose-card" aria-label={`${formDefinition.label} purpose`}>
-            <p className="eyebrow">What this source is for</p>
-            <p className="purpose-statement">{formDefinition.purpose}</p>
+          <details className="purpose-card" aria-label={`${formDefinition.label} purpose`}>
+            <summary>
+              <span className="eyebrow">What this source is for</span>
+              <span className="muted"> — {formDefinition.purpose}</span>
+            </summary>
             <dl className="purpose-grid">
               <div>
                 <dt>Required input</dt>
@@ -822,10 +842,10 @@ function CollectSection({ section, autoRefreshEnabled }) {
               </div>
               <div>
                 <dt>Dependency hint</dt>
-                <dd>{formDefinition.dependency_hint}</dd>
+                <dd>{formDefinition.dependency_hint || "none"}</dd>
               </div>
             </dl>
-          </aside>
+          </details>
         ) : null}
 
         {formDefinition?.fields?.map((field) => {
@@ -866,7 +886,20 @@ function CollectSection({ section, autoRefreshEnabled }) {
           </div>
         </div>
 
-        <p className="supporting">Scheduled collection, refresh policies, and job history are separate follow-up surfaces and are not rendered in this page yet.</p>
+        {!result ? (
+          <details className="collect-first-run-hint">
+            <summary>Tips for first-time users</summary>
+            <p className="empty-state-explanation">
+              Pick a source above, fill the inputs, then press <strong>Run now</strong>. Collected items land in
+              <code>output/&lt;source&gt;/</code> and become searchable from the Library.
+            </p>
+            <ul className="plain-list compact-list">
+              <li>GitHub — one repo or a search keyword.</li>
+              <li>arXiv Papers — one or more categories.</li>
+              <li>WeChat — a single public-account article URL.</li>
+            </ul>
+          </details>
+        ) : null}
       </form>
 
       <div className="collect-sidecar">

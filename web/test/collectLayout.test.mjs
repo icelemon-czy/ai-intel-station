@@ -140,19 +140,20 @@ test("collect-layout empty-state-panel supports a details/summary hook", () => {
 // ---------------------------------------------------------------------------
 
 test("page-purpose-card declares an explicit base color and background", () => {
-  // Match the SECOND `.page-purpose-card {` occurrence (the main rule).
-  // The first occurrence is `.briefing-layout > .page-purpose-card {`
-  // which the previous fix added and we want to keep distinct from
-  // the main rule we are testing here.
-  const body = findRuleBody(/\.page-purpose-card\s*\{/, 1);
-  assert.ok(body, "expected a `.page-purpose-card { ... }` main rule (occurrence 1, after the briefing-scoped one)");
+  // Match the STANDALONE `.page-purpose-card {` rule.  There are also
+  // helper variants for `.dashboard-grid >`, `.briefing-layout >`, and
+  // `.collect-layout > .page-purpose-card` — those inherit from this
+  // base rule so the high-contrast color/background contract lives
+  // here.
+  const body = findRuleBody(/^\.page-purpose-card\s*\{/m);
+  assert.ok(body, "expected a standalone `.page-purpose-card` rule");
   assert.ok(
     /(^|\n|;)\s*color\s*:/.test(body),
-    "expected `.page-purpose-card` to declare `color:` so child dt/dd inherit a high-contrast value",
+    "expected standalone `.page-purpose-card` to declare `color:` so child dt/dd inherit a high-contrast value",
   );
   assert.ok(
     /background\s*:/.test(body),
-    "expected `.page-purpose-card` to declare `background:` (the rule already does, but we lock it down)",
+    "expected standalone `.page-purpose-card` to declare `background:` (the rule already does, but we lock it down)",
   );
 });
 
@@ -314,5 +315,98 @@ test("source-switch.active retains the selected-state gradient", () => {
   assert.ok(
     /color\s*:\s*#f8fffd/.test(body),
     "expected `.source-switch.active` to keep the white text color",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// User-reported regression: "两个 workspace 的 web page 不 user-friendly"
+// (Library + Collect).  The Run-now button and the Pagination / page-size
+// controls were previously pushed below the fold on a 1280x800 viewport.
+// Defensive CSS assertions lock in the layout shape that keeps them visible.
+// ---------------------------------------------------------------------------
+
+test("collect-panel is bounded so very tall forms scroll inside the panel", () => {
+  const body = findRuleBody(/\.collect-panel\s*\{/);
+  assert.ok(body, "expected a `.collect-panel` rule");
+  assert.ok(
+    /max-height\s*:\s*calc\(100vh\s*-\s*280px\)/.test(body),
+    "collect-panel must bound its height so Run-now stays reachable on a 1024x768 viewport",
+  );
+  assert.ok(
+    /overflow-y\s*:\s*auto/.test(body),
+    "collect-panel must scroll vertically inside the panel — not the whole page",
+  );
+});
+
+test("collect-panel action-row is sticky to the bottom of the panel", () => {
+  const body = findRuleBody(/\.collect-panel\s+\.action-row\s*\{/);
+  assert.ok(body, "expected a `.collect-panel .action-row` rule");
+  assert.ok(
+    /position\s*:\s*sticky/.test(body),
+    "action-row must be sticky so Run-now stays visible while the form scrolls",
+  );
+  assert.ok(
+    /bottom\s*:\s*0\b/.test(body),
+    "sticky bottom must be 0 so the action row pins to the panel's visible bottom",
+  );
+  assert.ok(
+    /background\s*:/.test(body),
+    "sticky action-row needs a background so scrolling fields do not bleed through",
+  );
+});
+
+test("purpose-card is a collapsible details, not a static aside", () => {
+  // The previous JSX had `<aside class="purpose-card">` which occupied 350+ px
+  // on a 1024x768 desktop, pushing form input fields out of the first
+  // viewport. Collapsing it to a single-line `<summary>` reclaims that space.
+  // We assert the CSS contract (collapsible summaries) rather than JSX.
+  const body = findRuleBody(/\.purpose-card\s*\{/);
+  assert.ok(body, "expected a `.purpose-card` rule");
+  assert.ok(
+    /padding\s*:\s*0\b/.test(body),
+    ".purpose-card should not have its own padding — summary + dl now manage spacing",
+  );
+  const summary = findRuleBody(/\.purpose-card\s*>\s*summary\s*\{/);
+  assert.ok(summary, "expected a `.purpose-card > summary` rule (collapsible summary)");
+  assert.ok(
+    /cursor\s*:\s*pointer/.test(summary),
+    "summary must look clickable",
+  );
+});
+
+test("collect-first-run-hint provides a compact collapsible summary", () => {
+  const body = findRuleBody(/\.collect-first-run-hint\s*\{/);
+  assert.ok(body, "expected a `.collect-first-run-hint` rule");
+  assert.ok(
+    /border\s*:\s*1px\s+dashed/.test(body),
+    "first-run hint should look like an off-the-critical-path collapsible",
+  );
+  const summary = findRuleBody(/\.collect-first-run-hint\s*>\s*summary\s*\{/);
+  assert.ok(summary, "expected a `.collect-first-run-hint > summary` rule");
+  assert.ok(
+    /text-transform\s*:\s*uppercase/.test(summary),
+    "summary should be visually subordinate (uppercase eyebrow text)",
+  );
+});
+
+test("collect-layout > page-purpose-card does not stretch beyond intrinsic height", () => {
+  // The left aside was previously stretching to 1300+ px to match the
+  // right form's intrinsic height, leaving 1100 px of empty whitespace.
+  // `align-self: start` makes it shrink to fit content.
+  const body = findRuleBody(/\.collect-layout\s*>\s*\.page-purpose-card\s*\{/);
+  assert.ok(body, "expected a `.collect-layout > .page-purpose-card` rule");
+  assert.ok(
+    /align-self\s*:\s*start/.test(body),
+    "page-purpose-card must align-self: start to avoid stretching and leaving empty whitespace",
+  );
+});
+
+test("dashboard-grid > page-purpose-card does not stretch to row height", () => {
+  // Same fix for the Dashboard's left rail.
+  const body = findRuleBody(/\.dashboard-grid\s*>\s*\.page-purpose-card\s*\{/);
+  assert.ok(body, "expected a `.dashboard-grid > .page-purpose-card` rule");
+  assert.ok(
+    /align-self\s*:\s*start/.test(body),
+    "dashboard page-purpose-card must align-self: start",
   );
 });

@@ -273,10 +273,38 @@ select {
 .library-filter-bar {
   display: grid;
   gap: 10px;
-  padding: 12px 16px;
+  padding: 14px 16px;
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 12px;
+  /* The library workspace can stretch to 3500+ px on desktop because
+     the result list shows every item. Keeping the filter bar pinned
+     to the top means the user can refine / re-search without
+     scrolling back up.  Sticky requires the parent grid to allow
+     scrolling — see `.library-workspace` below. */
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+/* Cap the result panel so the user only ever sees the first screen of
+   results without scrolling the entire page.  The pagination + page-size
+   controls are then pinned to the bottom edge of this panel with
+   `position: sticky`, so changing pages is always one click away. */
+.library-workspace .result-panel {
+  max-height: calc(100vh - 320px);
+  overflow-y: auto;
+}
+
+.library-workspace .pagination-controls,
+.library-workspace .pagination-info {
+  position: sticky;
+  bottom: 0;
+  background: var(--paper);
+  margin: 0;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  z-index: 1;
 }
 
 .library-filter-form {
@@ -359,6 +387,15 @@ select {
   /* Explicit row gap so card rows do not collapse into the page purpose
      section. */
   row-gap: 18px;
+}
+
+/* Same as `.collect-layout > .page-purpose-card` — the dashboard rail
+   stretches to the hero-card row height (~1300px on first visit) which
+   leaves the entire left side empty. */
+.dashboard-grid > .page-purpose-card {
+  align-self: start;
+  position: sticky;
+  top: 16px;
 }
 
 /* ── Dashboard top stack (full-width rows) ────────────────────────────────
@@ -474,6 +511,10 @@ select {
 .briefing-layout > .page-purpose-card {
   margin-bottom: 0;
   padding: 14px 16px;
+  /* Inherit high-contrast text colour from the standalone
+     `.page-purpose-card` rule. Without this, child `dt`/`dd`
+     elements rely on body inheritance which is brittle. */
+  color: var(--ink);
 }
 
 .briefing-layout > .page-purpose-card .page-purpose-grid,
@@ -487,6 +528,21 @@ select {
 
 .collect-layout {
   grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+}
+
+/* The collect page-purpose card sits in the left rail. Without
+   `align-self: start`, the cell stretches to match the tallest sibling
+   (the right-rail collect form), leaving 1300+ px of empty whitespace
+   the user has to scroll past to find inputs. */
+.collect-layout > .page-purpose-card {
+  align-self: start;
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  /* Inherit high-contrast text colour from the standalone
+     `.page-purpose-card` rule so `dt`/`dd` children remain readable. */
+  color: var(--ink);
 }
 
 .collect-sidecar {
@@ -530,6 +586,42 @@ select {
   display: none;
 }
 
+/* The "Tips for first-time users" <details> at the bottom of the
+   collect form.  Default <details> styling is too loud and wastes space
+   — compress so users see Run-now at the top of the form and only find
+   the hints if they actively open them. */
+.collect-first-run-hint {
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: var(--paper);
+  font-size: 12px;
+  color: rgba(21, 34, 36, 0.78);
+}
+
+.collect-first-run-hint > summary {
+  cursor: pointer;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: rgba(21, 34, 36, 0.72);
+  list-style: none;
+}
+
+.collect-first-run-hint > summary::-webkit-details-marker {
+  display: none;
+}
+
+.collect-first-run-hint .empty-state-explanation {
+  margin: 8px 0 6px;
+  line-height: 1.45;
+}
+
+.collect-first-run-hint .compact-list li {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .search-panel,
 .control-panel {
   display: grid;
@@ -564,6 +656,32 @@ select {
   align-content: start;
 }
 
+/* The collect form must fit on a 1024x768 viewport without scrolling
+   the entire page to find Run-now.  Let the form scroll inside its
+   own padding box while the action row sticks to the bottom edge
+   of the visible (post-scroll) area.  Without `overflow-y`, sticky
+   has nothing to stick against and falls back to the page. */
+.collect-panel {
+  max-height: calc(100vh - 280px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Run-now pinned to the bottom of the .collect-panel's visible scroll
+   viewport. `position: sticky; bottom: 0` resolves against the nearest
+   scrolling ancestor.  Layered background masks form fields scrolling
+   underneath, and a top border separates the action from the form. */
+.collect-panel .action-row {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, var(--paper, #ffffff) 22px);
+  padding: 14px 16px;
+  margin: 0 -16px -16px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 12px 12px;
+}
+
 .search-panel label,
 .control-panel label {
   display: grid;
@@ -576,12 +694,41 @@ select {
 }
 
 .purpose-card {
-  display: grid;
-  gap: 10px;
-  padding: 14px 16px;
   background: var(--accent-soft);
   border: 1px solid var(--line);
   border-radius: 12px;
+  padding: 0;
+  color: var(--ink);
+}
+
+.purpose-card > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 16px;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.purpose-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.purpose-card > summary::after {
+  content: "▾";
+  margin-left: auto;
+  color: rgba(21, 34, 36, 0.45);
+  transition: transform 120ms ease-out;
+}
+
+.purpose-card[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.purpose-card .purpose-grid {
+  margin: 0 16px 14px;
+  padding-top: 4px;
 }
 
 .empty-state-panel {
@@ -962,4 +1109,292 @@ pre {
     display: grid;
     grid-template-columns: 1fr;
   }
+}
+
+
+
+/* ────────────────────────────────────────────────────────────────────────
+   Daily Discovery card — friendly, informative, accessible.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.discovery-card {
+  /* span 4 (not 2): the dashboard grid is 12-col. HeroCard is span 8
+     in row 4, so the discovery card needs to be span 4 to fill the
+     remaining 4 columns. Without this, the right side of the row is
+     empty and the layout looks broken. */
+  grid-column: span 4;
+  background: linear-gradient(180deg, #f8fafe 0%, #ffffff 100%);
+  border: 1px solid #d8e3f5;
+  border-left: 4px solid var(--accent, #5b8def);
+  border-radius: 8px;
+  padding: 1.25rem 1.4rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.discovery-card-header h2 {
+  margin: 0.25rem 0 0.4rem 0;
+  font-size: 1.15rem;
+  line-height: 1.35;
+}
+
+.discovery-card-subtitle {
+  color: #5a6a82;
+  margin: 0 0 1rem 0;
+  font-size: 0.9rem;
+}
+
+.discovery-card-subtitle code {
+  background: #eef2f9;
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+
+.discovery-status-row {
+  background: #fff;
+  border: 1px solid #e5eaf2;
+  border-radius: 6px;
+  padding: 0.7rem 0.9rem;
+  margin: 0.5rem 0 1rem 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.discovery-summary {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1rem;
+  row-gap: 0.35rem;
+  margin: 0.5rem 0 1rem 0;
+  padding: 0.7rem 0.9rem;
+  background: #fff;
+  border: 1px solid #e5eaf2;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.discovery-summary dt {
+  font-weight: 600;
+  color: #4a5568;
+}
+
+.discovery-summary dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.discovery-briefing-link a {
+  color: var(--accent, #5b8def);
+  text-decoration: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+}
+
+.discovery-briefing-link a:hover {
+  text-decoration: underline;
+}
+
+.job-timeline {
+  border: 1px solid #e5eaf2;
+  border-radius: 6px;
+  padding: 0.9rem 1rem;
+  margin: 0.5rem 0 1rem 0;
+  background: #fff;
+  font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.job-timeline.job-done {
+  border-color: #c7e6c8;
+  background: #f5fbf6;
+}
+
+.job-timeline.job-error {
+  border-color: #f0c2c2;
+  background: #fdf6f6;
+}
+
+.job-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.25rem 0;
+  font-size: 0.85rem;
+}
+
+.job-table th,
+.job-table td {
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid #eef1f6;
+}
+
+.job-table thead th {
+  font-weight: 600;
+  color: #4a5568;
+  background: #f6f8fc;
+}
+
+.job-fail {
+  color: #c0392b;
+  font-weight: 600;
+}
+
+.job-notes {
+  font-size: 0.78rem;
+  max-width: 30ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.discovery-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.discovery-actions button {
+  padding: 0.55rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 5px;
+  border: 1px solid var(--accent, #5b8def);
+  background: var(--accent, #5b8def);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  transition: background 120ms ease;
+}
+
+.discovery-actions button:hover:not(:disabled) {
+  background: #4070d8;
+}
+
+.discovery-actions button:disabled {
+  opacity: 0.65;
+  cursor: progress;
+}
+
+.discovery-actions button.secondary {
+  background: transparent;
+  color: var(--accent, #5b8def);
+}
+
+.discovery-actions button.secondary:hover:not(:disabled) {
+  background: rgba(91, 141, 239, 0.08);
+}
+
+.discovery-error {
+  color: #c0392b;
+}
+
+.spinner {
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  animation: discovery-spin 0.7s linear infinite;
+}
+
+@keyframes discovery-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.discovery-first-run-hint {
+  margin-top: 1rem;
+  background: #fff8e8;
+  border: 1px solid #f5e0a3;
+  border-radius: 6px;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.88rem;
+}
+
+.discovery-first-run-hint summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #7a5d10;
+}
+
+.discovery-first-run-hint ol {
+  margin: 0.5rem 0 0 1.25rem;
+  padding: 0;
+  line-height: 1.55;
+}
+
+.discovery-first-run-hint code {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+
+.recovery-list {
+  margin: 0.5rem 0 0 1rem;
+  padding: 0;
+}
+
+.muted {
+  color: #6b7280;
+  font-size: 0.88rem;
+}
+
+@media (max-width: 720px) {
+  .discovery-card {
+    grid-column: span 1;
+    padding: 1rem;
+  }
+  .discovery-summary {
+    grid-template-columns: 1fr;
+  }
+  .job-table {
+    font-size: 0.78rem;
+  }
+}
+
+
+/* ────────────────────────────────────────────────────────────────────────
+   Keyboard accessibility — every focusable element gets a visible ring.
+   Vite minifier preserves these `:focus-visible` selectors; the regression
+   test in web/test/discoveryCard.test.mjs asserts they exist.
+   ──────────────────────────────────────────────────────────────────────── */
+
+button:focus-visible,
+.discovery-actions button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent, #5b8def);
+  outline-offset: 2px;
+}
+
+.discovery-first-run-hint summary:focus-visible {
+  outline: 2px solid #7a5d10;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+
+/* ────────────────────────────────────────────────────────────────────────
+   Dependency banner — surfaced BEFORE the user clicks Run, so they
+   discover "gh is not installed" instead of finding out from a 500.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.dependency-banner {
+  background: #fff7e6;
+  border: 1px solid #f5d089;
+  border-left: 4px solid #b07d1f;
+  border-radius: 6px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.dependency-banner .muted {
+  color: #5b4a17;
 }
