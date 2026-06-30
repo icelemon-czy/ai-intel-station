@@ -1,0 +1,39 @@
+# AI Intel Station — daily discovery configuration
+# Copy this file to `config/discovery.yaml` and edit to taste.
+# `discovery.yaml` is git-ignored; this template is the source of truth.
+
+output_root: output                  # relative to repo root; defaults to ./output
+log_dir: .ai/L4-session/discovery    # per-run log files live here
+
+sources:
+  github:
+    enabled: true
+    repos:                            # explicit owner/repo to refresh each run
+      - anthropics/claude-code
+    search:                          # keyword searches via `gh search repos`
+      - query: "agent harness"
+        limit: 10
+      - query: "llm evaluation framework"
+        limit: 5
+
+  papers:
+    enabled: true
+    categories: [cs.AI, cs.LG, cs.CL] # see collect/papers.py AI_CATEGORIES
+    max_per_category: 10
+
+  wechat:
+    enabled: false                   # OFF by default — WeChat fetch is slow and can be rate-limited
+    urls: []                         # paste mp.weixin.qq.com URLs here when enabled
+
+briefing:
+  enabled: true
+  mode: reading-list                 # or 'digest'
+  keyword: daily                     # becomes output/briefing/{reading-lists,digests}/<keyword>-<date>.md
+  sources: [github, papers, wechat]
+  since_days: 1                      # only items published within the last N days
+
+limits:
+  max_github_search_calls: 5
+  max_paper_categories: 5
+  skip_if_already_collected_hours: 20
+  max_log_files: 30                 # keep at most 30 log files; 0 = unlimited

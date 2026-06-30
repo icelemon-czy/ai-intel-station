@@ -1467,7 +1467,17 @@ def test_npm_test_in_web_runs_node_test_suite() -> None:
     asserts exit code 0. It catches accidental breakage of `npm test`
     (e.g. wrong test glob, missing dep, broken SSR import) without
     having to re-run every test individually.
+
+    Per Scenario 6 of the delta spec, the suite MUST report pass/fail counts
+    (not a specific number). We parse the `ℹ pass N` / `ℹ fail N` lines that
+    `node --test` always emits and assert:
+    - pass > 0 (the suite actually ran something)
+    - fail == 0 (no test regressed)
+    - skipped == 0 (no test was silently skipped)
+    This avoids the brittleness of hard-coding the test count (which grows
+    whenever a sibling change adds a new test).
     """
+    import re
     import subprocess
 
     project_root = Path(__file__).resolve().parents[1]
@@ -1480,9 +1490,31 @@ def test_npm_test_in_web_runs_node_test_suite() -> None:
     assert proc.returncode == 0, (
         f"`npm test --prefix web` must exit 0. STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
     )
-    # The suite must include BOTH the controller tests and the new SSR tests.
-    assert "pass 24" in proc.stdout or "pass 25" in proc.stdout or "pass 26" in proc.stdout, (
-        f"npm test must report ~24+ Node tests passing. Got STDOUT tail:\n{proc.stdout[-500:]}"
+
+    # Extract the structured pass/fail/skipped counts that `node --test` emits.
+    def _extract(label: str) -> int | None:
+        m = re.search(rf"ℹ {label} (\d+)", proc.stdout)
+        return int(m.group(1)) if m else None
+
+    pass_count = _extract("pass")
+    fail_count = _extract("fail")
+    skip_count = _extract("skipped")
+
+    assert pass_count is not None, (
+        "npm test output must report a `ℹ pass N` count line; spec Scenario 6 "
+        f"requires pass/fail counts. Got STDOUT tail:\n{proc.stdout[-500:]}"
+    )
+    assert pass_count > 0, (
+        f"npm test reported `pass {pass_count}`; suite must run at least one test. "
+        f"Got STDOUT tail:\n{proc.stdout[-500:]}"
+    )
+    assert fail_count == 0, (
+        f"npm test reported `fail {fail_count}`; spec Scenario 6 requires the "
+        f"suite to be all-green. Got STDOUT tail:\n{proc.stdout[-500:]}"
+    )
+    assert skip_count == 0, (
+        f"npm test reported `skipped {skip_count}`; silently skipping tests "
+        f"defeats the purpose of a wiring test. Got STDOUT tail:\n{proc.stdout[-500:]}"
     )
 
 
@@ -1992,22 +2024,41 @@ def test_library_page_purpose_and_scope_are_demoted() -> None:
 
 
 def test_library_detail_metadata_order() -> None:
-    """Scenario 4: detail panel order: title, summary, source, type, authors, dates, tags, path, actions."""
+    """Scenario 4: detail panel order: title, summary, source, type, authors, dates, tags, path, actions.
+
+    Spec Scenario 4 is explicit: when a result is selected, the detail panel
+    must show the metadata labels in the order Source → Type → Authors →
+    Published → Tags → Archive path. The original test used a brittle
+    `<div className="detail-panel">…` literal that no longer matched the
+    current JSX (`<div className="panel detail-panel">` — i.e. two classes),
+    so it silently `pytest.skip`-ed, which is a "false pass" — the assertion
+    never actually ran. This version matches the detail-panel <div> by class
+    list (not exact className string), then verifies both label presence and
+    the required order. If the regex ever fails to find the panel, the test
+    now FAILS LOUDLY with a clear message instead of silently skipping.
+    """
     import re
     app_jsx = (Path(__file__).resolve().parents[1] / "web" / "src" / "App.jsx").read_text(encoding="utf-8")
-    # Find the detail-panel body (between <div className="detail-panel"> and the closing </div>)
-    m = re.search(r'<div className="detail-panel"[\s\S]+?</dl>', app_jsx)
-    if not m:
-        # The detail panel may have been restructured; bail with skip.
-        pytest.skip("detail-panel not found in App.jsx — structure changed")
+    # Find the detail-panel body. Match by class list rather than the exact
+    # `className="detail-panel"` literal, so the test tolerates sibling
+    # classes like `panel` being added later.
+    m = re.search(r'<div[^>]*className="[^"]*\bdetail-panel\b[^"]*"[^>]*>[\s\S]+?</dl>', app_jsx)
+    assert m, (
+        "Could not locate a `<div ... className=\"...detail-panel...\">` block "
+        "in App.jsx that contains a `<dl>` of metadata. Scenario 4 requires "
+        "the detail panel to render a `<dl>` with Source/Type/Authors/"
+        "Published/Tags/Archive path in that order. If the JSX has been "
+        "refactored, fix this test to match the new structure — do not "
+        "silently skip."
+    )
     body = m.group(0)
-    # Required order: title (h2) BEFORE summary (p) BEFORE source/type/authors
-    # We just look for relative positions of the key labels.
+    # Required order: Source / Type / Authors / Published / Tags / Archive path
+    # We assert presence first, then positional order.
     pos = {}
     for label in ("Source", "Type", "Authors", "Published", "Tags", "Archive path"):
         pos[label] = body.find(label)
-    assert all(p != -1 for p in pos.values()), f"All metadata labels must be present: {pos}"
-    # Source / Type / Authors / Published / Tags / Archive path in that order
+    missing = [k for k, v in pos.items() if v == -1]
+    assert not missing, f"Missing required metadata labels in detail panel: {missing}; got {pos}"
     expected_order = ["Source", "Type", "Authors", "Published", "Tags", "Archive path"]
     indices = [pos[k] for k in expected_order]
     assert indices == sorted(indices), (
