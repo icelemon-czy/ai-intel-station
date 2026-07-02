@@ -30,6 +30,75 @@ def _grouped_items(items: list[ResearchItem]) -> dict[str, list[ResearchItem]]:
     return dict(grouped)
 
 
+def _local_link(item: ResearchItem) -> str | None:
+    """Return a relative path from a briefing markdown to the local markdown
+    archive entry for ``item``, or ``None`` when no archive exists.
+
+    The briefing markdown lives at ``<output_root>/briefing/<section>/<title>.md``
+    and the archive lives at ``<output_root>/<source>/...``. The local link is
+    therefore ``../../<archive_rel_path>`` where ``archive_rel_path`` is the
+    item's ``output_path`` relative to REPO_ROOT, stripped of its leading
+    ``output/`` segment.
+
+    Falls back to an absolute ``file://`` URL when the path cannot be made
+    relative — never returns a broken relative link.
+    """
+    if not item.output_path:
+        return None
+    from library.items import REPO_ROOT
+
+    raw = Path(item.output_path)
+    if not raw.is_absolute():
+        raw = REPO_ROOT / raw
+    try:
+        rel_to_repo = raw.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        # Output path is outside REPO_ROOT (test env, custom layout). We still
+        # surface a usable link via file:// so the user can click through.
+        return raw.as_uri()
+
+    # Strip the leading "output/" segment so the link re-anchors from the
+    # briefing location (which is at <repo>/output/briefing/...).
+    if rel_to_repo.startswith("output/"):
+        archive = rel_to_repo[len("output/"):]
+    elif rel_to_repo.startswith("./output/"):
+        archive = rel_to_repo[len("./output/"):]
+    else:
+        # Already lives outside output/ — leave as-is.
+        archive = rel_to_repo
+    return f"../../{archive}"
+
+
+def _format_item(item: ResearchItem, *, checked: bool) -> list[str]:
+    """Render a single ResearchItem as a list of markdown lines.
+
+    Always shows the external link first; if the item has a local markdown
+    archive, appends a separate "(open local)" link on the same bullet so
+    Obsidian users can open the in-vault copy directly.
+    """
+    title = item.title
+    external = item.canonical_url or ""
+    marker = "[ ]" if checked else ""
+
+    local = _local_link(item)
+    if local:
+        # Two links on one bullet line; Obsidian renders both.
+        title_with_links = f"[{title}]({external}) · [open local]({local})"
+    else:
+        title_with_links = f"[{title}]({external})"
+
+    lines = [f"- {marker} {title_with_links}"]
+    if item.summary:
+        lines.append(f"  - {item.summary}")
+    if item.authors:
+        # Surface up to 3 authors; longer lists fall back to the first + count.
+        authors = ", ".join(item.authors[:3])
+        if len(item.authors) > 3:
+            authors += f" … (+{len(item.authors) - 3} more)"
+        lines.append(f"  - _{authors}_")
+    return lines
+
+
 def build_digest_markdown(title: str, items: list[ResearchItem], requested_sources: list[str] | None = None) -> str:
     lines = [f"# Digest: {title}", "", "> Source: local research library", ""]
     lines.extend(_coverage_note(items, requested_sources))
@@ -37,9 +106,7 @@ def build_digest_markdown(title: str, items: list[ResearchItem], requested_sourc
     for source, grouped_items in _grouped_items(items).items():
         lines.extend([f"## {source}", ""])
         for item in grouped_items:
-            lines.append(f"- [{item.title}]({item.canonical_url or ''})")
-            if item.summary:
-                lines.append(f"  - {item.summary}")
+            lines.extend(_format_item(item, checked=False))
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
@@ -52,9 +119,7 @@ def build_reading_list_markdown(title: str, items: list[ResearchItem], requested
     for source, grouped_items in _grouped_items(items).items():
         lines.extend([f"## {source}", ""])
         for item in grouped_items:
-            lines.append(f"- [ ] [{item.title}]({item.canonical_url or ''})")
-            if item.summary:
-                lines.append(f"  - {item.summary}")
+            lines.extend(_format_item(item, checked=True))
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"

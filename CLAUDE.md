@@ -69,6 +69,18 @@ uv run research briefing digest agent --source github --source papers
 uv run research backfill output
 ```
 
+### 每日自动探索（可选）
+
+```bash
+uv run research init-config                # 写入 config/discovery.yaml（来自 example 模板）
+uv run research discover --dry-run         # 不联网，预览会跑什么
+uv run research discover --source papers   # 仅跑一个 source
+uv run research schedule launchd           # 打印 macOS launchd 安装命令
+uv run research schedule cron              # 打印 crontab 片段
+```
+
+详见 [docs/daily-discovery.md](docs/daily-discovery.md)。
+
 ## Tech Stack
 
 - Python 3.10+ with `uv` for dependency management

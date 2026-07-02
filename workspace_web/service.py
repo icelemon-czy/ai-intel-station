@@ -238,9 +238,34 @@ def list_library_items(
     return result
 
 
+def _normalize_lookup_path(path: str) -> str:
+    """Match how callers ask vs how ``ResearchItem.output_path`` is stored.
+
+    Items loaded from sidecars carry paths like ``output/github/foo/README.md``
+    (the ``output/`` prefix is what gets baked in by ``_normalize_output_path``
+    when items live inside REPO_ROOT) but in tests / sandboxed environments
+    the path stays absolute. Callers — the front-end, the CLI — usually pass
+    paths *without* the prefix, e.g. ``github/foo/README.md``. This helper
+    bridges the two by computing the *suffix* (last two path parts) so a
+    single lookup works regardless of where output lives.
+    """
+    parts = Path(path).parts
+    if len(parts) >= 2:
+        return "/".join(parts[-2:])
+    return path
+
+
+def _item_path_suffix(item) -> str:
+    parts = Path(item.output_path or "").parts
+    if len(parts) >= 2:
+        return "/".join(parts[-2:])
+    return item.output_path or ""
+
+
 def get_library_item_detail(output_root: Path, output_path: str) -> dict[str, object] | None:
+    target_suffix = _normalize_lookup_path(output_path)
     for item in load_research_items(output_root):
-        if item.output_path == output_path:
+        if _item_path_suffix(item) == target_suffix:
             return _item_to_payload(item)
     return None
 
@@ -408,99 +433,129 @@ def _format_collect_result(
     }
 
 
+def _collect_error(source: str, exc: Exception) -> dict:
+    """Wrap an arbitrary collect-side exception into the standardized
+    `_format_collect_result` shape so the front-end renders a real error
+    banner instead of a 500 + Python traceback."""
+    return _format_collect_result(
+        source=source,
+        status="error",
+        message=f"{source} collect failed: {exc}",
+        summary=f"{source} collect raised an exception: {type(exc).__name__}: {exc}",
+        next_step="Check your network, the input fields, and any required CLI tools (gh, camoufox). "
+                  "Then retry.",
+        item_count=0,
+        saved_paths=[],
+        extra_details={"exception": type(exc).__name__, "message": str(exc)},
+    )
+
+
 def run_collect(source: str, fields: dict[str, object], output_root: Path | None = None) -> dict[str, object]:
     """Run a collect operation for the given source with provided fields.
 
     Returns a dict with 'status', 'message', 'item_count', 'saved_paths',
     and the standardized 'summary' / 'next_step' / 'details' fields.
+
+    Every per-source branch is wrapped in try/except so a network failure
+    or CLI tool error becomes a structured error result the UI can render,
+    rather than a 500 + Python traceback.
     """
     root = Path(output_root) if output_root is not None else _DEFAULT_OUTPUT_ROOT
 
     if source == "github":
         import collect.github as github_collect
 
-        query = fields.get("query", "")
-        max_results = int(fields.get("max", 10))
-        search_mode = bool(fields.get("search", False))
-        owner_repo = query.split("/")
-        if search_mode:
-            github_collect.run_gh(["search", "repos", query, "--limit", str(max_results)])
-            return _format_collect_result(
-                source="github",
-                status="success",
-                message=f"GitHub search for '{query}' completed",
-                summary=f"GitHub search for '{query}' finished. Up to {max_results} repos were considered.",
-                next_step="Open the Library page to browse the new repos once they are persisted.",
-                item_count=0,
-                saved_paths=[],
-                extra_details={"query": query, "max_results": max_results, "search_mode": True},
-            )
-        elif len(owner_repo) == 2:
-            owner, repo = owner_repo
-            github_collect.save_repo(owner, repo, root / "github")
-            return _format_collect_result(
-                source="github",
-                status="success",
-                message=f"Collected GitHub repo: {query}",
-                summary=f"Saved GitHub repository {owner}/{repo} to output/github/.",
-                next_step="Open the Library page to inspect the saved repo Markdown and sidecar.",
-                item_count=1,
-                saved_paths=[f"output/github/{owner}-{repo}"],
-                extra_details={"owner": owner, "repo": repo},
-            )
-        else:
-            return _format_collect_result(
-                source="github",
-                status="error",
-                message=f"Invalid GitHub query format: {query}. Use 'owner/repo' or enable search mode.",
-                summary=f"GitHub query '{query}' is not in 'owner/repo' format and search mode is off.",
-                next_step="Switch the source to GitHub, then either enter 'owner/repo' or enable Search Mode with a keyword.",
-                item_count=0,
-                saved_paths=[],
-                extra_details={"query": query, "search_mode": search_mode},
-            )
+        try:
+            query = fields.get("query", "")
+            max_results = int(fields.get("max", 10))
+            search_mode = bool(fields.get("search", False))
+            owner_repo = query.split("/")
+            if search_mode:
+                github_collect.run_gh(["search", "repos", query, "--limit", str(max_results)])
+                return _format_collect_result(
+                    source="github",
+                    status="success",
+                    message=f"GitHub search for '{query}' completed",
+                    summary=f"GitHub search for '{query}' finished. Up to {max_results} repos were considered.",
+                    next_step="Open the Library page to browse the new repos once they are persisted.",
+                    item_count=0,
+                    saved_paths=[],
+                    extra_details={"query": query, "max_results": max_results, "search_mode": True},
+                )
+            elif len(owner_repo) == 2:
+                owner, repo = owner_repo
+                github_collect.save_repo(owner, repo, root / "github")
+                return _format_collect_result(
+                    source="github",
+                    status="success",
+                    message=f"Collected GitHub repo: {query}",
+                    summary=f"Saved GitHub repository {owner}/{repo} to output/github/.",
+                    next_step="Open the Library page to inspect the saved repo Markdown and sidecar.",
+                    item_count=1,
+                    saved_paths=[f"output/github/{owner}-{repo}"],
+                    extra_details={"owner": owner, "repo": repo},
+                )
+            else:
+                return _format_collect_result(
+                    source="github",
+                    status="error",
+                    message=f"Invalid GitHub query format: {query}. Use 'owner/repo' or enable search mode.",
+                    summary=f"GitHub query '{query}' is not in 'owner/repo' format and search mode is off.",
+                    next_step="Switch the source to GitHub, then either enter 'owner/repo' or enable Search Mode with a keyword.",
+                    item_count=0,
+                    saved_paths=[],
+                    extra_details={"query": query, "search_mode": search_mode},
+                )
+        except Exception as exc:  # noqa: BLE001
+            return _collect_error("github", exc)
     if source == "papers":
         import collect.papers as papers_collect
 
-        category = fields.get("category", "cs.AI")
-        max_results = int(fields.get("max", 10))
-        papers = papers_collect.fetch_papers_by_category([category], max_results=max_results)
-        papers_collect.save_papers(papers, category, root / "papers")
-        return _format_collect_result(
-            source="papers",
-            status="success",
-            message=f"Collected {len(papers)} papers from {category}",
-            summary=f"Fetched {len(papers)} paper(s) from arXiv category {category} and saved them to output/papers/.",
-            next_step="Open the Library page to read the abstracts and open the saved Markdown.",
-            item_count=len(papers),
-            saved_paths=[f"output/papers/{category}"],
-            extra_details={"category": category, "max_results": max_results},
-        )
+        try:
+            category = fields.get("category", "cs.AI")
+            max_results = int(fields.get("max", 10))
+            papers = papers_collect.fetch_papers_by_category([category], max_results=max_results)
+            papers_collect.save_papers(papers, category, root / "papers")
+            return _format_collect_result(
+                source="papers",
+                status="success",
+                message=f"Collected {len(papers)} papers from {category}",
+                summary=f"Fetched {len(papers)} paper(s) from arXiv category {category} and saved them to output/papers/.",
+                next_step="Open the Library page to read the abstracts and open the saved Markdown.",
+                item_count=len(papers),
+                saved_paths=[f"output/papers/{category}"],
+                extra_details={"category": category, "max_results": max_results},
+            )
+        except Exception as exc:  # noqa: BLE001
+            return _collect_error("papers", exc)
     if source == "wechat":
         import collect.wechat as wechat_collect
 
-        url = fields.get("url", "")
-        if not url:
+        try:
+            url = fields.get("url", "")
+            if not url:
+                return _format_collect_result(
+                    source="wechat",
+                    status="error",
+                    message="WeChat collection requires a URL",
+                    summary="WeChat collect was called without an article URL.",
+                    next_step="Switch to the WeChat source, paste a mp.weixin.qq.com article URL into the URL field, and Run now.",
+                    item_count=0,
+                    saved_paths=[],
+                )
+            asyncio.run(wechat_collect.fetch_article(url, output_dir=root / "wechat"))
             return _format_collect_result(
                 source="wechat",
-                status="error",
-                message="WeChat collection requires a URL",
-                summary="WeChat collect was called without an article URL.",
-                next_step="Switch to the WeChat source, paste a mp.weixin.qq.com article URL into the URL field, and Run now.",
-                item_count=0,
-                saved_paths=[],
+                status="success",
+                message=f"Collected WeChat article: {url}",
+                summary=f"Saved the WeChat article to output/wechat/.",
+                next_step="Open the Library page to read the article Markdown.",
+                item_count=1,
+                saved_paths=["output/wechat/"],
+                extra_details={"url": url},
             )
-        asyncio.run(wechat_collect.fetch_article(url, output_dir=root / "wechat"))
-        return _format_collect_result(
-            source="wechat",
-            status="success",
-            message=f"Collected WeChat article: {url}",
-            summary=f"Saved the WeChat article to output/wechat/.",
-            next_step="Open the Library page to read the article Markdown.",
-            item_count=1,
-            saved_paths=["output/wechat/"],
-            extra_details={"url": url},
-        )
+        except Exception as exc:  # noqa: BLE001
+            return _collect_error("wechat", exc)
     return _format_collect_result(
         source=source,
         status="error",
@@ -534,15 +589,15 @@ def read_item_markdown(output_root: Path, output_path: str) -> tuple[str, str]:
     output_root = Path(output_root).resolve()
     requested = Path(output_path)
 
-    # Guard 1: traversal. The `output_path` stored in sidecars is typically
-    # written relative to the PROJECT ROOT (e.g. "output/github/foo/README.md"),
-    # not relative to `output_root` itself. Anchor relative paths to
-    # `output_root.parent` so they resolve correctly, then verify the
-    # resolved candidate is strictly inside `output_root`.
+    # Guard 1: traversal. Two input forms are supported:
+    #   - caller passes a path RELATIVE TO output_root (e.g.
+    #     "github/demo-repo/README.md")
+    #   - caller passes an ABSOLUTE path that lives inside output_root
+    # Both should resolve to a real file under output_root.
     if requested.is_absolute():
         candidate = requested.resolve()
     else:
-        candidate = (output_root.parent / requested).resolve()
+        candidate = (output_root / requested).resolve()
 
     try:
         candidate.relative_to(output_root)
@@ -581,3 +636,156 @@ def read_item_markdown(output_root: Path, output_path: str) -> tuple[str, str]:
 
     body = candidate.read_text(encoding="utf-8", errors="replace")
     return body, "text/markdown; charset=utf-8"
+
+# ---------------------------------------------------------------------------
+# Daily discovery bridge — used by the web workspace's "Run daily discovery"
+# button. These wrap research.discovery.* so the web layer never imports the
+# CLI surface directly.
+# ---------------------------------------------------------------------------
+
+
+def _resolve_discovery_log_dir() -> Path:
+    """Resolve the discovery log directory without requiring a config file."""
+    from research.discovery.config import DEFAULT_LOG_DIR
+
+    candidate = DEFAULT_LOG_DIR
+    config_path = candidate.parent.parent / "config" / "discovery.yaml"
+    if not config_path.exists():
+        return candidate
+    try:
+        from research.discovery import load_config
+
+        return load_config(config_path).log_dir
+    except Exception:  # noqa: BLE001
+        return candidate
+
+
+def run_discover_from_request(output_root: Path, payload: dict) -> dict:
+    """Synchronous discovery runner (used internally and by tests).
+
+    For the HTTP endpoint use :func:`start_discover_job` so the request returns
+    immediately rather than blocking the web UI for the entire run.
+    """
+    from research.discovery import (
+        DEFAULT_CONFIG_PATH,
+        DiscoveryConfigError,
+        load_config,
+        run_discovery,
+    )
+
+    config_path = Path(payload.get("config_path") or DEFAULT_CONFIG_PATH)
+    try:
+        config = load_config(config_path)
+    except DiscoveryConfigError as exc:
+        return {
+            "status": "config_error",
+            "message": str(exc),
+            "config_path": str(config_path),
+        }
+
+    only = payload.get("only") or None
+    report = run_discovery(
+        config,
+        only=only,
+        dry_run=bool(payload.get("dry_run", False)),
+        enable_briefing=not bool(payload.get("no_briefing", False)),
+        log_dir=_resolve_discovery_log_dir(),
+    )
+    result = report.to_dict()
+    result["status"] = "ok" if not any(s.get("failed") for s in result["sources"].values()) else "partial"
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Background-job dispatcher for /api/discover/run.
+# A long-running `research discover` would otherwise block the HTTP request
+# for the full duration of the sweep. We spin up a daemon thread, return a
+# job_id immediately, and let the UI poll /api/discover/status for progress.
+# ---------------------------------------------------------------------------
+
+import threading
+import uuid
+
+
+_JOBS: dict[str, dict] = {}
+_JOBS_LOCK = threading.Lock()
+
+
+def start_discover_job(output_root: Path, payload: dict) -> dict:
+    """Kick off a discovery sweep on a background thread.
+
+    Returns ``{"job_id": ..., "status": "running"}`` immediately. The job
+    writes its final report into ``_JOBS[job_id]["result"]`` when complete.
+    """
+    from datetime import datetime
+
+    job_id = uuid.uuid4().hex[:12]
+    with _JOBS_LOCK:
+        _JOBS[job_id] = {"status": "running", "result": None, "started_at": datetime.now().isoformat(timespec="seconds")}
+
+    def _run() -> None:
+        from datetime import datetime
+
+        try:
+            result = run_discover_from_request(output_root, payload)
+        except Exception as exc:  # noqa: BLE001
+            result = {"status": "error", "message": str(exc)}
+        with _JOBS_LOCK:
+            _JOBS[job_id]["result"] = result
+            _JOBS[job_id]["status"] = result.get("status", "error")
+            _JOBS[job_id]["finished_at"] = datetime.now().isoformat(timespec="seconds")
+
+    thread = threading.Thread(target=_run, name=f"discover-{job_id}", daemon=True)
+    thread.start()
+    return {"job_id": job_id, "status": "running"}
+
+
+def get_job(job_id: str) -> dict | None:
+    """Return the current job record or ``None`` if unknown."""
+    with _JOBS_LOCK:
+        record = _JOBS.get(job_id)
+        return dict(record) if record else None
+
+
+def discover_status_payload(output_root: Path) -> dict:
+    """Read-only summary of the most recent discovery run for the web UI."""
+    from research.discovery import latest_log_path, read_log_summary
+
+    log_dir = _resolve_discovery_log_dir()
+    path = latest_log_path(log_dir)
+    if path is None:
+        return {"has_run": False, "log_dir": str(log_dir)}
+    info = read_log_summary(path)
+    # Parse the human-readable ``briefing`` string (format:
+    # ``"<path> (<N> items)"`` or ``"(dry-run) (<N> items)"``) into a structured
+    # payload so the web UI can render a clickable link instead of guessing.
+    return {
+        "has_run": True,
+        "log_path": info["path"].as_posix(),
+        "started_at": info["started_at"],
+        "finished_at": info["finished_at"],
+        "summary": info["summary"],
+        "briefing": _parse_briefing_marker(info["briefing"]),
+    }
+
+
+_BRIEFING_RE = __import__("re").compile(r"^(?P<path>\S+)\s*\((?P<count>\d+)\s+items?\)$")
+
+
+def _parse_briefing_marker(text: str | None) -> dict | None:
+    """Turn the textual briefing marker into a structured dict.
+
+    Returns ``None`` when no briefing was produced; otherwise a dict with
+    ``path`` (relative to REPO_ROOT, suitable for a link) and ``item_count``.
+    """
+    if not text:
+        return None
+    match = _BRIEFING_RE.match(text.strip())
+    if not match:
+        return None
+    raw_path = match.group("path")
+    # Strip the leading "output/" so the web UI can build a relative link.
+    path = raw_path
+    if path.startswith("output/"):
+        path = path[len("output/"):]
+    return {"path": path, "item_count": int(match.group("count"))}

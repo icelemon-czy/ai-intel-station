@@ -5,6 +5,15 @@
 > **父变更** (parent-change): `add-frontend-auto-refresh`
 > **嵌套深度** (depth): 1
 
+## Status Transfer Log
+
+- `2026-06-02 00:00` — [无] → [drafting] by /fix-bug | 原因: 父变更 `add-frontend-auto-refresh` review #1 登记 React 渲染层覆盖为 known gap
+- `2026-06-02 13:00` — [drafting] → [implementing] by /continue-change | 原因: spec+test+code 实施中
+- `2026-06-02 18:00` — [implementing] → [pending-review] by /continue-change | 原因: 6 个 Node SSR tests + 1 个 npm subprocess test 全绿
+- `2026-06-07 12:00` — [pending-review] → [review-failed] by /review-tests | 原因: `test_npm_test_in_web_runs_node_test_suite` 硬编码 `pass 24/25/26`，实际 `pass 46` 导致红灯；反模式 #2 断言过严
+- `2026-06-07 12:30` — [review-failed] → [implementing] by /fix-bug | 原因: 改写 assertion 为解析 `ℹ pass N` / `ℹ fail N` / `ℹ skipped N` 三行，断言 `pass > 0` + `fail == 0` + `skipped == 0`，匹配 Spec Scenario 6 "report pass/fail counts"
+- `2026-06-07 12:30` — [implementing] → [pending-review] by /fix-bug | 原因: `tests/test_web_workspace.py::test_npm_test_in_web_runs_node_test_suite` 红灯转绿，`tests/test_web_workspace.py` 全量 95 passed / 1 skipped
+
 ## Why
 
 `add-frontend-auto-refresh` 的所有契约测试都是源文本子串匹配 + 纯 Node 测 `createAutoRefreshController`。这不能证明：(a) React `useEffect` 真的让 `setInterval` 跑起来、(b) `useState` 真的更新 banner 渲染、(c) section 切换时 useEffect 的依赖清理正确执行。
@@ -42,7 +51,7 @@ review #1 (2026-06-02) 登记为 known gap。
 
 ## Review Feedback
 
-- [ ] 无
+- [x] 2026-06-07 [reviewer]: `test_npm_test_in_web_runs_node_test_suite` 硬编码 `pass 24/25/26` 过窄，实际 `pass 46` → 红灯。Spec Scenario 6 只要求"all run via `node --test` and report pass/fail counts"，未指定具体数字 → 改写为解析 `ℹ pass N` / `ℹ fail N` / `ℹ skipped N` 三行，断言 `pass > 0 && fail == 0 && skipped == 0` → 状态: resolved by /fix-bug session 2026-06-07
 
 ## Known Gaps
 

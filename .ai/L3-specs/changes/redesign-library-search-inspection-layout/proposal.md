@@ -5,6 +5,15 @@
 > **父变更** (parent-change): 无
 > **嵌套深度** (depth): 0
 
+## Status Transfer Log
+
+- `2026-06-03 00:00` — [无] → [drafting] by /new-change | 原因: Library 三列布局拥挤，filter bar + 二列 workspace + detail 顺序重设
+- `2026-06-03 13:00` — [drafting] → [implementing] by /continue-change | 原因: 业务确认推进
+- `2026-06-03 18:00` — [implementing] → [pending-review] by /continue-change | 原因: 4 个新测试全绿 + 95/95 tests/test_web_workspace.py 绿灯
+- `2026-06-07 12:00` — [pending-review] → [review-failed] by /review-tests | 原因: `test_library_detail_metadata_order` 在 detail-panel 结构变化时静默 pytest.skip，Scenario 4 未被验证（虚假通过）
+- `2026-06-08 09:00` — [review-failed] → [implementing] by /fix-bug | 原因: 修 regex 容忍多 class，移除 pytest.skip 改为 assert
+- `2026-06-08 09:00` — [implementing] → [pending-review] by /fix-bug | 原因: test_library_detail_metadata_order 红灯转绿，全量 96 passed
+
 ## Status Machine（不要删）
 
 ```text
@@ -84,7 +93,7 @@ drafting ──→ implementing ──→ pending-review ──→ approved ─�
 
 ## Review Feedback
 
-- [ ] 无
+- [x] 2026-06-07 [reviewer]: `test_library_detail_metadata_order` 在 detail-panel 结构变化时**静默 `pytest.skip`**（regex `r'<div className="detail-panel"[\s\S]+?</dl>'` 不匹配实际 `<div className="panel detail-panel">`），导致 Scenario 4 "detail panel metadata order" 完全未验证 → 反模式（虚假通过）→ 改写 regex 为 `r'<div[^>]*className="[^"]*\bdetail-panel\b[^"]*"[^>]*>[\s\S]+?</dl>'` 容忍同 div 多 class；移除 `pytest.skip` 改为 `assert m, "..."` 让不匹配时**响亮地红**而非静默跳过 → 状态: resolved by /fix-bug session 2026-06-07
 
 ## Known Gaps
 

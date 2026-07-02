@@ -28,6 +28,35 @@ npm --prefix web run build
 uv run research web
 ```
 
+## Daily Discovery
+
+Auto-pilot mode: declare sources in YAML, run on a schedule, get a daily digest. See [docs/daily-discovery.md](docs/daily-discovery.md).
+
+```bash
+# One-time setup
+uv run research init-config                # writes config/discovery.yaml from template
+$EDITOR config/discovery.yaml              # edit repos / searches / categories
+
+# Manual run (no surprise side-effects without --install)
+uv run research discover --dry-run                       # see what would happen, **no network** at all
+uv run research discover --source github,papers         # run two sources (comma form)
+uv run research discover --source papers --source wechat # same, repeated-flag form
+uv run research discover --no-briefing                   # collect only, skip the digest
+
+# Read-only inspection (no rerun, no network)
+uv run research discover --status                       # last run summary
+uv run research discover --log-list 7                   # last 7 runs (one line each)
+uv run research briefing --list                         # list generated briefing markdown
+
+# Install macOS launchd schedule (9 AM daily) — choose how hands-on:
+uv run research schedule launchd          # print the steps
+uv run research schedule launchd --install # actually write + launchctl load
+```
+
+Tested offline: the entire `discover` flow (config load → runner → briefing write) is covered
+by `tests/test_discovery_config.py` and `tests/test_discovery_runner.py` (19 tests, no
+network calls). The CI job `discovery-unit-tests` runs them on every PR.
+
 ## Output Layout
 
 ```text
@@ -39,6 +68,10 @@ output/
 ```
 
 Raw archives remain source-segregated. Derived reading artifacts are written only under `output/briefing/`.
+
+## L3 Spec Coverage
+
+Each requirement in [`.ai/L3-specs/specs/system.md`](../.ai/L3-specs/specs/system.md) is exercised by at least one real end-to-end test (no business-layer mocking, real subprocess + HTTP where the user-visible flow crosses a process boundary). The full mapping — requirement → test name → test file — lives in **[`docs/l3-coverage.md`](docs/l3-coverage.md)**.
 
 ## Local Web Workspace
 

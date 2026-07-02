@@ -12,7 +12,9 @@ from .service import (
     briefing_flow_notes,
     briefing_mode_purposes,
     build_dashboard_overview,
+    discover_status_payload,
     get_collect_form,
+    get_job,
     get_library_item_detail,
     list_collect_sources,
     list_library_items,
@@ -21,7 +23,9 @@ from .service import (
     PreviewError,
     read_item_markdown,
     run_collect,
+    run_discover_from_request,
     save_briefing,
+    start_discover_job,
     workspace_sections,
 )
 
@@ -135,6 +139,17 @@ def _create_handler(output_root: Path):
             if parsed.path == "/api/page-purposes":
                 _json_response(self, page_purpose_cards())
                 return
+            if parsed.path == "/api/discover/status":
+                _json_response(self, discover_status_payload(output_root))
+                return
+            if parsed.path == "/api/discover/job":
+                job_id = parse_qs(parsed.query).get("id", [""])[0]
+                record = get_job(job_id) if job_id else None
+                if record is None:
+                    _json_response(self, {"error": "unknown job"}, status=HTTPStatus.NOT_FOUND)
+                else:
+                    _json_response(self, record)
+                return
             if parsed.path.startswith("/api/collect/form/"):
                 source = parsed.path.split("/")[-1]
                 _json_response(self, get_collect_form(source))
@@ -181,6 +196,14 @@ def _create_handler(output_root: Path):
                 source = payload.get("source", "")
                 fields = payload.get("fields", {})
                 _json_response(self, run_collect(source, fields, output_root=output_root))
+                return
+            if parsed.path == "/api/discover/run":
+                # Synchronous when ?sync=1 is passed (used by tests); otherwise
+                # the work runs on a background thread and the response carries a job_id.
+                if parse_qs(parsed.query).get("sync") == ["1"]:
+                    _json_response(self, run_discover_from_request(output_root, payload))
+                else:
+                    _json_response(self, start_discover_job(output_root, payload))
                 return
             _json_response(self, {"error": "Unknown API path"}, status=HTTPStatus.NOT_FOUND)
 
