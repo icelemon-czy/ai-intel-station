@@ -60,7 +60,15 @@ def load_research_items(output_root: Path) -> list[ResearchItem]:
     for sidecar_path in iter_research_item_sidecars(output_root):
         try:
             if sidecar_path.name == "research-items.jsonl":
-                text = sidecar_path.read_text(encoding="utf-8")
+                # JSONL files use a single read_text for the whole
+                # document, so the BOM at the start of the first
+                # line must be stripped once at the document level
+                # rather than per-line.
+                try:
+                    text = sidecar_path.read_text(encoding="utf-8-sig")
+                except UnicodeDecodeError as exc:
+                    _log.warning("skipping corrupt sidecar %s: %s", sidecar_path, exc)
+                    continue
                 for lineno, raw in enumerate(text.splitlines(), start=1):
                     stripped = raw.strip()
                     if not stripped:

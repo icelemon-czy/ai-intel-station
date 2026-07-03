@@ -136,6 +136,23 @@ class SidecarSchemaMigrationTests(unittest.TestCase):
             self.assertEqual(len(items), 1)
             self.assertEqual(items[0].title, "agent")
 
+    def test_utf8_bom_jsonl_sidecar_loads(self) -> None:
+        # JSONL with a leading BOM should also load — the BOM
+        # stripping is applied at the document level, not per-line.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            gh = out / "github" / "agent"
+            gh.mkdir(parents=True)
+            sidecar = gh / "research-items.jsonl"
+            sidecar.write_bytes(
+                b"\xef\xbb\xbf"
+                + b'{"source": "github", "item_type": "repo", "title": "agent"}'
+                + b"\n"
+            )
+            items = load_research_items(out)
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0].title, "agent")
+
 
 if __name__ == "__main__":
     unittest.main()
