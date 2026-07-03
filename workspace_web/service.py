@@ -486,15 +486,38 @@ def run_collect(source: str, fields: dict[str, object], output_root: Path | None
             search_mode = bool(fields.get("search", False))
             owner_repo = query.split("/")
             if search_mode:
-                github_collect.run_gh(["search", "repos", query, "--limit", str(max_results)])
+                # Persist the actual search results — previously the
+                # backend only verified that the gh CLI succeeded and
+                # returned 0 item_count, leading the UI to confirm
+                # 'success' for an unsaved query.
+                import json
+                raw = github_collect.run_gh(
+                    ["search", "repos", query, "--limit", str(max_results)]
+                )
+                repos = json.loads(raw) if raw.strip() else []
+                search_root = root / "github"
+                search_root.mkdir(parents=True, exist_ok=True)
+                search_md = search_root / "search.md"
+                search_md.write_text(
+                    f"# Search: {query}\n\nFound {len(repos)} repositories\n",
+                    encoding="utf-8",
+                )
+                saved_paths = []
+                if repos:
+                    from library.items import write_research_items_jsonl
+                    from collect.github import build_github_search_items
+                    items = build_github_search_items(query, repos, search_md)
+                    jsonl_path = search_root / "research-items.jsonl"
+                    write_research_items_jsonl(items, jsonl_path)
+                    saved_paths.append(str(jsonl_path.relative_to(root.parent)))
                 return _format_collect_result(
                     source="github",
                     status="success",
                     message=f"GitHub search for '{query}' completed",
-                    summary=f"GitHub search for '{query}' finished. Up to {max_results} repos were considered.",
-                    next_step="Open the Library page to browse the new repos once they are persisted.",
-                    item_count=0,
-                    saved_paths=[],
+                    summary=f"GitHub search for '{query}' returned {len(repos)} repos; saved to output/github/.",
+                    next_step="Open the Library page to browse the new repos.",
+                    item_count=len(repos),
+                    saved_paths=saved_paths,
                     extra_details={"query": query, "max_results": max_results, "search_mode": True},
                 )
             elif len(owner_repo) == 2:
