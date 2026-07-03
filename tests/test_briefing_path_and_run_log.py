@@ -43,6 +43,25 @@ class BriefingOutputPathCollisionTests(unittest.TestCase):
             third = briefing_output_path(Path(tmp), "digests", "agent")
             self.assertEqual(third.name, "agent-2.md")
 
+    def test_caps_at_9999_with_timestamp_fallback(self) -> None:
+        # A pathological filesystem with thousands of colliding
+        # paths used to spin the function forever on a missing
+        # return at the end of the loop. The cap + timestamp fallback
+        # is a real-bug regression test.
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "briefing" / "digests"
+            base.mkdir(parents=True)
+            (base / "agent.md").write_text("0", encoding="utf-8")
+            for i in range(1, 9999):
+                (base / f"agent-{i}.md").write_text(str(i), encoding="utf-8")
+            result = briefing_output_path(Path(tmp), "digests", "agent")
+            # The 9999 attempts are exhausted and the timestamp
+            # fallback kicks in. The name is no longer
+            # ``agent-NNNN.md`` but it is still a valid path that
+            # exists in the same directory.
+            self.assertTrue(result.parent == base)
+            self.assertFalse(result.name.startswith("agent-9"))
+
 
 class RunDiscoveryLogHandleTests(unittest.TestCase):
     """run_discovery must close its log handle in a finally block so a

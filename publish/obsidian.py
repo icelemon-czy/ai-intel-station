@@ -20,17 +20,24 @@ def briefing_output_path(output_root: Path, section: str, title: str) -> Path:
     returned path already exists under ``output_root``, a numeric
     suffix is appended (``-1``, ``-2``) so re-running the briefing
     with the same title never silently overwrites the previous
-    archive copy.
+    archive copy. The counter is capped at 9999 so a pathological
+    filesystem with millions of colliding paths cannot spin the
+    scheduler forever.
     """
     base = Path(output_root) / "briefing" / section / f"{slugify(title)}.md"
     if not base.exists():
         return base
     counter = 1
-    while True:
+    while counter < 9999:
         candidate = base.with_name(f"{base.stem}-{counter}{base.suffix}")
         if not candidate.exists():
             return candidate
         counter += 1
+    # Pathological: thousands of collisions. Fall back to a
+    # timestamp-suffixed name so the scheduler cannot spin forever.
+    import datetime
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    return base.with_name(f"{base.stem}-{stamp}{base.suffix}")
 
 
 def write_markdown(path: Path, content: str) -> Path:
