@@ -282,7 +282,18 @@ def parse_github_repo_markdown(markdown_path: Path) -> ResearchItem:
     title_index = 0
     while title_index < len(lines) and not lines[title_index].strip():
         title_index += 1
-    title = lines[title_index].removeprefix("# ").strip() if title_index < len(lines) else ""
+    raw_title = lines[title_index].strip() if title_index < len(lines) else ""
+    # Accept any leading `#` / `##` / `###` heading — gh writes the
+    # repo description as a single `#` heading, but a hand-edit
+    # might use a deeper level. The previous code matched only
+    # `# ` (single hash + space), so `## title` came through as
+    # `## title` with the leading `##` left in place.
+    title = raw_title
+    for prefix in ("### ", "## ", "# "):
+        if title.startswith(prefix):
+            title = title[len(prefix):]
+            break
+    title = title.strip()
     summary_lines = []
     index = title_index + 1
     while index < len(lines):

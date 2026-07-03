@@ -99,6 +99,19 @@ class ParseGithubRepoMarkdownSectionTests(unittest.TestCase):
             item = parse_github_repo_markdown(md)
             self.assertEqual(item.title, "real title")
 
+    def test_h2_heading_strips_two_hashes(self) -> None:
+        # A hand-edited file with `## title` (a deeper heading) used
+        # to keep the leading `##` in place. The fix accepts any
+        # level (##, ###) and strips the prefix.
+        with tempfile.TemporaryDirectory() as tmp:
+            md = Path(tmp) / "repo" / "README.md"
+            _write_markdown(
+                md,
+                "## real title\n\n- 🌐 URL: https://github.com/x/y\n",
+            )
+            item = parse_github_repo_markdown(md)
+            self.assertEqual(item.title, "real title")
+
 
 if __name__ == "__main__":
     unittest.main()
