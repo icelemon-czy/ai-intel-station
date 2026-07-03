@@ -172,6 +172,7 @@ jobs:
             tests.test_library_items_atomic \
             tests.test_storage_and_jobs \
             tests.test_wechat_safe_title \
+            tests.test_wechat_timestamp \
             -v
       - name: Run pytest tests (parametrize / fixtures)
         # modules that use @pytest.mark.parametrize or pytest fixtures

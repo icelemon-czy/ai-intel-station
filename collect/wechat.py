@@ -53,21 +53,37 @@ def extract_publish_time(html: str) -> str:
 
     match = re.search(r"create_time\s*:\s*'(\d+)'", html)
     if match:
-        return format_timestamp(int(match.group(1)))
+        try:
+            return format_timestamp(int(match.group(1)))
+        except (ValueError, OSError, OverflowError):
+            return match.group(1)
 
     match = re.search(r'create_time\s*[:=]\s*["\']?(\d+)["\']?', html)
     if match:
-        return format_timestamp(int(match.group(1)))
+        try:
+            return format_timestamp(int(match.group(1)))
+        except (ValueError, OSError, OverflowError):
+            return match.group(1)
 
     return ""
 
 
-def format_timestamp(ts: int) -> str:
+def _safe_format_timestamp(ts: int) -> str:
+    """Format ``ts`` as ``YYYY-MM-DD HH:MM:SS`` in UTC+8, with safe
+    fallbacks for out-of-range timestamps.
+    """
     from datetime import datetime, timedelta, timezone
 
     tz = timezone(timedelta(hours=8))
-    dt = datetime.fromtimestamp(ts, tz=tz)
+    try:
+        dt = datetime.fromtimestamp(ts, tz=tz)
+    except (ValueError, OSError, OverflowError):
+        return repr(ts)
     return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def format_timestamp(ts: int) -> str:
+    return _safe_format_timestamp(ts)
 
 
 async def download_image(client, img_url: str, img_dir: Path, index: int, semaphore: asyncio.Semaphore) -> tuple[str, str | None]:
