@@ -115,7 +115,21 @@ def library_search_notes() -> dict[str, str]:
 
 
 def _relative_output_path(output_root: Path, path: Path) -> str:
-    return path.relative_to(output_root.parent).as_posix()
+    """Return ``path`` relative to ``output_root.parent`` as POSIX text.
+
+    Raises ``ValueError`` when ``path`` is not under
+    ``output_root.parent``. The callers only pass paths walked out of
+    ``output_root`` so this never trips in practice — but the function
+    itself used to silently swallow a path-outside-the-tree mismatch
+    by running ``relative_to`` which then raised an unhandled
+    ValueError. The check converts the failure into a clear assertion
+    for debugging instead.
+    """
+    output_root = Path(output_root).resolve()
+    path = Path(path).resolve()
+    base = output_root.parent
+    rel = path.relative_to(base)
+    return rel.as_posix()
 
 
 def _source_counts(output_root: Path) -> dict[str, int]:

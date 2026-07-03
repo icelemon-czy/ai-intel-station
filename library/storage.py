@@ -18,6 +18,22 @@ def iter_research_item_sidecars(output_root: Path) -> list[Path]:
     return sorted(path for path in sidecars if path.is_file())
 
 
+def _item_from_dict(payload: dict) -> ResearchItem | None:
+    """Build a ResearchItem from a JSON sidecar dict, dropping keys
+    that the current dataclass does not understand.
+
+    Older runs of ``research backfill`` (or fixtures) may carry extra
+    fields — ``ranking_score``, ``note_from_a_friend``, etc. — that a
+    strict dataclass constructor would reject with TypeError. We
+    filter to the fields actually declared on the class so a stale
+    sidecar does not refuse to load.
+    """
+    from dataclasses import fields
+
+    valid_keys = {f.name for f in fields(ResearchItem)}
+    return ResearchItem(**{k: v for k, v in payload.items() if k in valid_keys})
+
+
 def load_research_items(output_root: Path) -> list[ResearchItem]:
     """Read every ResearchItem sidecar under ``output_root``.
 
@@ -29,6 +45,9 @@ def load_research_items(output_root: Path) -> list[ResearchItem]:
     Now: a single corrupt sidecar logs a warning, skips itself, and
     the rest of the archive loads. A corrupt line inside an otherwise
     good JSONL file likewise skips the line without aborting.
+    Extra keys not understood by the current ResearchItem are silently
+    dropped so older sidecars from a previous schema don't break
+    loading.
     """
     items = []
     for sidecar_path in iter_research_item_sidecars(output_root):
@@ -40,7 +59,7 @@ def load_research_items(output_root: Path) -> list[ResearchItem]:
                     if not stripped:
                         continue
                     try:
-                        items.append(ResearchItem(**json.loads(stripped)))
+                        item = _item_from_dict(json.loads(stripped))
                     except json.JSONDecodeError as exc:
                         _log.warning(
                             "skipping corrupt JSONL line %d in %s: %s",
@@ -48,10 +67,15 @@ def load_research_items(output_root: Path) -> list[ResearchItem]:
                             sidecar_path,
                             exc,
                         )
+                        continue
+                    if item is not None:
+                        items.append(item)
             else:
-                items.append(
-                    ResearchItem(**json.loads(sidecar_path.read_text(encoding="utf-8")))
+                item = _item_from_dict(
+                    json.loads(sidecar_path.read_text(encoding="utf-8"))
                 )
+                if item is not None:
+                    items.append(item)
         except (json.JSONDecodeError, OSError, ValueError) as exc:
             _log.warning("skipping corrupt sidecar %s: %s", sidecar_path, exc)
 
