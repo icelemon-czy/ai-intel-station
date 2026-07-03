@@ -205,7 +205,11 @@ def build_github_search_items(query: str, repos: list[dict], markdown_path: Path
                     "query": query,
                     "owner": owner or parsed_owner,
                     "repo": repo.get("name") or parsed_repo,
-                    "stargazer_count": repo.get("stargazersCount") or repo.get("stargazerCount"),
+                    "stargazer_count": (
+                        repo.get("stargazersCount")
+                        if repo.get("stargazersCount") is not None
+                        else repo.get("stargazerCount")
+                    ),
                 },
             )
         )
