@@ -299,11 +299,17 @@ def parse_github_repo_markdown(markdown_path: Path) -> ResearchItem:
     in_issues = False
 
     for line in lines:
-        if line == "## Topics":
+        # Normalise: strip trailing whitespace, collapse runs of
+        # spaces inside the heading, and ignore case so '## Topics',
+        # '## topics', and '##  Topics  ' all match. Real markdown
+        # files frequently have inconsistent heading formatting
+        # after a `gh repo view` round-trip.
+        normalised_heading = " ".join(line.rstrip().split()).lower()
+        if normalised_heading == "## topics":
             in_topics = True
             in_issues = False
             continue
-        if line == "## Open Issues":
+        if normalised_heading == "## open issues":
             in_topics = False
             in_issues = True
             continue
