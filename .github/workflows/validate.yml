@@ -178,6 +178,7 @@ jobs:
             tests.test_briefing_path_and_run_log \
             tests.test_sidecar_schema_migration \
             tests.test_papers_atom_parse \
+            tests.test_escape_link_text \
             -v
       - name: Run pytest tests (parametrize / fixtures)
         # modules that use @pytest.mark.parametrize or pytest fixtures

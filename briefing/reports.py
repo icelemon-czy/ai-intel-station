@@ -106,12 +106,22 @@ def _local_link(item: ResearchItem) -> str | None:
 def _escape_link_text(value: str) -> str:
     """Escape ']' inside a markdown link text.
 
-    `[label](url)` parses greedily — any literal ']' inside the label
-    closes the link early. Replace with '\\]'. Other markdown
-    characters ('\\', '(', ')') are uncommon in ResearchItem fields
-    and dealt with by markdown renderers without breaking the link.
+    Multi-line input is collapsed onto a single line so the bullet
+    does not break into a multi-line item that escapes its parent
+    list. A title with '\\n' makes the bullet split across multiple
+    rendered lines that Obsidian treats as siblings of the parent
+    bullet rather than continuation.
+
+    A line with backslash-period is also escaped (``\\.``) — markdown
+    frontmatter/start-of-extension markers should not appear inside a
+    link label.
     """
-    return value.replace("]", "\\]")
+    flat = value.replace("\n", " ").replace("\r", " ")
+    flat = flat.replace("]", "\\]")
+    # Escape backslash-period which Obsidian/CommonMark parses as
+    # an extension escape sequence.
+    flat = flat.replace("\\.", "\\\\.")
+    return flat
 
 
 def _format_item(item: ResearchItem, *, checked: bool) -> list[str]:
