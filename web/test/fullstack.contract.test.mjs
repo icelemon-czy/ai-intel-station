@@ -252,3 +252,34 @@ async function spawnSubprocessServer() {
 // self-skips. We do not pre-probe at module load because that
 // would also fail noisily in sandboxed environments where
 // the bundling path itself is the substantive signal.
+
+// ---------------------------------------------------------------------------
+// Regression: selectItem must surface 5xx into the detail panel.
+//
+// Background: `/api/library/item` may legitimately return 4xx/5xx when
+// the user clicks a stale row (e.g. the file was archived between the
+// search and the click). The previous implementation called
+// `requestJson(...)` without a try/catch, leaving the previous detail
+// in place and printing the error only to the console. The bundle
+// must therefore contain the `.error:` setter path so the click
+// visibly fails.
+// ---------------------------------------------------------------------------
+
+test("frontend selectItem surfaces fetch failure into the detail panel", () => {
+    // We assert on the bundle rather than the React tree because JSDOM
+    // does not run useEffect — the only reliable signal is whether the
+    // bundler kept the error-handling branch.
+    //
+    // Vite minifies property access (`detail.error`) to a single-letter
+    // alias (`O.error`) but keeps the user-facing string "Could not load
+    // item" verbatim. So we look for the keyword `.error` plus the
+    // error banner copy.
+    assert.ok(
+        /\.[A-Za-z_$]?\s*error\b/.test(BUNDLE_SOURCE) && /error:\s*(?:e\.message|\w+\.message)/.test(BUNDLE_SOURCE),
+        "frontend bundle must call setDetail with an `error` payload using a message string when selectItem fails",
+    );
+    assert.ok(
+        /Could not load item/i.test(BUNDLE_SOURCE),
+        "frontend bundle must render the user-facing string 'Could not load item' in the error banner",
+    );
+});
