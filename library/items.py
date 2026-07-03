@@ -2,12 +2,44 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Atomically write ``content`` to ``path`` via tempfile + rename.
+
+    A direct ``path.write_text`` either keeps the old file (SIGTERM
+    before open) or writes a half-truncated file (SIGTERM mid-write).
+    Downstream library readers parse such half-files as corrupted
+    sidecars and silently drop them, which is hard to diagnose.
+
+    The atomic alternative is: write to a sibling .tmp file, fsync,
+    os.replace. The new file is either complete and visible, or the
+    old file is intact and the .tmp file is left as garbage.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 @dataclass
@@ -45,7 +77,9 @@ class ResearchItem:
         return asdict(self)
 
     def to_json(self) -> str:
-        return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
+        # No indent — JSON sidecars are loaded per-file by load_research_items
+        # and pretty-printing doubles file size + parse time for no benefit.
+        return json.dumps(self.to_dict(), ensure_ascii=False)
 
 
 def _clean_text(value: str | None) -> str | None:
@@ -200,15 +234,26 @@ def build_wechat_item(meta: dict, markdown_path: Path, body_markdown: str | None
 
 
 def write_research_item(item: ResearchItem, output_path: Path) -> Path:
+    """Atomically write a single ResearchItem sidecar.
+
+    Uses tempfile + os.replace so a process crash mid-write cannot leave
+    a half-written JSON file that subsequent library reads would treat
+    as corrupted sidecar data. No trailing newline — JSON sidecars
+    are line-delimited and ``load_research_items`` splits by ``}\n{``.
+    """
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(item.to_json() + "\n", encoding="utf-8")
+    _atomic_write_text(output_path, item.to_json())
     return output_path
 
 
 def write_research_items_jsonl(items: list[ResearchItem], output_path: Path) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    lines = [json.dumps(item.to_dict(), ensure_ascii=False) for item in items]
-    output_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    body = "\n".join(
+        json.dumps(item.to_dict(), ensure_ascii=False) for item in items
+    )
+    if body:
+        body += "\n"
+    _atomic_write_text(output_path, body)
     return output_path
 
 
