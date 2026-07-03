@@ -288,11 +288,22 @@ def _parse_papers(raw: Any, errors: _ErrorBag) -> PapersSource:
     line, _ = _loc(raw)
     data = _as_mapping(raw, where="sources.papers", errors=errors, line=line)
     cats_line, _ = _loc(data.get("categories"))
-    categories = [
-        str(item).strip()
-        for item in _as_list(data.get("categories"), where="sources.papers.categories", errors=errors, line=cats_line)
-        if str(item).strip()
-    ]
+    raw_categories = _as_list(
+        data.get("categories"), where="sources.papers.categories", errors=errors, line=cats_line
+    )
+    categories: list[str] = []
+    for index, item in enumerate(raw_categories):
+        item_line, _ = _loc(item)
+        if not isinstance(item, str):
+            errors.add(
+                f"sources.papers.categories[{index}]",
+                f"must be a string, got {type(item).__name__}",
+                line=item_line,
+            )
+            continue
+        cleaned = item.strip()
+        if cleaned:
+            categories.append(cleaned)
     unknown = [cat for cat in categories if cat not in AI_CATEGORIES]
     if unknown:
         errors.add(

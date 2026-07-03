@@ -187,6 +187,7 @@ jobs:
             tests.test_parse_github_search_limit \
             tests.test_parse_briefing_sources \
             tests.test_parse_github_search_query \
+            tests.test_parse_papers_categories \
             -v
       - name: Run pytest tests (parametrize / fixtures)
         # modules that use @pytest.mark.parametrize or pytest fixtures
