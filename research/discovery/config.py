@@ -268,7 +268,7 @@ def _parse_github(raw: Any, errors: _ErrorBag) -> GitHubSource:
                 line=item_line,
             )
             limit = -1
-        if limit <= 0 and not any(err.path.endswith(".limit") for err in errors):
+        if limit <= 0 and not any(err.path.endswith(".limit") for err in errors.errors):
             errors.add(
                 f"sources.github.search[{index}].limit",
                 f"must be positive, got {limit}",
