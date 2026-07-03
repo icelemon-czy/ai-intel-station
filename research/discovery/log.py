@@ -47,22 +47,48 @@ class DiscoveryLogger:
         if self._handle.closed:
             return
         elapsed = (datetime.now() - self._start).total_seconds()
-        self._handle.write(f"\n=== finished in {elapsed:.1f}s ===\n")
-        self._handle.close()
+        try:
+            self._handle.write(f"\n=== finished in {elapsed:.1f}s ===\n")
+            self._handle.flush()
+        except OSError:
+            # Disk full / unlinked file. Fall through and try to close
+            # anyway — better than crashing the caller.
+            pass
+        try:
+            self._handle.close()
+        except OSError:
+            pass
 
     def __enter__(self) -> "DiscoveryLogger":
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
         if exc_type is not None:
-            self.log(f"ERROR: {exc_type.__name__}: {exc}")
+            # Even when the handle was already closed we still want a
+            # best-effort attempt to log the error so a downstream
+            # post-mortem can find it. Use stderr as the always-on
+            # fallback so 'log()' silent-return when the handle is
+            # closed does not eat the real cause.
+            message = f"ERROR: {exc_type.__name__}: {exc}"
+            if not self._handle.closed:
+                try:
+                    self._handle.write(f"{message}\n")
+                    self._handle.flush()
+                except OSError:
+                    pass
+            else:
+                print(message)
         self.close()
 
     def log(self, message: str) -> None:
         if self._handle.closed:
+            print(message)
             return
-        self._handle.write(f"{message}\n")
-        self._handle.flush()
+        try:
+            self._handle.write(f"{message}\n")
+            self._handle.flush()
+        except OSError:
+            print(message)
         print(message)
 
     def header(self, title: str) -> None:

@@ -69,6 +69,17 @@ def _local_link(item: ResearchItem) -> str | None:
     return f"../../{archive}"
 
 
+def _escape_link_text(value: str) -> str:
+    """Escape ']' inside a markdown link text.
+
+    `[label](url)` parses greedily — any literal ']' inside the label
+    closes the link early. Replace with '\\]'. Other markdown
+    characters ('\\', '(', ')') are uncommon in ResearchItem fields
+    and dealt with by markdown renderers without breaking the link.
+    """
+    return value.replace("]", "\\]")
+
+
 def _format_item(item: ResearchItem, *, checked: bool) -> list[str]:
     """Render a single ResearchItem as a list of markdown lines.
 
@@ -76,8 +87,8 @@ def _format_item(item: ResearchItem, *, checked: bool) -> list[str]:
     archive, appends a separate "(open local)" link on the same bullet so
     Obsidian users can open the in-vault copy directly.
     """
-    title = item.title
-    external = item.canonical_url or ""
+    title = _escape_link_text(item.title)
+    external = _escape_link_text(item.canonical_url or "")
     marker = "[ ]" if checked else ""
 
     local = _local_link(item)
@@ -89,7 +100,11 @@ def _format_item(item: ResearchItem, *, checked: bool) -> list[str]:
 
     lines = [f"- {marker} {title_with_links}"]
     if item.summary:
-        lines.append(f"  - {item.summary}")
+        # Summaries routinely span multiple lines on arXiv abstracts.
+        # Indent every continuation line so the bullet does not break
+        # into sibling list items when the page renders.
+        joined = item.summary.replace("\n", "\n    ")
+        lines.append(f"  - {joined}")
     if item.authors:
         # Surface up to 3 authors; longer lists fall back to the first + count.
         authors = ", ".join(item.authors[:3])
