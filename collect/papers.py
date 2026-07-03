@@ -73,19 +73,31 @@ def fetch_papers_by_category(categories: list[str], max_results: int = 10) -> li
                 max_bytes = 5 * 1024 * 1024
                 raw = response.read(max_bytes)
                 # If the response indicates more data (Content-Length
-                # larger than our cap), refuse to parse — the result
-                # would be incomplete and the user has no signal for it.
+                # larger than our cap, or the read() returned the
+                # full cap meaning the server probably had more),
+                # refuse to parse — the result would be incomplete
+                # and the user has no signal for it.
                 content_length = response.headers.get("Content-Length")
+                too_big_from_header = False
                 if content_length is not None:
                     try:
-                        if int(content_length) > max_bytes:
-                            print(
-                                f"⚠️  arXiv response {content_length} bytes exceeds "
-                                f"{max_bytes}-byte cap for category {category}; skipping"
-                            )
-                            continue
+                        too_big_from_header = int(content_length) > max_bytes
                     except ValueError:
                         pass
+                # A chunked / unknown-length response that filled the
+                # buffer is also a truncation signal. urlopen does not
+                # expose "is EOF" cleanly, but read(N) returning
+                # exactly N bytes is suspicious; in practice a
+                # well-formed arxiv response is < 1 MB and any
+                # exactly-5MB read is suspicious enough to skip.
+                truncated = too_big_from_header or len(raw) >= max_bytes
+                if truncated:
+                    print(
+                        f"⚠️  arXiv response for {category} "
+                        f"({'header' if too_big_from_header else 'truncated-buffer'} "
+                        f"exceeds {max_bytes}-byte cap); skipping"
+                    )
+                    continue
                 xml_content = raw.decode("utf-8")
 
             root = ET.fromstring(xml_content)
