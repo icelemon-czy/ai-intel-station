@@ -147,11 +147,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install PyYAML
-      - name: Run discovery + e2e unit tests (no network for collect/github)
+          pip install PyYAML pytest
+      - name: Run unittest TestCase tests (no network for collect/github)
+        # Test modules that use `class X(unittest.TestCase)` collect only
+        # via `python -m unittest`, not pytest — pytest mis-handles `self`
+        # as an unknown fixture.
         run: |
           python -m unittest \
-            tests.test_discovery_config \
             tests.test_discovery_runner \
             tests.test_discovery_log \
             tests.test_discovery_cli \
@@ -163,7 +165,17 @@ jobs:
             tests.test_schedule_install \
             tests.test_briefing_marker \
             tests.test_service_e2e \
+            tests.test_l3_requirements \
             -v
+      - name: Run pytest tests (parametrize / fixtures)
+        # modules that use @pytest.mark.parametrize or pytest fixtures
+        # — pytest-only discovery path.
+        run: |
+          python -m pytest \
+            tests/test_discovery_config.py \
+            tests/test_wechat_collect.py \
+            tests/test_web_workspace.py \
+            -q
 
       - name: Run web bundle regression tests (no DOM, no network)
         run: |

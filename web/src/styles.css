@@ -562,14 +562,14 @@ select {
    expose a `<details> > <summary>` hook so a future JSX change can
    collapse the guidance by default. */
 .collect-layout .empty-state-panel {
-  padding: 10px 12px;
-  gap: 6px;
+  padding: 8px 12px;
+  gap: 4px;
 }
 
 .collect-layout .empty-state-panel p,
 .collect-layout .empty-state-panel li {
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 
 .collect-layout .empty-state-panel details > summary {

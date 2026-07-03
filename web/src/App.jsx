@@ -800,6 +800,17 @@ function CollectSection({ section, autoRefreshEnabled }) {
         <h2>{formDefinition?.label || activeSource}</h2>
         <p className="supporting">{formDefinition?.description || "Choose a source and run a manual collection."}</p>
 
+        {!result ? (
+          <div className="empty-state-panel collect-emptyState" role="status">
+            <p className="eyebrow">First time here?</p>
+            <p className="empty-state-explanation">
+              Pick a source, fill the inputs below, then press <strong>Run now</strong>.
+              Collected items land in <code>output/&lt;source&gt;/</code> and become
+              searchable from the Library.
+            </p>
+          </div>
+        ) : null}
+
         <div>
           <span className="field-label">Source</span>
           <div className="source-list">
@@ -885,21 +896,6 @@ function CollectSection({ section, autoRefreshEnabled }) {
             <p className="supporting">Manual run only</p>
           </div>
         </div>
-
-        {!result ? (
-          <details className="collect-first-run-hint">
-            <summary>Tips for first-time users</summary>
-            <p className="empty-state-explanation">
-              Pick a source above, fill the inputs, then press <strong>Run now</strong>. Collected items land in
-              <code>output/&lt;source&gt;/</code> and become searchable from the Library.
-            </p>
-            <ul className="plain-list compact-list">
-              <li>GitHub — one repo or a search keyword.</li>
-              <li>arXiv Papers — one or more categories.</li>
-              <li>WeChat — a single public-account article URL.</li>
-            </ul>
-          </details>
-        ) : null}
       </form>
 
       <div className="collect-sidecar">
