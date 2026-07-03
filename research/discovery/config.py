@@ -400,7 +400,8 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
             line=since_line,
         )
         since_days = 1
-    keyword = str(data.get("keyword", "daily")).strip() or "daily"
+    keyword_raw = data.get("keyword", "daily")
+    keyword = str(keyword_raw or "daily").strip() or "daily"
     return BriefingConfig(
         enabled=bool(data.get("enabled", True)),
         mode=mode or "reading-list",

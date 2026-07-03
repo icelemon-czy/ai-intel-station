@@ -53,5 +53,25 @@ class ParseBriefingSourcesTests(unittest.TestCase):
         self.assertIn("dict", errors.errors[0].message)
 
 
+class ParseBriefingKeywordTests(unittest.TestCase):
+    def test_default_keyword_when_missing(self) -> None:
+        b = _parse_briefing({}, _ErrorBag())
+        self.assertEqual(b.keyword, "daily")
+
+    def test_explicit_keyword_preserved(self) -> None:
+        b = _parse_briefing({"keyword": "agent"}, _ErrorBag())
+        self.assertEqual(b.keyword, "agent")
+
+    def test_explicit_null_keyword_falls_back_to_daily(self) -> None:
+        # A YAML `keyword: ~` (or `keyword: null`) used to coerce
+        # through str(None) = "None" — breaking the search downstream.
+        b = _parse_briefing({"keyword": None}, _ErrorBag())
+        self.assertEqual(b.keyword, "daily")
+
+    def test_empty_string_keyword_falls_back_to_daily(self) -> None:
+        b = _parse_briefing({"keyword": "  "}, _ErrorBag())
+        self.assertEqual(b.keyword, "daily")
+
+
 if __name__ == "__main__":
     unittest.main()
