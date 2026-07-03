@@ -167,19 +167,25 @@ def parse_atom_entry(entry, ns=None) -> dict:
 
 
 def paper_to_markdown(paper: dict) -> str:
-    authors_str = ", ".join(paper["authors"][:5])
-    if len(paper["authors"]) > 5:
-        authors_str += f" et al. ({len(paper['authors'])} authors total)"
+    # Defensive: a malformed arxiv response can omit authors / title /
+    # etc. The previous code raised KeyError for any missing field
+    # and aborted the whole save loop. The defaults below keep the
+    # operator-facing markdown usable even on a partial payload.
+    title = paper.get("title") or "Untitled"
+    authors = paper.get("authors") or []
+    authors_str = ", ".join(authors[:5])
+    if len(authors) > 5:
+        authors_str += f" et al. ({len(authors)} authors total)"
 
     lines = [
-        f"# {paper['title']}",
+        f"# {title}",
         "",
         f"> **Authors:** {authors_str}",
         "",
-        f"- 📅 Published: {paper['published'][:10]}",
-        f"- 🏷️ Categories: {', '.join(paper['categories'][:3])}",
-        f"- 🔗 arXiv: {paper['abs_url'] or 'N/A'}",
-        f"- 📄 PDF: {paper['pdf_url'] or 'N/A'}",
+        f"- 📅 Published: {(paper.get('published') or '')[:10]}",
+        f"- 🏷️ Categories: {', '.join((paper.get('categories') or [])[:3])}",
+        f"- 🔗 arXiv: {paper.get('abs_url') or 'N/A'}",
+        f"- 📄 PDF: {paper.get('pdf_url') or 'N/A'}",
         "",
         "## Abstract",
         "",
@@ -194,9 +200,24 @@ def save_papers(papers: list[dict], category: str, output_dir: Path) -> None:
     category_dir.mkdir(parents=True, exist_ok=True)
 
     for index, paper in enumerate(papers):
-        safe_title = "".join(char for char in paper["title"][:50] if char.isalnum() or char in " -").strip()
+        # Defensive: a malformed arxiv response missing the title
+        # field would have raised KeyError here. We still want to
+        # save the paper so the operator can see what we got, just
+        # with a placeholder title.
+        title = paper.get("title") or f"untitled-{index + 1:02d}"
+        safe_title = "".join(char for char in title[:50] if char.isalnum() or char in " -").strip()
+        # If the title is purely punctuation / CJK / unicode that the
+        # `isalnum()` filter strips, fall back to a positional name
+        # so the file is not named literally ".md".
+        if not safe_title:
+            safe_title = f"untitled-{index + 1:02d}"
         filepath = category_dir / f"{index + 1:02d}-{safe_title}.md"
-        filepath.write_text(paper_to_markdown(paper), encoding="utf-8")
+        body = paper_to_markdown(paper)
+        # Atomic write — see library.items._atomic_write_text for the
+        # rationale. A SIGTERM mid-write used to leave a half-written
+        # file the operator assumed was complete.
+        from library.items import _atomic_write_text
+        _atomic_write_text(filepath, body)
         write_research_item(build_paper_item(paper, filepath), filepath.with_name(f"{filepath.stem}.research-item.json"))
 
     print(f"✅ Saved {len(papers)} papers to {category_dir}")
