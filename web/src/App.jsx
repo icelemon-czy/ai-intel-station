@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { useAutoRefresh } from "./autoRefresh.react.js";
 import { requestJson } from "./api.js";
 import DailyDiscoveryCard from "./DailyDiscoveryCard.jsx";
@@ -379,7 +379,16 @@ function LibrarySection({
   }
 
   async function selectItem(outputPath) {
-    const payload = await requestJson(`/api/library/item?output_path=${encodeURIComponent(outputPath)}`);
+    let payload;
+    try {
+      payload = await requestJson(`/api/library/item?output_path=${encodeURIComponent(outputPath)}`);
+    } catch (err) {
+      // Surface the fetch failure into the detail panel so the user can
+      // see why their click did nothing — a silent console error here
+      // makes the workspace look broken.
+      startTransition(() => setDetail({ error: err.message || String(err) }));
+      return;
+    }
     startTransition(() => setDetail(payload));
   }
 
@@ -530,7 +539,11 @@ function LibrarySection({
 
         <div className="panel detail-panel">
           <p className="eyebrow">Item detail</p>
-        {detail ? (
+        {detail && detail.error ? (
+          <div className="status-banner error" role="status">
+            <strong>Could not load item:</strong> {detail.error}
+          </div>
+        ) : detail ? (
           <>
             <h2>{detail.title}</h2>
             <p>{detail.summary || "No summary"}</p>
