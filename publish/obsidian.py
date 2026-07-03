@@ -14,7 +14,23 @@ def slugify(value: str) -> str:
 
 
 def briefing_output_path(output_root: Path, section: str, title: str) -> Path:
-    return Path(output_root) / "briefing" / section / f"{slugify(title)}.md"
+    """Return the canonical path for a briefing artifact.
+
+    A title with special chars is sanitised via ``slugify``. If the
+    returned path already exists under ``output_root``, a numeric
+    suffix is appended (``-1``, ``-2``) so re-running the briefing
+    with the same title never silently overwrites the previous
+    archive copy.
+    """
+    base = Path(output_root) / "briefing" / section / f"{slugify(title)}.md"
+    if not base.exists():
+        return base
+    counter = 1
+    while True:
+        candidate = base.with_name(f"{base.stem}-{counter}{base.suffix}")
+        if not candidate.exists():
+            return candidate
+        counter += 1
 
 
 def write_markdown(path: Path, content: str) -> Path:

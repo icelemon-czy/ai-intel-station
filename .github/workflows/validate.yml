@@ -175,6 +175,7 @@ jobs:
             tests.test_wechat_timestamp \
             tests.test_briefing_log_fixes \
             tests.test_post_init_and_sort \
+            tests.test_briefing_path_and_run_log \
             -v
       - name: Run pytest tests (parametrize / fixtures)
         # modules that use @pytest.mark.parametrize or pytest fixtures

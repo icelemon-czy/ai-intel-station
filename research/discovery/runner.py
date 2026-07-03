@@ -367,65 +367,70 @@ def run_discovery(
     log_path: Path | None = None
     logger = DiscoveryLogger(log_dir or config.log_dir, max_log_files=config.limits.max_log_files)
     log_path = logger.path
-    logger.header(f"discovery sweep (dry_run={dry_run})")
-    if only:
-        logger.log(f"Limiting sweep to sources: {', '.join(only)}")
+    try:
+        logger.header(f"discovery sweep (dry_run={dry_run})")
+        if only:
+            logger.log(f"Limiting sweep to sources: {', '.join(only)}")
 
-    selected_sources = {
-        "github": collect_github,
-        "papers": collect_papers,
-        "wechat": collect_wechat,
-    }
+        selected_sources = {
+            "github": collect_github,
+            "papers": collect_papers,
+            "wechat": collect_wechat,
+        }
 
-    source_reports: dict[str, SourceReport] = {}
-    for name, runner in selected_sources.items():
-        if only and name not in only:
-            continue
-        logger.header(f"source: {name}")
-        try:
-            source_reports[name] = runner(config, logger=logger, dry_run=dry_run)
-        except Exception as exc:
-            logger.log(f"❌ {name} crashed: {exc}")
-            source_reports[name] = SourceReport(name=name, enabled=True, failed=1, notes=[str(exc)])
-        report = source_reports[name]
-        logger.log(
-            f"  ↳ {name}: succeeded={report.succeeded} skipped={report.skipped} failed={report.failed}"
+        source_reports: dict[str, SourceReport] = {}
+        for name, runner in selected_sources.items():
+            if only and name not in only:
+                continue
+            logger.header(f"source: {name}")
+            try:
+                source_reports[name] = runner(config, logger=logger, dry_run=dry_run)
+            except Exception as exc:
+                logger.log(f"❌ {name} crashed: {exc}")
+                source_reports[name] = SourceReport(name=name, enabled=True, failed=1, notes=[str(exc)])
+            report = source_reports[name]
+            logger.log(
+                f"  ↳ {name}: succeeded={report.succeeded} skipped={report.skipped} failed={report.failed}"
+            )
+
+        briefing_artifact: BriefingArtifact | None = None
+        if enable_briefing:
+            logger.header("briefing")
+            try:
+                briefing_artifact = generate_briefing(config, logger, dry_run=dry_run)
+            except Exception as exc:
+                logger.log(f"❌ briefing crashed: {exc}")
+                briefing_artifact = None
+        else:
+            logger.log("🗂  Briefing skipped (--no-briefing).")
+
+        report = DiscoveryReport(
+            started_at=started_at,
+            finished_at=_now_iso(),
+            dry_run=dry_run,
+            log_path=log_path,
+            sources=source_reports,
+            briefing=briefing_artifact,
         )
 
-    briefing_artifact: BriefingArtifact | None = None
-    if enable_briefing:
-        logger.header("briefing")
-        try:
-            briefing_artifact = generate_briefing(config, logger, dry_run=dry_run)
-        except Exception as exc:
-            logger.log(f"❌ briefing crashed: {exc}")
-            briefing_artifact = None
-    else:
-        logger.log("🗂  Briefing skipped (--no-briefing).")
+        # Compact summary: friendly for humans, machine-readable for tooling.
+        total_succeeded = sum(r.succeeded for r in source_reports.values())
+        total_failed = sum(r.failed for r in source_reports.values())
+        total_skipped = sum(r.skipped for r in source_reports.values())
+        logger.log("")
+        logger.log(
+            f"📊 Summary: succeeded={total_succeeded} skipped={total_skipped} failed={total_failed}"
+        )
+        if briefing_artifact:
+            logger.log(f"📰 Briefing: {briefing_artifact.path} ({briefing_artifact.item_count} items)")
+        if total_failed:
+            logger.log(f"⚠️  See log for failure details: {log_path}")
 
-    report = DiscoveryReport(
-        started_at=started_at,
-        finished_at=_now_iso(),
-        dry_run=dry_run,
-        log_path=log_path,
-        sources=source_reports,
-        briefing=briefing_artifact,
-    )
-
-    # Compact summary: friendly for humans, machine-readable for tooling.
-    total_succeeded = sum(r.succeeded for r in source_reports.values())
-    total_failed = sum(r.failed for r in source_reports.values())
-    total_skipped = sum(r.skipped for r in source_reports.values())
-    logger.log("")
-    logger.log(
-        f"📊 Summary: succeeded={total_succeeded} skipped={total_skipped} failed={total_failed}"
-    )
-    if briefing_artifact:
-        logger.log(f"📰 Briefing: {briefing_artifact.path} ({briefing_artifact.item_count} items)")
-    if total_failed:
-        logger.log(f"⚠️  See log for failure details: {log_path}")
-
-    logger.log("")
-    logger.log(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
-    logger.close()
-    return report
+        logger.log("")
+        logger.log(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        return report
+    finally:
+        # Always close the log handle — otherwise a crash between the
+        # DiscoveryLogger constructor and the explicit close() below
+        # would leak the file descriptor for the rest of the process.
+        logger.close()
