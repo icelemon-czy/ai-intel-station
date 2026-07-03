@@ -91,33 +91,79 @@ def fetch_papers_by_category(categories: list[str], max_results: int = 10) -> li
             root = ET.fromstring(xml_content)
             ns = {"atom": "http://www.w3.org/2005/Atom"}
             for entry in root.findall("atom:entry", ns):
-                paper = {
-                    "title": html.unescape(entry.find("atom:title", ns).text or "").strip().replace("\n", " "),
-                    "authors": [author.find("atom:name", ns).text or "" for author in entry.findall("atom:author", ns)],
-                    "summary": html.unescape(entry.find("atom:summary", ns).text or "").strip(),
-                    "published": entry.find("atom:published", ns).text or "",
-                    "updated": entry.find("atom:updated", ns).text or "",
-                    "arxiv_id": entry.find("atom:id", ns).text.split("/")[-1] if entry.find("atom:id", ns) is not None else None,
-                    "pdf_url": None,
-                    "abs_url": None,
-                    "categories": [],
-                }
-
-                for link in entry.findall("atom:link", ns):
-                    if link.get("title") == "pdf":
-                        paper["pdf_url"] = link.get("href")
-                    elif link.get("rel") == "alternate" and link.get("type") == "text/html":
-                        paper["abs_url"] = link.get("href")
-
-                for category_elem in entry.findall("atom:category", ns):
-                    paper["categories"].append(category_elem.get("term", ""))
-
+                paper = parse_atom_entry(entry, ns)
+                # Skip entries that yielded nothing usable — a row
+                # with no title and no arxiv id is about-the-format
+                # garbage that the API occasionally returns.
+                if not (paper["title"] or paper["arxiv_id"]):
+                    continue
                 papers.append(paper)
                 print(f"  ✅ {paper['title'][:60]}...")
         except Exception as exc:
             print(f"  ❌ Failed to fetch {category}: {exc}")
 
     return papers
+
+
+def parse_atom_entry(entry, ns=None) -> dict:
+    """Convert an arxiv Atom <entry> into the dict shape consumed by
+    ``save_papers``.
+
+    Tolerates missing elements — a row without ``<title>`` or
+    ``<published>`` used to dereference ``None.text`` and crash
+    mid-loop, dropping every paper after the bad row.
+    """
+    if ns is None:
+        ns = {"atom": "http://www.w3.org/2005/Atom"}
+    title_el = entry.find("atom:title", ns)
+    summary_el = entry.find("atom:summary", ns)
+    published_el = entry.find("atom:published", ns)
+    updated_el = entry.find("atom:updated", ns)
+    id_el = entry.find("atom:id", ns)
+
+    def _text_or_blank(el) -> str:
+        """Return ``el.text`` or empty string.
+
+        arXiv Atom feeds sometimes omit fields like ``<published>`` or
+        ``<title>`` (the seed schema says they are required but
+        mirror sites skip them). Without the guard, ``el.text``
+        raises AttributeError mid-loop and aborts the entire
+        category fetch — silently dropping every paper after the
+        bad row.
+        """
+        return el.text if (el is not None and el.text is not None) else ""
+
+    def _arxiv_id(el) -> str | None:
+        if el is None or el.text is None:
+            return None
+        return el.text.split("/")[-1]
+
+    paper = {
+        "title": html.unescape(_text_or_blank(title_el)).strip().replace("\n", " "),
+        "authors": [
+            html.unescape(_text_or_blank(author.find("atom:name", ns))).strip()
+            for author in entry.findall("atom:author", ns)
+        ],
+        "summary": html.unescape(_text_or_blank(summary_el)).strip(),
+        "published": _text_or_blank(published_el).strip(),
+        "updated": _text_or_blank(updated_el).strip(),
+        "arxiv_id": _arxiv_id(id_el),
+        "pdf_url": None,
+        "abs_url": None,
+        "categories": [],
+    }
+
+    for link in entry.findall("atom:link", ns):
+        if link.get("title") == "pdf":
+            paper["pdf_url"] = link.get("href")
+        elif link.get("rel") == "alternate" and link.get("type") == "text/html":
+            paper["abs_url"] = link.get("href")
+
+    for category_elem in entry.findall("atom:category", ns):
+        term = category_elem.get("term", "")
+        if term:
+            paper["categories"].append(term)
+    return paper
 
 
 def paper_to_markdown(paper: dict) -> str:
