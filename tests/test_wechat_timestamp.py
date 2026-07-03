@@ -32,7 +32,15 @@ class FormatTimestampTests(unittest.TestCase):
         # this as 'unknown'. The buggy version used to raise — pinned
         # to the safe path.
         result = format_timestamp(0)
-        self.assertIsInstance(result, str)
+        self.assertEqual(result, "0")  # falls through to repr path
+
+    def test_negative_timestamp_falls_back_to_repr(self) -> None:
+        # A negative timestamp used to coerce via the timezone
+        # offset into a 1970-01-01 07:59:59 string — silently
+        # misrepresenting the post as a 1970 entry. The fix treats
+        # any timestamp <= 0 as invalid.
+        result = format_timestamp(-1234567890)
+        self.assertEqual(result, "-1234567890")
 
     def test_far_future_timestamp_does_not_crash(self) -> None:
         # year 33658 is out of range → datetime raises OverflowError.

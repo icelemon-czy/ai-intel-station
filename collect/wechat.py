@@ -70,10 +70,19 @@ def extract_publish_time(html: str) -> str:
 
 def _safe_format_timestamp(ts: int) -> str:
     """Format ``ts`` as ``YYYY-MM-DD HH:MM:SS`` in UTC+8, with safe
-    fallbacks for out-of-range timestamps.
+    fallbacks for out-of-range and pre-epoch timestamps.
+
+    The previous code only raised for strictly out-of-range values.
+    A negative timestamp falls through and produces a 1970
+    date with the timezone offset baked in — silently
+    misrepresenting the post as a 1970-01-01 entry. The fix
+    treats any timestamp <= 0 (or otherwise unparseable) as
+    invalid and falls back to repr(ts).
     """
     from datetime import datetime, timedelta, timezone
 
+    if ts <= 0:
+        return repr(ts)
     tz = timezone(timedelta(hours=8))
     try:
         dt = datetime.fromtimestamp(ts, tz=tz)
