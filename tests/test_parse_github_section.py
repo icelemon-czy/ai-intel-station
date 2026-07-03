@@ -84,6 +84,21 @@ class ParseGithubRepoMarkdownSectionTests(unittest.TestCase):
             item = parse_github_repo_markdown(md)
             self.assertIn("a", item.tags)
 
+    def test_leading_blank_line_does_not_blank_title(self) -> None:
+        # A file with a leading blank line (e.g. shell-redirect artefact
+        # or `gh repo view` round-trip with a leading BOM) used to
+        # index lines[0] which is the empty string — so the title
+        # was silently lost. The fix skips leading blanks before
+        # extracting the H1.
+        with tempfile.TemporaryDirectory() as tmp:
+            md = Path(tmp) / "repo" / "README.md"
+            _write_markdown(
+                md,
+                "\n# real title\n\n- 🌐 URL: https://github.com/x/y\n",
+            )
+            item = parse_github_repo_markdown(md)
+            self.assertEqual(item.title, "real title")
+
 
 if __name__ == "__main__":
     unittest.main()

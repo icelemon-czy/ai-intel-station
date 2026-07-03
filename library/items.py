@@ -275,9 +275,16 @@ def write_research_items_jsonl(items: list[ResearchItem], output_path: Path) -> 
 
 def parse_github_repo_markdown(markdown_path: Path) -> ResearchItem:
     lines = markdown_path.read_text(encoding="utf-8").splitlines()
-    title = lines[0].removeprefix("# ").strip()
+    # Skip leading blank lines so a file that starts with a BOM
+    # artefact or a leading newline pair still picks up the real H1.
+    # The previous code indexed lines[0] directly, which produced an
+    # empty title for any file with a leading blank line.
+    title_index = 0
+    while title_index < len(lines) and not lines[title_index].strip():
+        title_index += 1
+    title = lines[title_index].removeprefix("# ").strip() if title_index < len(lines) else ""
     summary_lines = []
-    index = 1
+    index = title_index + 1
     while index < len(lines):
         line = lines[index]
         if line.startswith("> "):
