@@ -83,7 +83,7 @@ def load_research_items(output_root: Path) -> list[ResearchItem]:
                 )
                 if item is not None:
                     items.append(item)
-        except (json.JSONDecodeError, OSError, ValueError) as exc:
+        except (json.JSONDecodeError, OSError, ValueError, UnicodeDecodeError) as exc:
             _log.warning("skipping corrupt sidecar %s: %s", sidecar_path, exc)
 
     return items

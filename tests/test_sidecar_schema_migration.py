@@ -104,6 +104,19 @@ class SidecarSchemaMigrationTests(unittest.TestCase):
             items = load_research_items(out)
             self.assertEqual(items, [])
 
+    def test_non_utf8_sidecar_is_skipped(self) -> None:
+        # A sidecar written with a non-utf8 encoding used to raise
+        # UnicodeDecodeError mid-load. The fix catches the decode
+        # error and skips the sidecar so the rest of the archive
+        # keeps loading.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            gh = out / "github" / "agent"
+            gh.mkdir(parents=True)
+            (gh / "research-item.json").write_bytes(b"\xff\xfe\x00bad bytes")
+            items = load_research_items(out)
+            self.assertEqual(items, [])
+
 
 if __name__ == "__main__":
     unittest.main()
