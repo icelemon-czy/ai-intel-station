@@ -152,9 +152,18 @@ function useWorkspaceNavigation() {
   useEffect(() => {
     requestJson("/api/navigation").then((payload) => {
       startTransition(() => setNavigation(payload));
+    }).catch((err) => {
+      // Without this catch a 5xx leaves `navigation = []` and the
+      // navigation bar never renders — making the workspace unusable.
+      // Surface the failure to the console at minimum so the symptom is
+      // diagnosable; the visible fallback is the "dashboard" section
+      // the existing effect already lands on.
+      console.error("failed to load /api/navigation:", err);
     });
     requestJson("/api/page-purposes").then((payload) => {
       startTransition(() => setPagePurposes(payload));
+    }).catch((err) => {
+      console.error("failed to load /api/page-purposes:", err);
     });
   }, []);
 
@@ -173,10 +182,19 @@ function useWorkspaceNavigation() {
 
 function DashboardSection({ section, autoRefreshEnabled }) {
   const [overview, setOverview] = useState(null);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     requestJson("/api/dashboard").then((payload) => {
-      startTransition(() => setOverview(payload));
+      startTransition(() => {
+        setOverview(payload);
+        setLoadError("");
+      });
+    }).catch((err) => {
+      // Without this catch a 5xx leaves `overview = null` and the user
+      // sees an infinite "Loading dashboard…" shimmer — which looks like
+      // a hang. Surface the error inline instead.
+      startTransition(() => setLoadError(err.message || String(err)));
     });
   }, []);
 
@@ -188,10 +206,26 @@ function DashboardSection({ section, autoRefreshEnabled }) {
     enabled: Boolean(autoRefreshEnabled),
     fetcher: () => requestJson("/api/dashboard"),
     onData: (_section, payload) => {
-      startTransition(() => setOverview(payload));
+      startTransition(() => {
+        setOverview(payload);
+        setLoadError("");
+      });
     },
   });
 
+  if (loadError) {
+    return (
+      <section className="panel" role="status">
+        <p className="eyebrow">Local archive</p>
+        <h2>Could not load dashboard</h2>
+        <p className="status-banner error" role="status">{loadError}</p>
+        <p className="supporting">
+          Make sure you launched this with <code>uv run research web</code> and that the
+          <code> output/ </code> directory exists.
+        </p>
+      </section>
+    );
+  }
   if (!overview) {
     return <section className="panel shimmer">Loading dashboard…</section>;
   }
@@ -610,6 +644,11 @@ function BriefingSection({ section, autoRefreshEnabled }) {
         if (payload.mode_purposes) setModePurposes(payload.mode_purposes);
         if (payload.action_purposes) setActionPurposes(payload.action_purposes);
       });
+    }).catch((err) => {
+      // Without this catch, metadata fetches that 5xx leave the
+      // briefing-copy state empty (default uplicate objects) — the user
+      // sees no explainer text and the symptom is invisible to them.
+      console.error("failed to load /api/briefing/metadata:", err);
     });
   }, []);
 
@@ -749,6 +788,10 @@ function CollectSection({ section, autoRefreshEnabled }) {
           setActiveSource(payload[0].id);
         }
       });
+    }).catch((err) => {
+      // Without this catch a 5xx leaves `sources = []` and the user
+      // sees a form they cannot switch sources on — silent and confusing.
+      startTransition(() => setErrorMessage(`Could not load source list: ${err.message || err}`));
     });
   }, []);
 
@@ -773,8 +816,11 @@ function CollectSection({ section, autoRefreshEnabled }) {
         setFormDefinition(payload);
         setFieldValues(buildCollectFieldDefaults(payload.fields || []));
         setResult(null);
-        setErrorMessage("");
+        setErrorMessage((current) => current && current.startsWith("Could not load source list") ? current : "");
       });
+    }).catch((err) => {
+      // Surface the failure so the user can see why the form is empty.
+      startTransition(() => setErrorMessage(`Could not load form for ${activeSource}: ${err.message || err}`));
     });
   }, [activeSource]);
 

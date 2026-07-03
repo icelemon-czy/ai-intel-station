@@ -34,9 +34,33 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
 def _json_body(handler: BaseHTTPRequestHandler) -> dict:
-    length = int(handler.headers.get("Content-Length", "0"))
-    raw = handler.rfile.read(length) if length else b"{}"
-    return json.loads(raw.decode("utf-8"))
+    """Read the JSON request body for a POST.
+
+    Returns an empty dict when the body is missing or empty so callers
+    can blindly call `.get(key, default)` without first checking the
+    payload type. Any malformed input (negative Content-Length, non-utf8
+    body, malformed JSON) raises ValueError — the do_POST dispatcher
+    catches it and replies with 400 instead of leaking a 500 stack
+    trace to the client.
+    """
+    raw_length = handler.headers.get("Content-Length", "0")
+    try:
+        length = int(raw_length)
+    except (TypeError, ValueError):
+        raise ValueError(f"invalid Content-Length: {raw_length!r}") from None
+    if length < 0:
+        raise ValueError(f"negative Content-Length: {length}")
+    raw = handler.rfile.read(length) if length else b""
+    if not raw:
+        return {}
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"request body is not valid utf-8: {exc}") from exc
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"request body is not valid JSON: {exc}") from exc
 
 
 def _json_response(handler: BaseHTTPRequestHandler, payload: object, status: int = HTTPStatus.OK) -> None:
@@ -162,7 +186,15 @@ def _create_handler(output_root: Path):
 
         def do_POST(self) -> None:  # noqa: N802
             parsed = urlparse(self.path)
-            payload = _json_body(self)
+            try:
+                payload = _json_body(self)
+            except ValueError as exc:
+                # Malformed Content-Length, non-utf8 bytes, or invalid JSON
+                # are caller errors (4xx), not server errors (5xx). Reply
+                # with 400 + a JSON body so the React `requestJson` wrapper
+                # surfaces the message in the UI.
+                _json_response(self, {"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+                return
 
             if parsed.path == "/api/briefing/preview":
                 _json_response(
