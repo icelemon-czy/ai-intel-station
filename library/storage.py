@@ -84,6 +84,36 @@ def load_research_items(output_root: Path) -> list[ResearchItem]:
                 if item is not None:
                     items.append(item)
         except (json.JSONDecodeError, OSError, ValueError, UnicodeDecodeError) as exc:
+            # If the sidecar looks like a UTF-8 BOM, retry with
+            # utf-8-sig which transparently strips the leading BOM.
+            # Operators who paste a sidecar from a Windows editor
+            # frequently get a leading BOM; without this retry the
+            # file is logged as corrupt and skipped. The retry can
+            # raise either UnicodeDecodeError (older Python) or
+            # JSONDecodeError (newer Python, where json.loads sees the
+            # ﻿ BOM and raises a confusing error message).
+            is_bom_error = (
+                isinstance(exc, (UnicodeDecodeError, json.JSONDecodeError))
+                and "BOM" in getattr(exc, "msg", "")
+            )
+            if is_bom_error:
+                try:
+                    payload = json.loads(
+                        sidecar_path.read_text(encoding="utf-8-sig")
+                    )
+                    item = _item_from_dict(payload)
+                    if item is not None:
+                        items.append(item)
+                    _log.warning(
+                        "sidecar %s had a UTF-8 BOM; loaded with utf-8-sig",
+                        sidecar_path,
+                    )
+                    continue
+                except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc2:
+                    _log.warning(
+                        "skipping corrupt sidecar %s: %s", sidecar_path, exc2
+                    )
+                    continue
             _log.warning("skipping corrupt sidecar %s: %s", sidecar_path, exc)
 
     return items

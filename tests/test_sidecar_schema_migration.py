@@ -117,6 +117,25 @@ class SidecarSchemaMigrationTests(unittest.TestCase):
             items = load_research_items(out)
             self.assertEqual(items, [])
 
+    def test_utf8_bom_sidecar_loads_via_utf8_sig(self) -> None:
+        # Operators who paste a sidecar from a Windows editor
+        # frequently get a leading UTF-8 BOM. The previous code
+        # logged the file as corrupt and skipped it. The fix
+        # retries with utf-8-sig which transparently strips the
+        # BOM.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            gh = out / "github" / "agent"
+            gh.mkdir(parents=True)
+            sidecar = gh / "research-item.json"
+            sidecar.write_bytes(
+                b"\xef\xbb\xbf"
+                + b'{"source": "github", "item_type": "repo", "title": "agent"}'
+            )
+            items = load_research_items(out)
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0].title, "agent")
+
 
 if __name__ == "__main__":
     unittest.main()
