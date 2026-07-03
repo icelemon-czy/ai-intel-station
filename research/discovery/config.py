@@ -224,11 +224,25 @@ def _parse_github(raw: Any, errors: _ErrorBag) -> GitHubSource:
     line, _ = _loc(raw)
     data = _as_mapping(raw, where="sources.github", errors=errors, line=line)
     repos_line, _ = _loc(data.get("repos"))
-    repos = [
-        str(item).strip()
-        for item in _as_list(data.get("repos"), where="sources.github.repos", errors=errors, line=repos_line)
-        if str(item).strip()
-    ]
+    repos: list[str] = []
+    for index, item in enumerate(
+        _as_list(data.get("repos"), where="sources.github.repos", errors=errors, line=repos_line)
+    ):
+        item_line, _ = _loc(item)
+        # Reject non-string entries (a common YAML typo is a mapping or
+        # a list where a string is expected). The previous code called
+        # str({...}) which produced a noisy representation and let
+        # the bad entry through to the GitHub CLI.
+        if not isinstance(item, str):
+            errors.add(
+                f"sources.github.repos[{index}]",
+                f"must be a string, got {type(item).__name__}",
+                line=item_line,
+            )
+            continue
+        cleaned = item.strip()
+        if cleaned:
+            repos.append(cleaned)
     search_raw = _as_list(data.get("search"), where="sources.github.search", errors=errors)
     search: list[GitHubSearchQuery] = []
     for index, item in enumerate(search_raw):
