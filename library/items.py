@@ -323,7 +323,13 @@ def parse_github_repo_markdown(markdown_path: Path) -> ResearchItem:
             issue_count += 1
             continue
         if line.startswith("- ⭐ Stars: "):
-            stars = int(line.removeprefix("- ⭐ Stars: ").strip())
+            try:
+                stars = int(line.removeprefix("- ⭐ Stars: ").strip())
+            except ValueError:
+                # The "Stars:" line is hand-edited; tolerate a
+                # non-numeric value (e.g. 'n/a') by leaving stars
+                # as None rather than crashing the whole parser.
+                stars = None
         elif line.startswith("- 🏷️ Language: "):
             language = _clean_text(line.removeprefix("- 🏷️ Language: "))
         elif line.startswith("- 🌐 URL: "):
