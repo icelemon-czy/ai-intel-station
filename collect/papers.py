@@ -148,7 +148,23 @@ def parse_atom_entry(entry, ns=None) -> dict:
     def _arxiv_id(el) -> str | None:
         if el is None or el.text is None:
             return None
-        return el.text.split("/")[-1]
+        text = el.text.strip()
+        if not text:
+            return None
+        # arxiv Atom ids come in three shapes:
+        #   oai:arxiv.org/oai:math.GT/1234
+        #   http://arxiv.org/abs/2606.00001v1
+        #   tag:arxiv.org:2002:math.GT/1234
+        # The arxiv id is the trailing path component after a slash.
+        # Reject anything that still carries a URN/URI prefix
+        # (i.e. has a `:` before the trailing component) — those are
+        # the wrapping feed ids, not the paper id.
+        if ":" in text.rsplit("/", 1)[-1]:
+            return None
+        tail = text.rsplit("/", 1)[-1].strip()
+        if not tail or not any(ch.isdigit() for ch in tail):
+            return None
+        return tail
 
     paper = {
         "title": html.unescape(_text_or_blank(title_el)).strip().replace("\n", " "),

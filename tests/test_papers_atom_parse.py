@@ -82,6 +82,23 @@ class ParseAtomEntryTests(unittest.TestCase):
         self.assertIsNone(paper["pdf_url"])
         self.assertIsNone(paper["abs_url"])
 
+    def test_arxiv_id_urn_returns_none(self) -> None:
+        # The URN form `urn:arxiv.org:abs:NNNN.NNNN` carries the id
+        # inside the last colon-separated component. The previous
+        # split("/")[-1] returned the whole URN. The fix rejects
+        # URN-shaped ids because arxiv OAI feeds use the leading
+        # `oai:` or `tag:` shape — not the `urn:` shape — and
+        # accepting the urn form would mean accepting the wrapper
+        # rather than the actual id.
+        entry = _entry("<id>urn:arxiv.org:abs:2606.99999</id>")
+        paper = parse_atom_entry(entry)
+        self.assertIsNone(paper["arxiv_id"])
+
+    def test_arxiv_id_abs_url(self) -> None:
+        entry = _entry("<id>http://arxiv.org/abs/2606.00001v1</id>")
+        paper = parse_atom_entry(entry)
+        self.assertEqual(paper["arxiv_id"], "2606.00001v1")
+
     def test_author_with_missing_name_element(self) -> None:
         # Some authors have no <name> child — must fall back to "".
         entry = _entry(
