@@ -433,14 +433,27 @@ def load_config(path: Path | str) -> DiscoveryConfig:
     issue in a single run instead of fixing them one at a time.
     """
     config_path = Path(path)
-    if not config_path.exists():
-        raise DiscoveryConfigError(f"Config file not found: {config_path}")
+    # Catch every "input is not a readable file" failure as one
+    # operator-friendly error. ``Path.exists()`` is False for both
+    # missing files and unreadable paths; ``read_text`` would otherwise
+    # raise IsADirectoryError / PermissionError uncaught.
+    if not config_path.is_file():
+        raise DiscoveryConfigError(
+            f"Config file not found or not a regular file: {config_path}"
+        )
 
     try:
         raw = yaml.load(config_path.read_text(encoding="utf-8"), Loader=_LocatingLoader) or {}
     except yaml.YAMLError as exc:
         # yaml.YAMLError already carries line/column info; surface it.
         raise DiscoveryConfigError(f"Failed to parse YAML at {config_path}: {exc}") from exc
+    except OSError as exc:
+        # PermissionError / IsADirectoryError slipping through. We
+        # already gated via is_file() but a TOCTOU race or a symlink
+        # to a deleted target can still raise here.
+        raise DiscoveryConfigError(
+            f"Failed to read config at {config_path}: {exc}"
+        ) from exc
 
     if not isinstance(raw, dict):
         raise DiscoveryConfigError(f"Top-level YAML must be a mapping, got {type(raw).__name__}")
