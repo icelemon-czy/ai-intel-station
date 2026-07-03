@@ -168,6 +168,7 @@ jobs:
             tests.test_l3_requirements \
             tests.test_workspace_server_json_body \
             tests.test_library_query_datetime \
+            tests.test_obsidian_publish \
             -v
       - name: Run pytest tests (parametrize / fixtures)
         # modules that use @pytest.mark.parametrize or pytest fixtures

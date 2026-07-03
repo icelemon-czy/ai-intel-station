@@ -17,14 +17,27 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT_DIR / "output" / "github"
 
 
-def run_gh(cmd: list[str]) -> str:
-    result = subprocess.run(["gh"] + cmd, capture_output=True, text=True)
+def run_gh(cmd: list[str], *, timeout: float = 30.0) -> str:
+    """Run a `gh` CLI subcommand and return its stdout as text.
+
+    Raises ``RuntimeError`` on a non-zero exit, including the captured
+    stderr so the CLI can show the underlying message. A hung `gh`
+    (for example against a slow network) raises ``subprocess.TimeoutExpired``
+    — without the explicit ``timeout`` the workspace would block
+    forever on every collect call.
+    """
+    result = subprocess.run(
+        ["gh"] + cmd,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
     if result.returncode != 0:
-        raise RuntimeError(f"gh failed: {result.stderr}")
+        raise RuntimeError(f"gh failed: {result.stderr.strip()}")
     return result.stdout
 
 
-def fetch_repo(owner: str, repo: str) -> dict:
+def fetch_repo(owner: str, repo: str, *, include_issues: bool = True) -> dict:
     data = json.loads(
         run_gh(
             [
@@ -36,23 +49,35 @@ def fetch_repo(owner: str, repo: str) -> dict:
             ]
         )
     )
-    issues = json.loads(
-        run_gh(
-            [
-                "issue",
-                "list",
-                "-R",
-                f"{owner}/{repo}",
-                "--state",
-                "open",
-                "--limit",
-                "20",
-                "--json",
-                "number,title,state,labels,author,createdAt",
-            ]
-        )
-    )
-    data["issues"] = issues
+    if include_issues:
+        try:
+            data["issues"] = json.loads(
+                run_gh(
+                    [
+                        "issue",
+                        "list",
+                        "-R",
+                        f"{owner}/{repo}",
+                        "--state",
+                        "open",
+                        "--limit",
+                        "20",
+                        "--json",
+                        "number,title,state,labels,author,createdAt",
+                    ]
+                )
+            )
+        except RuntimeError as exc:
+            # Issues fetch failure (auth scope, network, rate limit) is
+            # not fatal — the repo meta is still valuable. Surface the
+            # issue to operators via the topic-level error reporting
+            # without losing the success of the repo save.
+            data["issues"] = []
+            data.setdefault("_warnings", []).append(
+                f"could not list issues: {exc}"
+            )
+    else:
+        data["issues"] = []
     return data
 
 
