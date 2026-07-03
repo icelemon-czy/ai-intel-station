@@ -79,6 +79,27 @@ class WriteResearchItemTests(unittest.TestCase):
             self.assertEqual(loaded["source"], item.source)
 
 
+class ParseGithubSearchMarkdownEmptyTests(unittest.TestCase):
+    def test_empty_file_returns_empty_list(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "search.md"
+            p.write_text("", encoding="utf-8")
+            from library.items import parse_github_search_markdown
+            self.assertEqual(parse_github_search_markdown(p), [])
+
+    def test_blank_lines_only_returns_empty_list(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "search.md"
+            p.write_text("\n\n", encoding="utf-8")
+            from library.items import parse_github_search_markdown
+            # 3 lines of whitespace after splitlines: the first line
+            # is the literal "" so the title scan lands on the next
+            # non-empty line.  The remaining index 0 would still
+            # see an empty H1 marker that the entry parse rejects,
+            # so the result is still empty.
+            self.assertEqual(parse_github_search_markdown(p), [])
+
+
 class WriteResearchItemsJsonlTests(unittest.TestCase):
     def test_empty_list_writes_empty_file_not_trailing_newline(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

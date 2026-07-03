@@ -391,6 +391,11 @@ def parse_github_repo_markdown(markdown_path: Path) -> ResearchItem:
 
 def parse_github_search_markdown(markdown_path: Path) -> list[ResearchItem]:
     lines = markdown_path.read_text(encoding="utf-8").splitlines()
+    # Empty file used to raise IndexError on lines[0]. A search
+    # markdown without a `# Search: ` heading carries no per-repo
+    # entries, so returning an empty list is the right behaviour.
+    if not lines:
+        return []
     query = lines[0].removeprefix("# Search: ").strip()
     items = []
 
