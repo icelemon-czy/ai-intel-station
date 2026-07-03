@@ -27,7 +27,14 @@ def _item_from_dict(payload: dict) -> ResearchItem | None:
     strict dataclass constructor would reject with TypeError. We
     filter to the fields actually declared on the class so a stale
     sidecar does not refuse to load.
+
+    A non-mapping payload (a hand-edited JSON file with a list or
+    scalar at the top level) is also rejected — without the
+    isinstance check, ``payload.items()`` would raise AttributeError
+    mid-load.
     """
+    if not isinstance(payload, dict):
+        return None
     from dataclasses import fields
 
     valid_keys = {f.name for f in fields(ResearchItem)}

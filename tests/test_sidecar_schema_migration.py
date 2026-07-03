@@ -81,6 +81,29 @@ class SidecarSchemaMigrationTests(unittest.TestCase):
             items = load_research_items(output_root)
             self.assertEqual(len(items), 1)
 
+    def test_non_mapping_payload_does_not_crash(self) -> None:
+        # A hand-edited JSON sidecar with a list at the top level
+        # (instead of the expected mapping) used to raise
+        # AttributeError on ``payload.items()`` mid-load. The fix
+        # rejects the non-mapping payload silently so the rest of
+        # the archive keeps loading.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            gh = out / "github" / "agent"
+            gh.mkdir(parents=True)
+            (gh / "research-item.json").write_text("[1, 2, 3]", encoding="utf-8")
+            items = load_research_items(out)
+            self.assertEqual(items, [])
+
+    def test_scalar_payload_does_not_crash(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            gh = out / "github" / "agent"
+            gh.mkdir(parents=True)
+            (gh / "research-item.json").write_text("\"a string\"", encoding="utf-8")
+            items = load_research_items(out)
+            self.assertEqual(items, [])
+
 
 if __name__ == "__main__":
     unittest.main()
