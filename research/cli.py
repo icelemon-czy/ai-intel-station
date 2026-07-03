@@ -453,7 +453,23 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit:
+        # argparse calls sys.exit on parse errors — bubble up unchanged.
+        raise
+
+    try:
+        return _dispatch(args)
+    except ValueError as exc:
+        # User-input date filters or config errors raise ValueError from
+        # query_research_items / load_config. Surface a one-line message
+        # instead of a full traceback so the CLI stays operator-friendly.
+        print(f"❌ {exc}")
+        return 2
+
+
+def _dispatch(args) -> int:
 
     if args.command == "collect":
         if args.source == "github":

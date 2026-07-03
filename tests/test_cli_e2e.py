@@ -13,7 +13,7 @@ PYTHON = str(REPO_ROOT / ".venv" / "bin" / "python")
 MODULE = REPO_ROOT  # so `python -m research.cli` works
 
 
-def _run_cli(*args: str, env_extra: dict[str, str] | None = None, cwd: Path | None = None) -> subprocess.CompletedProcess:
+def _run_cli(*args: str, env_extra: dict[str, str] | None = None, cwd: Path | None = None, timeout: int = 60) -> subprocess.CompletedProcess:
     """Run the CLI as a real subprocess.
 
     We deliberately do NOT use ``python -m research.cli`` — ``research/__init__.py``
@@ -31,7 +31,7 @@ def _run_cli(*args: str, env_extra: dict[str, str] | None = None, cwd: Path | No
         text=True,
         env=env,
         cwd=str(cwd) if cwd else None,
-        timeout=60,
+        timeout=timeout,
     )
 
 
@@ -179,6 +179,79 @@ class CliEndToEndTests(unittest.TestCase):
         self.assertIn("unsupported values: cs.NOPE", combined)
         self.assertIn("max_per_category", combined)
         self.assertIn("briefing.mode", combined)
+
+
+class CliDateFilterErrorTests(unittest.TestCase):
+    """Pin down the contract: malformed --since / --until produce a single
+    one-line operator-friendly message and exit code 2 — not a full
+    traceback. This was the bug where ``library.query._parse_datetime``
+    silently returned None for unparseable input, which made the
+    filter behave as if unset.
+    """
+
+    def test_query_bad_since_exits_2_with_one_line_message(self) -> None:
+        result = _run_cli("query", "agent", "--since", "garbage-date")
+        self.assertEqual(result.returncode, 2)
+        combined = result.stdout + result.stderr
+        # Operator message + the offending value, no Python traceback
+        # lines like 'Traceback (most recent call last)'.
+        self.assertIn("garbage-date", combined)
+        self.assertNotIn("Traceback", combined)
+
+    def test_briefing_bad_until_exits_2_with_one_line_message(self) -> None:
+        # --until on the briefing command runs through the same path
+        # as `query` — query_research_items raises ValueError on a
+        # malformed date filter IF there is at least one item matching
+        # the keyword (otherwise the time-window check never fires).
+        #
+        # We seed a known item so the date filter actually evaluates.
+        from library.items import build_github_repo_item, write_research_item
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_root = Path(tmp) / "out"
+            gh = output_root / "github" / "agent-harness"
+            gh.mkdir(parents=True)
+            (gh / "README.md").write_text(
+                "# agent-harness\n\n"
+                "- 🌐 URL: https://github.com/x/y\n"
+                "- ⭐ Stars: 5\n"
+                "- 🏷️ Language: Go\n"
+                "- 📅 Created: 2026-05-01\n"
+                "- 🔄 Updated: 2026-06-15\n",
+                encoding="utf-8",
+            )
+            item = build_github_repo_item(
+                "x",
+                "y",
+                {
+                    "name": "agent-harness",
+                    "description": "harness repo",
+                    "url": "https://github.com/x/y",
+                    "stargazerCount": 5,
+                    "primaryLanguage": {"name": "Go"},
+                    "repositoryTopics": [],
+                    "createdAt": "2026-05-01T00:00:00Z",
+                    "updatedAt": "2026-06-15T00:00:00Z",
+                    "issues": [],
+                },
+                gh / "README.md",
+            )
+            write_research_item(item, gh / "research-item.json")
+
+            result = _run_cli(
+                "briefing",
+                "digest",
+                "agent",
+                "--until",
+                "not-a-date",
+                "-o",
+                str(output_root),
+                timeout=30,
+            )
+            self.assertEqual(result.returncode, 2, msg=result.stderr)
+            combined = result.stdout + result.stderr
+            self.assertIn("not-a-date", combined)
+            self.assertNotIn("Traceback", combined)
 
 
 if __name__ == "__main__":

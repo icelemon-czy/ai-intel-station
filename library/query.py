@@ -78,6 +78,16 @@ def query_research_items(
     since: str | None = None,
     until: str | None = None,
 ) -> list[ResearchItem]:
+    # Validate since/until BEFORE walking the archive so a malformed
+    # user filter raises even when the archive is empty (or all items
+    # happen to be filtered out by keyword/sources). The CLI used to
+    # silently return "no matches" in that case — the user typed
+    # nonsense and got an empty result with no signal.
+    if since:
+        _parse_datetime(since)  # raises ValueError on garbage
+    if until:
+        _parse_datetime(until)
+
     items = load_research_items(output_root)
     matches = [
         item
