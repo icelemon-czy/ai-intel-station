@@ -251,7 +251,7 @@ def _parse_github(raw: Any, errors: _ErrorBag) -> GitHubSource:
             continue
         item_line, _ = _loc(item)
         query_raw = item.get("query", "")
-        query = str(query_raw).strip()
+        query = str(query_raw or "").strip()
         if not query:
             errors.add(
                 f"sources.github.search[{index}].query",
