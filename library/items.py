@@ -437,7 +437,20 @@ def _parse_paper_authors(authors_line: str) -> tuple[list[str], int | None]:
 
 def parse_paper_markdown(markdown_path: Path) -> ResearchItem:
     lines = markdown_path.read_text(encoding="utf-8").splitlines()
-    title = lines[0].removeprefix("# ").strip()
+    # Skip leading blank lines so a file with a leading BOM
+    # artefact does not produce an empty title. Accept any heading
+    # level (## title, ### title) since a hand-edit might use a
+    # deeper level than the canonical # .
+    title_index = 0
+    while title_index < len(lines) and not lines[title_index].strip():
+        title_index += 1
+    raw_title = lines[title_index].strip() if title_index < len(lines) else ""
+    title = raw_title
+    for prefix in ("### ", "## ", "# "):
+        if title.startswith(prefix):
+            title = title[len(prefix):]
+            break
+    title = title.strip()
     authors_line = next(
         (line.removeprefix("> **Authors:** ").strip() for line in lines if line.startswith("> **Authors:** ")),
         "",

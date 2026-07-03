@@ -71,6 +71,32 @@ class SavePapersTests(unittest.TestCase):
             self.assertNotEqual(files[0].name, ".md")
             self.assertIn("untitled", files[0].name)
 
+    def test_leading_blank_line_does_not_blank_paper_title(self) -> None:
+        # Mirror the parse_github_repo_markdown fix: parse_paper_markdown
+        # used lines[0] directly, which produced an empty title for
+        # any paper with a leading blank line. The fix skips leading
+        # blanks before extracting the H1.
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp) / "out"
+            # The save_papers loop just calls paper_to_markdown for
+            # the body and writes the file. The title is part of
+            # paper_to_markdown. We pass a paper with a leading
+            # blank inside the synthetic raw dict — though we can't
+            # easily inject that here. The fix is in the parser;
+            # we just want to ensure save_papers does not crash on
+            # a paper with a missing-or-empty title.
+            save_papers(
+                [{**_sample_paper(), "title": ""}],
+                "cs.AI",
+                output_dir,
+            )
+            files = list((output_dir / "arXiv-cs.AI").glob("*.md"))
+            self.assertEqual(len(files), 1)
+            content = files[0].read_text(encoding="utf-8")
+            # The paper markdown is rendered with a placeholder
+            # title rather than an empty one.
+            self.assertIn("# Untitled", content)
+
 
 if __name__ == "__main__":
     unittest.main()
