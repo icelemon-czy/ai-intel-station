@@ -104,10 +104,15 @@ def _clean_list(values: list[str] | tuple[str, ...] | None) -> list[str]:
 def _normalize_output_path(path: str | Path | None) -> str | None:
     """Normalize ``path`` to a string relative to ``REPO_ROOT`` when possible.
 
-    Three input shapes collapse to ``None``:
+    Four input shapes collapse to ``None``:
       - ``None`` (caller passed no path)
       - empty string (often used as a "no path" sentinel)
       - whitespace-only (after stripping becomes empty)
+      - non-string / non-Path (e.g. a numeric sentinel that was
+        accidentally passed instead of a path) — without this guard
+        a non-path value slipped through ``str(path)`` and produced
+        a literal ``"123"`` filename that downstream ``build_paper_item``
+        used as the markdown_path.
 
     Collapsing whitespace-only paths to ``None`` is what makes the
     ``filter value not in (None, "", [], {})`` short-circuit in
@@ -115,6 +120,8 @@ def _normalize_output_path(path: str | Path | None) -> str | None:
     is treated the same as no path at all.
     """
     if path is None:
+        return None
+    if not isinstance(path, (str, Path)):
         return None
     text = str(path).strip()
     if not text:
