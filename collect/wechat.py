@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import html as html_mod
+import os
 import re
 import sys
 from pathlib import Path
@@ -81,7 +82,26 @@ async def download_image(client, img_url: str, img_dir: Path, index: int, semaph
 
             response = await client.get(url, headers={"Referer": "https://mp.weixin.qq.com/"}, timeout=15.0)
             response.raise_for_status()
-            filepath.write_bytes(response.content)
+            # Cap to ~10 MB so a hostile server can't push gigabytes through us.
+            # httpx has no built-in body-size limit; check Content-Length and
+            # the actual content length before writing.
+            content_length = response.headers.get("Content-Length")
+            max_bytes = 10 * 1024 * 1024
+            if content_length is not None:
+                try:
+                    if int(content_length) > max_bytes:
+                        print(f"  ⚠ image {filename} too large ({content_length} bytes); skipping")
+                        return img_url, None
+                except ValueError:
+                    pass
+            if len(response.content) > max_bytes:
+                print(f"  ⚠ image {filename} body too large; skipping")
+                return img_url, None
+            # Atomic write so a process crash mid-download cannot leave a
+            # half-truncated image on disk that the user thinks is valid.
+            tmp_path = filepath.with_suffix(filepath.suffix + ".tmp")
+            tmp_path.write_bytes(response.content)
+            os.replace(tmp_path, filepath)
             return img_url, f"images/{filename}"
         except Exception as exc:
             print(f"  ⚠ 图片下载失败: {exc}")
@@ -271,9 +291,18 @@ async def fetch_article(url: str, output_dir: Path | None = None) -> None:
 
     md = convert_to_markdown(content_html, code_blocks)
 
-    safe_title = re.sub(r'[/\\?%*:|"<>]', "_", meta["title"])[:80]
+    raw_safe = re.sub(r'[/\\?%*:|"<>]', "_", meta["title"])[:80]
+    safe_title = raw_safe.strip("_") or "untitled"
     article_dir = output_dir / safe_title
     img_dir = article_dir / "images"
+    # If the article directory already exists, suffix a counter so a
+    # follow-up collect with the same title does not silently overwrite
+    # the previous archive copy.
+    counter = 1
+    while article_dir.exists():
+        article_dir = output_dir / f"{safe_title}-{counter}"
+        img_dir = article_dir / "images"
+        counter += 1
     img_dir.mkdir(parents=True, exist_ok=True)
 
     url_map = await download_all_images(img_urls, img_dir)

@@ -5,7 +5,7 @@ import html
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from library.items import build_paper_item, write_research_item
 
@@ -58,8 +58,35 @@ def fetch_papers_by_category(categories: list[str], max_results: int = 10) -> li
         print(f"📚 Fetching {category} ({AI_CATEGORIES[category]})...")
 
         try:
-            with urlopen(url, timeout=30) as response:
-                xml_content = response.read().decode("utf-8")
+            request = Request(
+                url,
+                headers={
+                    # arXiv recommends identifying clients; a missing
+                    # User-Agent has historically produced 403s.
+                    "User-Agent": "ai-intel-station/0.1 (research workspace; +https://github.com/example/ai-intel-station)",
+                },
+            )
+            with urlopen(request, timeout=30) as response:
+                # Cap the read at 5 MB so a misbehaving or hostile
+                # server cannot stream unlimited content into our
+                # memory while the parser is busy.
+                max_bytes = 5 * 1024 * 1024
+                raw = response.read(max_bytes)
+                # If the response indicates more data (Content-Length
+                # larger than our cap), refuse to parse — the result
+                # would be incomplete and the user has no signal for it.
+                content_length = response.headers.get("Content-Length")
+                if content_length is not None:
+                    try:
+                        if int(content_length) > max_bytes:
+                            print(
+                                f"⚠️  arXiv response {content_length} bytes exceeds "
+                                f"{max_bytes}-byte cap for category {category}; skipping"
+                            )
+                            continue
+                    except ValueError:
+                        pass
+                xml_content = raw.decode("utf-8")
 
             root = ET.fromstring(xml_content)
             ns = {"atom": "http://www.w3.org/2005/Atom"}
