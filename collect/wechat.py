@@ -253,7 +253,12 @@ def replace_image_urls(md: str, url_map: dict[str, str]) -> str:
 
 
 def build_markdown(meta: dict, body_md: str) -> str:
-    lines = [f"# {meta['title']}", ""]
+    # Replace newlines in the title with a space so the H1 heading
+    # stays a single line — 'foo\nbar' would otherwise render as a
+    # single H1 across two visual lines that some markdown renderers
+    # split into two H1s.
+    title = (meta.get("title") or "").replace("\n", " ").replace("\r", " ").strip() or "Untitled"
+    lines = [f"# {title}", ""]
     if meta.get("author"):
         lines.append(f"> 公众号: {meta['author']}")
     if meta.get("publish_time"):

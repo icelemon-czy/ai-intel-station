@@ -180,6 +180,7 @@ jobs:
             tests.test_papers_atom_parse \
             tests.test_escape_link_text \
             tests.test_parse_github_section \
+            tests.test_wechat_build_markdown \
             -v
       - name: Run pytest tests (parametrize / fixtures)
         # modules that use @pytest.mark.parametrize or pytest fixtures
