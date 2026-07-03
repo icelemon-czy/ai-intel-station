@@ -102,17 +102,33 @@ def _clean_list(values: list[str] | tuple[str, ...] | None) -> list[str]:
 
 
 def _normalize_output_path(path: str | Path | None) -> str | None:
+    """Normalize ``path`` to a string relative to ``REPO_ROOT`` when possible.
+
+    Three input shapes collapse to ``None``:
+      - ``None`` (caller passed no path)
+      - empty string (often used as a "no path" sentinel)
+      - whitespace-only (after stripping becomes empty)
+
+    Collapsing whitespace-only paths to ``None`` is what makes the
+    ``filter value not in (None, "", [], {})`` short-circuit in
+    ``__post_init__`` consistent: a path that was set but never written
+    is treated the same as no path at all.
+    """
     if path is None:
         return None
+    text = str(path).strip()
+    if not text:
+        return None
 
-    path_obj = Path(path)
+    path_obj = Path(text)
     if path_obj.is_absolute():
         try:
             path_obj = path_obj.relative_to(REPO_ROOT)
         except ValueError:
             pass
 
-    return path_obj.as_posix()
+    normalized = path_obj.as_posix()
+    return normalized or None
 
 
 def _split_csv(value: str | None) -> list[str]:

@@ -8,7 +8,41 @@ from publish.obsidian import briefing_output_path, write_markdown
 
 
 def _sort_items(items: list[ResearchItem]) -> list[ResearchItem]:
-    return sorted(items, key=lambda item: (item.source.lower(), item.title.lower()))
+    """Sort within a source group: newest first, then title-ascending.
+
+    briefing/reports.py mirrors the library.query sort contract so the
+    most-recent-first ordering carries through from the saved
+    archive into the rendered brief. Previously this was alphabetical,
+    meaning a digest always opened with whatever happened to sort
+    first — usually a 2-year-old generic write-up that nobody wanted.
+    """
+    return sorted(
+        items,
+        key=lambda item: (
+            -(
+                # strptime-fallback chain so an unparseable date sorts as 0.
+                _parse_dt(item.published_at)
+                or _parse_dt(item.updated_at)
+                or 0
+            ),
+            item.title.lower(),
+        ),
+    )
+
+
+def _parse_dt(value: str | None) -> int | None:
+    """Parse a YYYY-MM-DD or YYYY-MM-DDT... timestamp into an epoch second.
+    Returns None when unparseable — duplicated from library.query to
+    keep this module independent of the library's date parsing."""
+    if not value:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+        try:
+            from datetime import datetime
+            return int(datetime.strptime(value, fmt).timestamp())
+        except (ValueError, TypeError):
+            continue
+    return None
 
 
 def _coverage_note(items: list[ResearchItem], requested_sources: list[str] | None) -> list[str]:
