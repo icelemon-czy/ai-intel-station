@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 from datetime import datetime
 from pathlib import Path
 
@@ -707,8 +708,31 @@ import threading
 import uuid
 
 
+# Cap the size of the in-memory job registry. Without a cap, every
+# finished job would pile up forever (a long-running server would
+# accumulate thousands of records, mostly stale). Keep the most
+# recent MAX_JOBS. 32 is enough for a UI showing two pages.
+MAX_JOBS = 32
 _JOBS: dict[str, dict] = {}
 _JOBS_LOCK = threading.Lock()
+
+
+def _evict_old_jobs() -> None:
+    """Drop oldest finished entries once we exceed MAX_JOBS.
+
+    Held under _JOBS_LOCK. We only evict records that have already
+    finished (status != 'running') so we never kill an in-flight job.
+    """
+    if len(_JOBS) <= MAX_JOBS:
+        return
+    finished = [
+        (jid, rec)
+        for jid, rec in _JOBS.items()
+        if rec.get("status") != "running"
+    ]
+    finished.sort(key=lambda kv: kv[1].get("started_at", ""))
+    for jid, _ in finished[: len(_JOBS) - MAX_JOBS]:
+        _JOBS.pop(jid, None)
 
 
 def start_discover_job(output_root: Path, payload: dict) -> dict:
@@ -721,7 +745,12 @@ def start_discover_job(output_root: Path, payload: dict) -> dict:
 
     job_id = uuid.uuid4().hex[:12]
     with _JOBS_LOCK:
-        _JOBS[job_id] = {"status": "running", "result": None, "started_at": datetime.now().isoformat(timespec="seconds")}
+        _JOBS[job_id] = {
+            "status": "running",
+            "result": None,
+            "started_at": datetime.now().isoformat(timespec="seconds"),
+        }
+        _evict_old_jobs()
 
     def _run() -> None:
         from datetime import datetime
@@ -730,9 +759,13 @@ def start_discover_job(output_root: Path, payload: dict) -> dict:
             result = run_discover_from_request(output_root, payload)
         except Exception as exc:  # noqa: BLE001
             result = {"status": "error", "message": str(exc)}
+        # Deep copy before storing — callers may mutate their copy of
+        # the result dict, and dict(record) only copies the top-level
+        # reference.
+        snapshot = copy.deepcopy(result) if isinstance(result, dict) else {"status": "error", "message": str(result)}
         with _JOBS_LOCK:
-            _JOBS[job_id]["result"] = result
-            _JOBS[job_id]["status"] = result.get("status", "error")
+            _JOBS[job_id]["result"] = snapshot
+            _JOBS[job_id]["status"] = snapshot.get("status", "error")
             _JOBS[job_id]["finished_at"] = datetime.now().isoformat(timespec="seconds")
 
     thread = threading.Thread(target=_run, name=f"discover-{job_id}", daemon=True)
@@ -741,10 +774,14 @@ def start_discover_job(output_root: Path, payload: dict) -> dict:
 
 
 def get_job(job_id: str) -> dict | None:
-    """Return the current job record or ``None`` if unknown."""
+    """Return the current job record or ``None`` if unknown.
+
+    Returns a deep copy so callers cannot mutate the in-memory
+    record by accident.
+    """
     with _JOBS_LOCK:
         record = _JOBS.get(job_id)
-        return dict(record) if record else None
+        return copy.deepcopy(record) if record else None
 
 
 def discover_status_payload(output_root: Path) -> dict:

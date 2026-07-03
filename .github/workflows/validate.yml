@@ -170,6 +170,7 @@ jobs:
             tests.test_library_query_datetime \
             tests.test_obsidian_publish \
             tests.test_library_items_atomic \
+            tests.test_storage_and_jobs \
             -v
       - name: Run pytest tests (parametrize / fixtures)
         # modules that use @pytest.mark.parametrize or pytest fixtures
