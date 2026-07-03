@@ -130,17 +130,26 @@ def _format_item(item: ResearchItem, *, checked: bool) -> list[str]:
     Always shows the external link first; if the item has a local markdown
     archive, appends a separate "(open local)" link on the same bullet so
     Obsidian users can open the in-vault copy directly.
+
+    An item without a canonical URL renders with the title as plain
+    text (no markdown link) — emitting an empty ``[title]()`` would
+    render as a broken anchor in Obsidian. The URL is NOT escaped
+    (only the title is) so the link target remains the literal URL.
     """
     title = _escape_link_text(item.title)
-    external = _escape_link_text(item.canonical_url or "")
+    external = (item.canonical_url or "").strip()
     marker = "[ ]" if checked else ""
 
     local = _local_link(item)
+    if external:
+        link_part = f"[{title}]({external})"
+    else:
+        link_part = title
     if local:
         # Two links on one bullet line; Obsidian renders both.
-        title_with_links = f"[{title}]({external}) · [open local]({local})"
+        title_with_links = f"{link_part} · [open local]({local})"
     else:
-        title_with_links = f"[{title}]({external})"
+        title_with_links = link_part
 
     lines = [f"- {marker} {title_with_links}"]
     if item.summary:

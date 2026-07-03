@@ -90,3 +90,40 @@ class BriefingReportTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class FormatItemLinkContractTests(unittest.TestCase):
+    def _item(self, **overrides):
+        from library.items import ResearchItem
+        base = dict(
+            source="github",
+            item_type="repo",
+            title="hello",
+            canonical_url="https://example.com/x",
+            summary="",
+            authors=[],
+            published_at=None,
+            tags=[],
+            output_path="output/x/README.md",
+        )
+        base.update(overrides)
+        return ResearchItem(**base)
+
+    def test_url_is_not_escaped(self) -> None:
+        # The previous code ran the URL through _escape_link_text,
+        # which turned `]` and `.` in the URL into backslash-prefixed
+        # forms — Obsidian would then fail to resolve the link.
+        from briefing.reports import _format_item
+        item = self._item(
+            canonical_url="https://example.com/path/v1.0?x=[1,2,3]",
+        )
+        joined = "\n".join(_format_item(item, checked=False))
+        self.assertIn("https://example.com/path/v1.0?x=[1,2,3]", joined)
+
+    def test_missing_canonical_url_renders_plain_text(self) -> None:
+        # The previous code emitted `[title]()` — an empty link
+        # target that rendered as a broken anchor in Obsidian.
+        from briefing.reports import _format_item
+        item = self._item(canonical_url=None)
+        joined = "\n".join(_format_item(item, checked=False))
+        self.assertNotIn("]()", joined)
+        self.assertIn("hello", joined)
