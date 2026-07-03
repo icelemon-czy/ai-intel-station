@@ -363,7 +363,15 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
     raw_sources = _as_list(data.get("sources"), where="briefing.sources", errors=errors, line=sources_line)
     sources: list[str] = []
     for source in raw_sources:
-        s = str(source).strip()
+        if not isinstance(source, str):
+            errors.add(
+                "briefing.sources",
+                f"contains non-string value: {type(source).__name__} "
+                f"(use a YAML string, not a bare number or list)",
+                line=sources_line,
+            )
+            continue
+        s = source.strip()
         if not s:
             continue
         if s not in ("github", "papers", "wechat"):
@@ -397,7 +405,12 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
         enabled=bool(data.get("enabled", True)),
         mode=mode or "reading-list",
         keyword=keyword,
-        sources=sources or ["github", "papers", "wechat"],
+        # Use a length check, not `sources or default`. An empty
+        # list is falsy under `or`, which made a config with only
+        # invalid source entries silently fall back to the default
+        # 3-source list — turning a validation error into a
+        # different-file result the operator never asked for.
+        sources=sources if sources else ["github", "papers", "wechat"],
         since_days=since_days,
     )
 
