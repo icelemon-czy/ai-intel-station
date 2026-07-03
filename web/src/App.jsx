@@ -347,7 +347,21 @@ function LibrarySection({
     form.sources.forEach((source) => params.append("source", source));
     params.set("page", String(newPage));
     params.set("page_size", String(pageSize));
-    const payload = await requestJson(`/api/library?${params.toString()}`);
+    let payload;
+    try {
+      payload = await requestJson(`/api/library?${params.toString()}`);
+    } catch (err) {
+      // Without this catch the loading spinner stays spinning forever
+      // after a 5xx — search appears to have silently hung.
+      startTransition(() => {
+        setLoading(false);
+        setEmptyState({
+          explanation: `Search failed: ${err.message || err}`,
+          next_steps: ["Try a different keyword", "Check the server logs"],
+        });
+      });
+      return;
+    }
     startTransition(() => {
       setItems(payload.items || []);
       setTotalCount(payload.total_count || 0);
@@ -683,10 +697,26 @@ function BriefingSection({ section, autoRefreshEnabled }) {
 
   async function runAction(path) {
     setLoading(true);
-    const payload = await requestJson(path, {
-      method: "POST",
-      body: JSON.stringify(form),
-    });
+    let payload;
+    try {
+      payload = await requestJson(path, {
+        method: "POST",
+        body: JSON.stringify(form),
+      });
+    } catch (err) {
+      // Same pattern as LibrarySection.runSearch: without this catch
+      // the spinner spins forever on a 5xx.
+      startTransition(() => {
+        setPreview("");
+        setSavedPath("");
+        setEmptyState({
+          explanation: `Briefing failed: ${err.message || err}`,
+          next_steps: ["Try a different keyword", "Re-check form inputs"],
+        });
+        setLoading(false);
+      });
+      return;
+    }
     startTransition(() => {
       setPreview(payload.content);
       setSavedPath(payload.path || "");

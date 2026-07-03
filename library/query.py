@@ -8,15 +8,26 @@ from .storage import load_research_items
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
+    """Return a datetime for ``value`` or None when the input is empty.
+
+    Raises ``ValueError`` when the input is non-empty but does not parse.
+    Callers should treat that as a hard failure so the user is told their
+    filter format is wrong — silently returning None here would let
+    ``since=garbage`` behave like ``since is unset``, masking what
+    should be a 4xx.
+    """
     if not value:
         return None
-
+    if not isinstance(value, str):
+        raise ValueError(f"expected a string, got {type(value).__name__}")
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d"):
         try:
             return datetime.strptime(value, fmt)
         except ValueError:
             continue
-    return None
+    raise ValueError(
+        f"unparseable datetime {value!r}; expected ISO-8601 (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
+    )
 
 
 def _matches_keyword(item: ResearchItem, keyword: str | None) -> bool:
@@ -40,7 +51,14 @@ def _matches_time_window(item: ResearchItem, since: str | None, until: str | Non
     if not since and not until:
         return True
 
-    item_time = _parse_datetime(item.published_at) or _parse_datetime(item.updated_at)
+    # Item-side dates are pulled from real-world data, so they may be
+    # anything. If we can't parse them, the safe fallback is "include
+    # the item" — _parse_datetime here will only raise for malformed
+    # USER input (since/until), which the caller surfaces upstream.
+    try:
+        item_time = _parse_datetime(item.published_at) or _parse_datetime(item.updated_at)
+    except ValueError:
+        item_time = None
     if item_time is None:
         return False
 

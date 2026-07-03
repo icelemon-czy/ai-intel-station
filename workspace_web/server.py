@@ -105,17 +105,37 @@ def _create_handler(output_root: Path):
                 return
             if parsed.path == "/api/library":
                 sources = params.get("source") or None
-                page = int(params.get("page", [1])[0]) if params.get("page") else 1
-                page_size = int(params.get("page_size", [20])[0]) if params.get("page_size") else 20
-                payload = list_library_items(
-                    output_root,
-                    keyword=params.get("keyword", [None])[0],
-                    sources=sources,
-                    since=params.get("since", [None])[0],
-                    until=params.get("until", [None])[0],
-                    page=page,
-                    page_size=page_size,
-                )
+                try:
+                    page = max(1, int(params.get("page", [1])[0])) if params.get("page") else 1
+                except ValueError:
+                    _json_response(self, {"error": "invalid 'page' query parameter"}, status=HTTPStatus.BAD_REQUEST)
+                    return
+                try:
+                    raw_size = int(params.get("page_size", [20])[0]) if params.get("page_size") else 20
+                    # page_size is capped at the largest selectable size in
+                    # the front-end Library UI (50). Any larger value is a
+                    # misuse — typically a script — and we silently clamp
+                    # instead of returning 400 so the UI keeps working.
+                    page_size = min(50, max(1, raw_size))
+                except ValueError:
+                    _json_response(self, {"error": "invalid 'page_size' query parameter"}, status=HTTPStatus.BAD_REQUEST)
+                    return
+                try:
+                    payload = list_library_items(
+                        output_root,
+                        keyword=params.get("keyword", [None])[0],
+                        sources=sources,
+                        since=params.get("since", [None])[0],
+                        until=params.get("until", [None])[0],
+                        page=page,
+                        page_size=page_size,
+                    )
+                except ValueError as exc:
+                    # Raised by library.query._parse_datetime when
+                    # since/until are not parseable — surface the message
+                    # so the user knows their date filter is wrong.
+                    _json_response(self, {"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+                    return
                 _json_response(self, payload)
                 return
             if parsed.path == "/api/library/item":
