@@ -310,9 +310,9 @@ async def fetch_article(url: str, output_dir: Path | None = None) -> None:
         sys.exit(1)
 
     meta["source_url"] = url
-    print(f"📄 标题: {meta['title']}")
-    print(f"👤 作者: {meta['author']}")
-    print(f"📅 时间: {meta['publish_time']}")
+    print(f"📄 标题: {meta.get('title', '')}")
+    print(f"👤 作者: {meta.get('author', '')}")
+    print(f"📅 时间: {meta.get('publish_time', '')}")
 
     content_html, code_blocks, img_urls = process_content(soup)
     if not content_html:
