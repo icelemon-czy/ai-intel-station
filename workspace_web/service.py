@@ -625,17 +625,23 @@ def read_item_markdown(output_root: Path, output_path: str) -> tuple[str, str]:
     from library.storage import load_research_items
 
     output_root = Path(output_root).resolve()
+    project_root = output_root.parent
     requested = Path(output_path)
 
-    # Guard 1: traversal. Two input forms are supported:
-    #   - caller passes a path RELATIVE TO output_root (e.g.
-    #     "github/demo-repo/README.md")
-    #   - caller passes an ABSOLUTE path that lives inside output_root
-    # Both should resolve to a real file under output_root.
+    # Guard 1: traversal. Three input forms are supported:
+    #   - PROJECT-ROOT-relative, matching a sidecar's own `output_path`
+    #     (e.g. "output/github/foo/README.md") — this is what the API sends
+    #   - output_root-relative (e.g. "github/foo/README.md")
+    #   - ABSOLUTE path that lives inside output_root
+    # Resolve against project_root first (so the input can be compared
+    # apples-to-apples with sidecar output_paths), then fall back to the
+    # output_root base. All must land inside output_root.
     if requested.is_absolute():
         candidate = requested.resolve()
     else:
-        candidate = (output_root / requested).resolve()
+        candidate = (project_root / requested).resolve()
+        if output_root != candidate and output_root not in candidate.parents:
+            candidate = (output_root / requested).resolve()
 
     try:
         candidate.relative_to(output_root)
@@ -645,11 +651,10 @@ def read_item_markdown(output_root: Path, output_path: str) -> tuple[str, str]:
         ) from exc
 
     # Guard 2: only known sidecar paths are readable. `item.output_path`
-    # is relative to the PROJECT ROOT (e.g. "output/github/foo/README.md")
-    # but we need to compare it relative to `output_root`. Strip the
-    # leading "output" segment so the comparison is apples-to-apples.
+    # is relative to the PROJECT ROOT (e.g. "output/github/foo/README.md");
+    # normalize both sides to output_root-relative so the comparison is
+    # apples-to-apples.
     candidate_rel = candidate.relative_to(output_root).as_posix()
-    project_root = output_root.parent
     known_paths = set()
     for item in load_research_items(output_root):
         if not item.output_path:

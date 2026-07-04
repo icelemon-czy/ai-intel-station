@@ -5,6 +5,20 @@
 
 ## 最后更新
 
+- **时间**: 2026-07-04
+- **对话主题**: `/fix-bug` — 修复 Library Markdown preview endpoint 拒绝所有合法 item 的真实代码 bug（根因 A）
+
+## 当前工作焦点
+
+**本轮 fix-bug**：`read_item_markdown`（`workspace_web/service.py`）的 Guard 1 对 `output/...` 前缀的项目根相对路径按 output_root 相对解析，导致 candidate_rel 残留 `output/` 前缀而 known_rel 没有，比较永远不相等 → 所有合法 sidecar 的 preview 都被 404 拒绝。已改为优先按 project_root 解析（与 known 路径基准一致），保留 output_root 相对与绝对路径的兼容回退。4 个 preview guard 测试全绿，全套 386 passed（仅剩 socket/node 环境限制失败，非代码问题）。
+
+- 关联变更：无对应 pending change（P3 已归档功能 bug），仅修代码 + 补追溯。
+- **⚠️ 待办**：本地领先 origin/main 49 个 commit（含本次修复尚未提交），当前沙箱无外网无法 push，需在有网络终端执行 `git push`。
+
+---
+
+## 历史工作焦点
+
 - **时间**: 2026-06-04
 - **对话主题**: `/review-tests fix-backend-relative-output-root-resolution` 重审（fix-bug 补测后）→ ✅ Pass → `pending-review` → `approved`
 
