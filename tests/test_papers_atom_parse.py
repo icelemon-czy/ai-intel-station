@@ -9,9 +9,27 @@ the bad row.
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 from xml.etree import ElementTree as ET
 
-from collect.papers import parse_atom_entry
+from collect.papers import PapersFetchError, fetch_papers_by_category, parse_atom_entry
+
+
+class _FakeResponse:
+    def __init__(self, body: bytes, *, content_length: str | None = None) -> None:
+        self._body = body
+        self.headers = {}
+        if content_length is not None:
+            self.headers["Content-Length"] = content_length
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        return None
+
+    def read(self, max_bytes: int) -> bytes:
+        return self._body[:max_bytes]
 
 
 def _entry(xml: str) -> ET.Element:
@@ -109,6 +127,66 @@ class ParseAtomEntryTests(unittest.TestCase):
         )
         paper = parse_atom_entry(entry)
         self.assertEqual(paper["authors"], ["", "Grace Hopper"])
+
+    def test_single_category_caller_can_surface_remote_failure(self) -> None:
+        with patch(
+            "collect.papers.urlopen",
+            side_effect=OSError("offline"),
+        ):
+            with self.assertRaises(PapersFetchError) as context:
+                fetch_papers_by_category(
+                    ["cs.AI"],
+                    max_results=1,
+                    raise_on_error=True,
+                )
+
+        self.assertIn("cs.AI", str(context.exception))
+        self.assertIn("offline", str(context.exception))
+
+    def test_single_category_caller_rejects_unknown_category_before_network(self) -> None:
+        with patch("collect.papers.urlopen") as urlopen_mock:
+            with self.assertRaises(PapersFetchError) as context:
+                fetch_papers_by_category(
+                    ["cs.UNKNOWN"],
+                    max_results=1,
+                    raise_on_error=True,
+                )
+
+        urlopen_mock.assert_not_called()
+        self.assertIn("cs.UNKNOWN", str(context.exception))
+
+    def test_single_category_caller_surfaces_oversized_response_header(self) -> None:
+        max_bytes = 5 * 1024 * 1024
+        response = _FakeResponse(
+            b'<feed xmlns="http://www.w3.org/2005/Atom"></feed>',
+            content_length=str(max_bytes + 1),
+        )
+
+        with patch("collect.papers.urlopen", return_value=response):
+            with self.assertRaises(PapersFetchError) as context:
+                fetch_papers_by_category(
+                    ["cs.AI"],
+                    max_results=1,
+                    raise_on_error=True,
+                )
+
+        self.assertIn("cs.AI", str(context.exception))
+        self.assertIn("byte cap", str(context.exception))
+
+    def test_single_category_caller_surfaces_full_buffer_without_header(self) -> None:
+        max_bytes = 5 * 1024 * 1024
+        response = _FakeResponse(b"x" * max_bytes)
+
+        with patch("collect.papers.urlopen", return_value=response):
+            with self.assertRaises(PapersFetchError) as context:
+                fetch_papers_by_category(
+                    ["cs.AI"],
+                    max_results=1,
+                    raise_on_error=True,
+                )
+
+        self.assertIn("cs.AI", str(context.exception))
+        self.assertIn("truncated-buffer", str(context.exception))
 
 
 if __name__ == "__main__":

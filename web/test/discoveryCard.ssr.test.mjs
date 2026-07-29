@@ -2,7 +2,7 @@
 //
 // Why SSR (not JSDOM)?
 //   - JSDOM is explicitly avoided by the project's L3 spec (see
-//     `.ai/L3-specs/changes/fix-frontend-render-tests-jsdom/proposal.md`).
+//     `.compass/context/L3-specs/changes/fix-frontend-render-tests-jsdom/proposal.md`).
 //   - The component uses ``useEffect`` for status fetching + polling, which
 //     does NOT run during SSR. So SSR is purely a "what does the first paint
 //     look like?" test — exactly the user-facing question we need to answer.
@@ -219,7 +219,7 @@ const SOURCE = readFileSync(CARD_PATH, "utf8");
 test("source defines a 'RecoveryHints' guidance list shown after errors", () => {
     assert.match(SOURCE, /function RecoveryHints\(\)/);
     assert.match(SOURCE, /dry-run/);
-    assert.match(SOURCE, /\.ai\/L4-session\/discovery\//);
+    assert.match(SOURCE, /\.state\/discovery\//);
 });
 
 test("source defines a 'FirstRunHint' shown only on first install", () => {
@@ -265,7 +265,7 @@ async function renderNamedExport(name, props = {}) {
 test("RecoveryHints renders the three concrete next steps", async () => {
     const html = await renderNamedExport("RecoveryHints");
     assert.ok(html.includes("dry-run"), "missing dry-run hint");
-    assert.ok(html.includes(".ai/L4-session/discovery/"), "missing log-dir hint");
+    assert.ok(html.includes(".state/discovery/"), "missing log-dir hint");
     assert.ok(html.includes("config/discovery.yaml"), "missing config hint");
     // The list is a real <ul> for screen-reader semantics.
     assert.match(html, /<ul[^>]*class="[^"]*recovery-list/);
@@ -326,7 +326,7 @@ test("StatusBlock error banner has a Retry button and a log-dir hint", async () 
     // The new affordances: a Retry button and a pointer to the on-disk log.
     assert.ok(/<button[^>]*>[\s\S]*?Retry<\/button>/.test(html),
               "error banner missing Retry button");
-    assert.ok(html.includes(".ai/L4-session/discovery/"),
+    assert.ok(html.includes(".state/discovery/"),
               "error banner missing on-disk log pointer");
     // Rendering with onRetry wires the click handler in SSR but we don't
     // simulate it here — the test only checks the markup exists.

@@ -54,7 +54,7 @@ def _render_cron(repo_root: Path) -> str:
         f"""\
         # AI Intel Station — daily discovery at 09:07 local time.
         # Pick an off-minute to avoid the :00 cron stampede.
-        7 9 * * *  cd {repo_root.as_posix()} && uv run research discover >> .ai/L4-session/discovery/cron.log 2>&1
+        7 9 * * *  cd {repo_root.as_posix()} && mkdir -p .state/discovery && uv run research discover >> .state/discovery/cron.log 2>&1
         """
     )
 
@@ -76,7 +76,7 @@ def render_install_instructions(platform: str, repo_root: Path) -> str:
             "",
             "# Logs:",
             "tail -f /tmp/ai-intel-station.daily.out",
-            f"tail -f {repo_root.as_posix()}/.ai/L4-session/discovery/*.log",
+            f"tail -f {repo_root.as_posix()}/.state/discovery/*.log",
             "",
             "# rendered plist content:",
             _render_launchd(repo_root),

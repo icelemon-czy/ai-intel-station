@@ -167,7 +167,11 @@ def test_collect_papers_invokes_fetch_and_save(self) -> None:
     fetch_calls: list[tuple[list[str], int]] = []
     save_calls: list[tuple[list[dict], str, Path]] = []
 
-    def _fetch(categories: list[str], max_results: int = 10) -> list[dict]:
+    def _fetch(
+        categories: list[str],
+        max_results: int = 10,
+        **_kwargs: Any,
+    ) -> list[dict]:
         fetch_calls.append((list(categories), max_results))
         return [{"title": f"Paper for {categories[0]}", "categories": categories}]
 
@@ -189,7 +193,11 @@ def test_collect_papers_invokes_fetch_and_save(self) -> None:
 
 
 def test_collect_papers_truncates_by_limit(self) -> None:
-    self._patch(papers_collect, "fetch_papers_by_category", lambda cats, max_results: [])
+    self._patch(
+        papers_collect,
+        "fetch_papers_by_category",
+        lambda cats, max_results, **_kwargs: [],
+    )
     self._patch(papers_collect, "save_papers", lambda *args, **kwargs: None)
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -208,6 +216,48 @@ def test_collect_papers_truncates_by_limit(self) -> None:
     self.assertEqual(report.skipped, 1)
     self.assertTrue(any("no papers returned" in note for note in report.notes))
     self.assertTrue(any("truncated" in note for note in report.notes))
+
+
+def test_collect_papers_reports_failure_and_continues_next_category(self) -> None:
+    saved: list[str] = []
+
+    def _fetch(
+        categories: list[str],
+        max_results: int = 10,
+        **_kwargs: Any,
+    ) -> list[dict]:
+        category = categories[0]
+        if category == "cs.AI":
+            raise RuntimeError("arXiv unavailable")
+        return [
+            {
+                "title": "Recovered paper",
+                "categories": [category],
+            }
+        ]
+
+    self._patch(papers_collect, "fetch_papers_by_category", _fetch)
+    self._patch(
+        papers_collect,
+        "save_papers",
+        lambda papers, category, output_dir: saved.append(category),
+    )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        config = _build_config(
+            Path(tmp),
+            papers=PapersSource(
+                enabled=True,
+                categories=["cs.AI", "cs.LG"],
+                max_per_category=2,
+            ),
+        )
+        report = collect_papers(config)
+
+    self.assertEqual(report.failed, 1)
+    self.assertEqual(report.succeeded, 1)
+    self.assertEqual(saved, ["cs.LG"])
+    self.assertTrue(any("cs.AI failed" in note for note in report.notes))
 
 
 def test_collect_wechat_disabled_skips(self) -> None:
@@ -318,7 +368,7 @@ def test_run_discovery_no_briefing_skips_briefing_step(self) -> None:
 def test_run_discovery_only_filter_drops_other_sources(self) -> None:
     self._patch(github_collect, "save_repo", _fail)
     self._patch(github_collect, "run_gh", _fail)
-    papers_collect.fetch_papers_by_category = lambda cats, max_results: [
+    papers_collect.fetch_papers_by_category = lambda cats, max_results, **_kwargs: [
         {"title": "p", "categories": cats, "summary": "", "authors": [], "published": "", "updated": "", "arxiv_id": "", "pdf_url": "", "abs_url": ""}
     ]
     papers_collect.save_papers = lambda *args, **kwargs: None

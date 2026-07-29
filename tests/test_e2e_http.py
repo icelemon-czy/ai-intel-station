@@ -85,7 +85,11 @@ class WorkspaceHttpEndToEndTests(unittest.TestCase):
     def test_get_navigation(self) -> None:
         status, body = self._get("/api/navigation")
         self.assertEqual(status, 200)
-        self.assertIsInstance(body, dict)
+        self.assertIsInstance(body, list)
+        self.assertEqual(
+            [section["id"] for section in body],
+            ["dashboard", "library", "briefing", "collect"],
+        )
 
     def test_get_dashboard_includes_seeded_repo(self) -> None:
         status, body = self._get("/api/dashboard")

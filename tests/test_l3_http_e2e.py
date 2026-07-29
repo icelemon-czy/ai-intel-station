@@ -73,13 +73,50 @@ def _port_is_bindable(port: int) -> bool:
             pass
 
 
+def _free_loopback_port() -> int:
+    """Ask the kernel for an available loopback port.
+
+    Fixed ports make unrelated HTTP test modules order-dependent. The short
+    close-to-bind window is sufficient for these single-process test runs and
+    avoids collisions with other local services.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def _wait_until_reachable(
+    proc: subprocess.Popen,
+    base: str,
+    *,
+    timeout: float = 4.0,
+) -> None:
+    """Wait for the subprocess to finish binding, not merely print a banner."""
+    deadline = time.time() + timeout
+    last_error: Exception | None = None
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            stderr = proc.stderr.read() if proc.stderr else ""
+            raise RuntimeError(
+                f"server exited before becoming reachable at {base}: {stderr!r}"
+            )
+        try:
+            with urllib.request.urlopen(f"{base}/api/navigation", timeout=1):
+                return
+        except (urllib.error.URLError, ConnectionError, OSError) as exc:
+            last_error = exc
+            time.sleep(0.05)
+    raise RuntimeError(
+        f"server never became reachable at {base}: {last_error!r}"
+    )
+
+
 class _WorkspaceServer:
     """Context-manager style helper: spawn a real `serve_workspace`
     in a subprocess. Yields the base URL once the server is reachable.
 
-    The server prints a banner on stdout; we capture it and parse the
-    port number for the actual bind. (For test determinism we ask for
-    a fixed port.)
+    The caller supplies a kernel-assigned port and the helper waits until
+    the real server answers a request.
     """
 
     def __init__(self, output_root: Path, port: int):
@@ -190,7 +227,7 @@ class L3BackendBundleRoundTripTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls._bindable = _port_is_bindable(14173)
+        cls._bindable = _port_is_bindable(0)
         cls.bundle_present = ASSETS_DIR.exists() and any(ASSETS_DIR.glob("*.js"))
 
     def setUp(self):
@@ -205,7 +242,8 @@ class L3BackendBundleRoundTripTests(unittest.TestCase):
         self._seed_repo("demo-y", "Python")
         self._seed_paper("0000.00001")
         self._seed_paper("0000.00002")
-        self.server = _WorkspaceServer(self.tmp, 14173)
+        self.port = _free_loopback_port()
+        self.server = _WorkspaceServer(self.tmp, self.port)
         self.server.__enter__()
 
     def tearDown(self):
@@ -249,7 +287,7 @@ class L3BackendBundleRoundTripTests(unittest.TestCase):
 
     def _seed_paper(self, arxiv_id: str):
         papers_dir = self.tmp / "papers" / "arXiv-cs.AI"
-        papers_dir.mkdir(parents=True)
+        papers_dir.mkdir(parents=True, exist_ok=True)
         md = papers_dir / f"{arxiv_id}.md"
         md.write_text(
             f"# Paper {arxiv_id}\n\n> Author A.\n\n"
@@ -399,7 +437,7 @@ class L3UnifiedOperatorServeSubprocessTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls._bindable = _port_is_bindable(14174)
+        cls._bindable = _port_is_bindable(0)
 
     def setUp(self):
         if not self._bindable:
@@ -436,6 +474,7 @@ class L3UnifiedOperatorServeSubprocessTests(unittest.TestCase):
             ),
             repo_dir / "research-item.json",
         )
+        self.port = _free_loopback_port()
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -450,13 +489,14 @@ class L3UnifiedOperatorServeSubprocessTests(unittest.TestCase):
         # port forwarded via env. The CLI doesn't accept --port today,
         # so we spawn serve_workspace directly via the python module
         # entry point — that IS what `research web` does internally.
-        env = {**os.environ, "PORT": "14174"}
+        env = {**os.environ, "PORT": str(self.port)}
         proc = subprocess.Popen(
             [PYTHON, "-c",
              "import sys, pathlib, os\n"
              f"sys.path.insert(0, {str(REPO_ROOT)!r})\n"
              "from workspace_web import server as srv\n"
-             f"srv.serve_workspace(pathlib.Path({str(self.tmp)!r}), port=14174)\n"],
+             f"srv.serve_workspace(pathlib.Path({str(self.tmp)!r}), "
+             "port=int(os.environ['PORT']))\n"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -470,7 +510,7 @@ class L3UnifiedOperatorServeSubprocessTests(unittest.TestCase):
             while time.time() < deadline:
                 try:
                     with urllib.request.urlopen(
-                        "http://127.0.0.1:14174/api/library?source=github",
+                        f"http://127.0.0.1:{self.port}/api/library?source=github",
                         timeout=1,
                     ) as resp:
                         body = json.loads(resp.read().decode("utf-8"))
@@ -531,7 +571,7 @@ class L3ExplicitFailureHttpBoundaryTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls._bindable = _port_is_bindable(14175)
+        cls._bindable = _port_is_bindable(0)
 
     def setUp(self):
         if not self._bindable:
@@ -548,18 +588,24 @@ class L3ExplicitFailureHttpBoundaryTests(unittest.TestCase):
         # genuinely resolve to nothing. We keep PYTHONPATH so the server
         # can still import workspace_web.
         empty_path_dir = self._make_empty_path_dir()
+        self.port = _free_loopback_port()
         env = {
             **os.environ,
             "PATH": str(empty_path_dir),  # only contains /bin true
-            "PORT": "14175",
+            "PORT": str(self.port),
             "PYTHONPATH": str(REPO_ROOT),
+            "HTTP_PROXY": "http://127.0.0.1:9",
+            "HTTPS_PROXY": "http://127.0.0.1:9",
+            "ALL_PROXY": "http://127.0.0.1:9",
+            "NO_PROXY": "127.0.0.1,localhost",
         }
         script = (
             "import sys, pathlib, os\n"
             f"sys.path.insert(0, {str(REPO_ROOT)!r})\n"
             "print('LISTENING http://127.0.0.1:' + os.environ['PORT'], flush=True)\n"
             f"from workspace_web import server as srv\n"
-            f"srv.serve_workspace(pathlib.Path({str(self.tmp)!r}), port=14175)\n"
+            f"srv.serve_workspace(pathlib.Path({str(self.tmp)!r}), "
+            "port=int(os.environ['PORT']))\n"
         )
         self.server_proc = subprocess.Popen(
             [PYTHON, "-c", script],
@@ -581,7 +627,8 @@ class L3ExplicitFailureHttpBoundaryTests(unittest.TestCase):
                 )
             if line.startswith("LISTENING"):
                 break
-        self.base = "http://127.0.0.1:14175"
+        self.base = f"http://127.0.0.1:{self.port}"
+        _wait_until_reachable(self.server_proc, self.base)
 
     def tearDown(self):
         try:
@@ -691,13 +738,9 @@ class L3ExplicitFailureHttpBoundaryTests(unittest.TestCase):
         raises (e.g. arXiv API outage), the response MUST include the
         category identifier so the operator knows which category to
         retry — not "all categories failed" nor empty."""
-        # Even with a working `collect.papers` import on the host,
-        # `fetch_papers_by_category` calls `urllib.request.urlopen` to
-        # arxiv.org, which is BLOCKED from this sandbox. That gives us
-        # a deterministic exception → structured error → carrying the
-        # category ID through the HTTP boundary. The point of the test
-        # is the *server* surface: ensure error wording includes the
-        # category id.
+        # The child process routes remote HTTP through a closed local proxy,
+        # giving us a deterministic failure without depending on CI network
+        # policy or contacting arxiv.org.
         body = self._post(
             "/api/collect/run",
             {"source": "papers", "fields": {"category": "cs.AI", "max": 5}},
@@ -731,28 +774,24 @@ class L3ExplicitFailureHttpBoundaryTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# L3 Requirement 5 (Optional Live Verification) — through the HTTP server
-# rather than at the unittest boundary. The contract: when network-dependent
-# endpoints are called WITHOUT their required env (e.g. WECHAT_E2E_URLS
-# unset), the server MUST NOT crash and MUST surface a clean skip response
-# rather than 500.
+# Collection Spec: Source-Specific Validation and Errors — through the HTTP
+# server. Live verification remains a separate marked suite; normal Web input
+# validation must not depend on WECHAT_E2E_URLS or launch a browser.
 # ---------------------------------------------------------------------------
 
 
-class L3OptionalLiveVerificationHttpBoundaryTests(unittest.TestCase):
-    """Real HTTP server, real environment, real skip semantics.
+class L3WechatInputValidationHttpBoundaryTests(unittest.TestCase):
+    """Real HTTP server with live-test configuration explicitly absent.
 
-    The L3 contract: `WECHAT_E2E_URLS` unset ⇒ live e2e skipped cleanly.
-    At the HTTP boundary this means: requesting an endpoint that would
-    normally trigger a live network call should succeed with a skip
-    payload rather than 500.
+    `WECHAT_E2E_URLS` controls the separate live suite; normal Web startup
+    and input validation must not depend on it.
     """
 
     _bindable: bool = False
 
     @classmethod
     def setUpClass(cls):
-        cls._bindable = _port_is_bindable(14176)
+        cls._bindable = _port_is_bindable(0)
 
     def setUp(self):
         if not self._bindable:
@@ -765,14 +804,16 @@ class L3OptionalLiveVerificationHttpBoundaryTests(unittest.TestCase):
         # set, the subprocess must still see it unset.
         child_env = {k: v for k, v in os.environ.items() if k != "WECHAT_E2E_URLS"}
         child_env["WECHAT_E2E_URLS"] = ""  # ensure empty, not inherited
-        child_env["PORT"] = "14176"
+        self.port = _free_loopback_port()
+        child_env["PORT"] = str(self.port)
         child_env["PYTHONPATH"] = str(REPO_ROOT)
         script = (
             "import sys, pathlib, os\n"
             f"sys.path.insert(0, {str(REPO_ROOT)!r})\n"
             "print('LISTENING http://127.0.0.1:' + os.environ['PORT'], flush=True)\n"
             f"from workspace_web import server as srv\n"
-            f"srv.serve_workspace(pathlib.Path('output'), port=14176)\n"
+            f"srv.serve_workspace(pathlib.Path('output'), "
+            "port=int(os.environ['PORT']))\n"
         )
         self.server_proc = subprocess.Popen(
             [PYTHON, "-c", script],
@@ -792,7 +833,8 @@ class L3OptionalLiveVerificationHttpBoundaryTests(unittest.TestCase):
                 )
             if line.startswith("LISTENING"):
                 break
-        self.base = "http://127.0.0.1:14176"
+        self.base = f"http://127.0.0.1:{self.port}"
+        _wait_until_reachable(self.server_proc, self.base)
 
     def tearDown(self):
         try:
@@ -805,39 +847,24 @@ class L3OptionalLiveVerificationHttpBoundaryTests(unittest.TestCase):
         except Exception:
             pass
 
-    def test_server_starts_when_optional_live_env_is_unset(self):
-        """L3 Req 5 contract: optional live verification MUST skip cleanly
-        when prerequisites are absent. Sanity-check #1: the server boots
-        at all. If the live verification was unconditional, the import
-        chain would fail and the server wouldn't reach LISTENING — and
-        the setUp() of this test would have raised RuntimeError."""
-        # Re-probe: we got here, so setUp succeeded. Now hit a route
-        # whose handling transitively depends on the live verification
-        # chain (the wechat collect endpoint with arbitrary input).
+    def test_wechat_missing_url_is_structured_when_live_env_is_unset(self):
+        """Missing required input returns actionable JSON without browser I/O."""
         body = self._post(
             "/api/collect/run",
             {
                 "source": "wechat",
-                "fields": {"url": "https://mp.weixin.qq.com/s/example"},
+                "fields": {"url": ""},
             },
         )
-        # It may succeed, error, or skip — but it MUST NOT 5xx with
-        # an unhandled traceback, and it MUST carry structured JSON.
         if body.get("__http_status__"):
             self.fail(
                 f"/api/collect/run(wechat) returned HTTP "
-                f"{body['__http_status__']} — server should not 500 just "
-                f"because WECHAT_E2E_URLS is unset. body={body['__body__'][:300]!r}"
+                f"{body['__http_status__']} for missing URL. "
+                f"body={body['__body__'][:300]!r}"
             )
-        # The structured response must at least have a `status` field.
-        # The specific value (success / error / partial) is environment-
-        # dependent (camoufox may or may not be installed) — we only
-        # assert the JSON shape, not the success-ness.
-        self.assertIn(
-            "status",
-            body,
-            f"server returned no `status` field: {body!r}",
-        )
+        self.assertEqual(body.get("status"), "error")
+        self.assertIn("url", (body.get("message") or "").lower())
+        self.assertTrue(body.get("next_step"))
 
     def _post(self, path: str, payload) -> dict:
         req = urllib.request.Request(

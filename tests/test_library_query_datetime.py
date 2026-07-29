@@ -7,10 +7,14 @@ empty input → None; invalid input → ValueError.
 """
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock
 
+from library.items import ResearchItem, write_research_item
 from library.query import _parse_datetime, _matches_time_window
+from workspace_web.service import list_library_items
 
 
 class ParseDatetimeTests(unittest.TestCase):
@@ -29,6 +33,13 @@ class ParseDatetimeTests(unittest.TestCase):
     def test_iso_datetime_with_z_parses(self) -> None:
         result = _parse_datetime("2026-05-08T00:00:00Z")
         self.assertEqual(result.year, 2026)
+
+    def test_legacy_minute_precision_datetime_parses(self) -> None:
+        result = _parse_datetime("2026-04-02 08:31")
+        self.assertEqual(
+            (result.year, result.month, result.day, result.hour, result.minute),
+            (2026, 4, 2, 8, 31),
+        )
 
     def test_garbage_raises_value_error(self) -> None:
         # The whole point of this contract: caller surfaces a 4xx so the
@@ -71,9 +82,99 @@ class MatchesTimeWindowTests(unittest.TestCase):
         item = self._item(published_at="garbage")
         self.assertFalse(_matches_time_window(item, since="2026-01-01", until=None))
 
+    def test_invalid_published_date_falls_back_to_valid_updated_date(self) -> None:
+        item = self._item(
+            published_at="garbage",
+            updated_at="2026-05-02",
+        )
+        self.assertTrue(
+            _matches_time_window(item, since="2026-05-01", until=None)
+        )
+
     def test_no_window_matches(self) -> None:
         item = self._item(published_at="2026-05-01")
         self.assertTrue(_matches_time_window(item, since=None, until=None))
+
+
+class LibraryQueryLegacyDatetimeRegressionTests(unittest.TestCase):
+    def _write_item(
+        self,
+        output_root: Path,
+        *,
+        slug: str,
+        title: str,
+        published_at: str,
+    ) -> None:
+        item_dir = output_root / "github" / slug
+        item_dir.mkdir(parents=True)
+        markdown_path = item_dir / "README.md"
+        markdown_path.write_text(f"# {title}\n", encoding="utf-8")
+        write_research_item(
+            ResearchItem(
+                source="github",
+                item_type="repository",
+                title=title,
+                published_at=published_at,
+                output_path=str(markdown_path),
+            ),
+            item_dir / "research-item.json",
+        )
+
+    def test_public_library_query_accepts_legacy_minute_precision_datetime(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output_root = Path(tmp)
+            self._write_item(
+                output_root,
+                slug="legacy",
+                title="Legacy",
+                published_at="2026-04-02 08:31",
+            )
+            self._write_item(
+                output_root,
+                slug="iso",
+                title="ISO",
+                published_at="2026-04-03T00:00:00Z",
+            )
+
+            payload = list_library_items(output_root)
+
+        self.assertEqual(payload["total_count"], 2)
+        self.assertEqual(
+            [item["title"] for item in payload["items"]],
+            ["ISO", "Legacy"],
+        )
+
+    def test_malformed_item_datetime_does_not_break_unfiltered_query(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output_root = Path(tmp)
+            self._write_item(
+                output_root,
+                slug="valid",
+                title="Valid",
+                published_at="2026-04-03",
+            )
+            self._write_item(
+                output_root,
+                slug="malformed",
+                title="Malformed",
+                published_at="not-a-date",
+            )
+
+            unfiltered = list_library_items(output_root)
+            filtered = list_library_items(output_root, since="2026-01-01")
+
+        self.assertEqual(
+            [item["title"] for item in unfiltered["items"]],
+            ["Valid", "Malformed"],
+        )
+        self.assertEqual(
+            [item["title"] for item in filtered["items"]],
+            ["Valid"],
+        )
 
 
 if __name__ == "__main__":

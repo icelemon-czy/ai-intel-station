@@ -20,13 +20,18 @@ def _parse_datetime(value: str | None) -> datetime | None:
         return None
     if not isinstance(value, str):
         raise ValueError(f"expected a string, got {type(value).__name__}")
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d"):
+    for fmt in (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%dT%H:%M:%SZ",
+        "%Y-%m-%d",
+    ):
         try:
             return datetime.strptime(value, fmt)
         except ValueError:
             continue
     raise ValueError(
-        f"unparseable datetime {value!r}; expected ISO-8601 (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)"
+        f"unparseable datetime {value!r}; expected ISO-8601 or legacy YYYY-MM-DD HH:MM"
     )
 
 
@@ -47,6 +52,23 @@ def _matches_sources(item: ResearchItem, sources: list[str] | None) -> bool:
     return item.source.lower() in source_set
 
 
+def _item_datetime(item: ResearchItem) -> datetime | None:
+    """Return the first valid item-side timestamp without failing the query.
+
+    Item metadata comes from historical archives and external sources, so
+    invalid ``published_at`` must not prevent a valid ``updated_at`` fallback
+    or crash the sort for every other Library item.
+    """
+    for value in (item.published_at, item.updated_at):
+        try:
+            parsed = _parse_datetime(value)
+        except ValueError:
+            continue
+        if parsed is not None:
+            return parsed
+    return None
+
+
 def _matches_time_window(item: ResearchItem, since: str | None, until: str | None) -> bool:
     if not since and not until:
         return True
@@ -55,10 +77,7 @@ def _matches_time_window(item: ResearchItem, since: str | None, until: str | Non
     # anything. If we can't parse them, the safe fallback is "include
     # the item" — _parse_datetime here will only raise for malformed
     # USER input (since/until), which the caller surfaces upstream.
-    try:
-        item_time = _parse_datetime(item.published_at) or _parse_datetime(item.updated_at)
-    except ValueError:
-        item_time = None
+    item_time = _item_datetime(item)
     if item_time is None:
         return False
 
@@ -99,7 +118,7 @@ def query_research_items(
     return sorted(
         matches,
         key=lambda item: (
-            _parse_datetime(item.published_at) or _parse_datetime(item.updated_at) or datetime.min,
+            _item_datetime(item) or datetime.min,
             item.title.lower(),
         ),
         reverse=True,

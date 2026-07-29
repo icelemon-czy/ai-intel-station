@@ -231,7 +231,11 @@ def collect_papers(
         if logger:
             logger.log(f"📚 Fetching arXiv {category} ({AI_CATEGORIES.get(category, '?')})...")
         try:
-            fetched = papers_module.fetch_papers_by_category([category], papers.max_per_category)
+            fetched = papers_module.fetch_papers_by_category(
+                [category],
+                papers.max_per_category,
+                raise_on_error=True,
+            )
             if not fetched:
                 report.notes.append(f"{category}: no papers returned")
                 continue

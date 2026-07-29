@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+import pytest
+
 from library.items import (
     backfill_output_tree,
     build_github_repo_item,
@@ -326,6 +328,7 @@ def test_save_papers_writes_markdown_and_research_item_sidecar(tmp_path: Path) -
     assert payload["output_path"].endswith("arXiv-cs.AI/01-Agent Harness Study.md")
 
 
+@pytest.mark.wechat
 def test_fetch_article_writes_markdown_images_and_research_item_sidecar(
     tmp_path: Path,
     monkeypatch,

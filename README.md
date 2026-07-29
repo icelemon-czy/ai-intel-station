@@ -2,13 +2,38 @@
 
 `ai-intel-station` is a local-first AI intelligence workspace for collecting source material, building a shared library, and generating Obsidian-friendly briefings.
 
+## Agent-First Daily Use
+
+The primary interface is the project Agent + `daily-discovery` Skill. Ask in natural language:
+
+- “今天 AI 圈有什么值得看？”
+- “现在跑一遍 GitHub 和 papers，然后给我五条重点。”
+- “把每日搜索主题改成 agent memory。”
+- “昨天为什么失败？”
+
+The Agent operates the deterministic `research` runtime, reads the resulting local briefing, and
+returns the useful items in the conversation. Web is optional and reserved for visual Library /
+briefing browsing.
+
+Core setup installs only the project and PyYAML:
+
+```bash
+uv sync --frozen
+```
+
+WeChat is intentionally optional because its browser stack is much heavier:
+
+```bash
+uv sync --extra wechat
+```
+
 ## Business Flow
 
 1. `collect` gathers raw material from GitHub, arXiv, or WeChat into `output/<source>/`
 2. `query` searches local `ResearchItem` sidecars without re-fetching remote data
 3. `briefing` generates digest or reading-list Markdown under `output/briefing/`
 4. `backfill` rebuilds sidecars from historical Markdown archives
-5. `web` serves a local React workspace for dashboard, library browsing, and briefing generation
+5. `web` optionally serves a local React viewer for dashboard, library browsing, and briefing generation
 
 ## Unified Runtime Surface
 
@@ -16,6 +41,7 @@
 uv run research collect github owner/repo
 uv run research collect github "agent harness" --search
 uv run research collect papers cs.AI --max 10
+# One-time before the first WeChat collection: uv sync --extra wechat
 uv run research collect wechat "https://mp.weixin.qq.com/s/example"
 
 uv run research query agent --source github
@@ -28,14 +54,15 @@ npm --prefix web run build
 uv run research web
 ```
 
-## Daily Discovery
+## Daily Discovery CLI Reference
 
-Auto-pilot mode: declare sources in YAML, run on a schedule, get a daily digest. See [docs/daily-discovery.md](docs/daily-discovery.md).
+The Agent normally performs these actions. The commands remain documented as a deterministic
+fallback and automation surface. See [docs/daily-discovery.md](docs/daily-discovery.md).
 
 ```bash
 # One-time setup
 uv run research init-config                # writes config/discovery.yaml from template
-$EDITOR config/discovery.yaml              # edit repos / searches / categories
+uv run research discover --dry-run         # validate config without network
 
 # Manual run (no surprise side-effects without --install)
 uv run research discover --dry-run                       # see what would happen, **no network** at all
@@ -54,8 +81,8 @@ uv run research schedule launchd --install # actually write + launchctl load
 ```
 
 Tested offline: the entire `discover` flow (config load → runner → briefing write) is covered
-by `tests/test_discovery_config.py` and `tests/test_discovery_runner.py` (19 tests, no
-network calls). The CI job `discovery-unit-tests` runs them on every PR.
+by the broad core suite plus the dedicated `tests.test_discovery_runner` unittest adapter.
+CI keeps lightweight core, optional WeChat, and Web validation in separate jobs on every PR.
 
 ## Output Layout
 
@@ -71,11 +98,12 @@ Raw archives remain source-segregated. Derived reading artifacts are written onl
 
 ## L3 Spec Coverage
 
-Each requirement in [`.ai/L3-specs/specs/system.md`](../.ai/L3-specs/specs/system.md) is exercised by at least one real end-to-end test (no business-layer mocking, real subprocess + HTTP where the user-visible flow crosses a process boundary). The full mapping — requirement → test name → test file — lives in **[`docs/l3-coverage.md`](docs/l3-coverage.md)**.
+Current behavior contracts live under [`.compass/context/L3-specs/specs/`](.compass/context/L3-specs/specs/). The evidence mapping — requirement → code/test anchor → verification status — lives in **[`docs/l3-coverage.md`](docs/l3-coverage.md)**.
 
-## Local Web Workspace
+## Optional Local Web Workspace
 
-The first-phase local web workspace keeps the same local-first rules as the CLI:
+The existing Web workspace is not required for daily discovery. When a visual viewer is useful, it
+keeps the same local-first rules as the CLI:
 
 1. Dashboard reads local sidecars and recent briefing artifacts only.
 2. Library reuses local `ResearchItem` search without remote fetches.

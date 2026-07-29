@@ -1,48 +1,54 @@
-# Daily Discovery — 自动每日探索
+# Daily Discovery — Agent-first 每日情报
 
-一键把 AI Intel Station 从"手动敲命令"升级为"每天 9 点自动收集 + 出简报"。
+primary interface 是 project Agent + `daily-discovery` Skill。Agent 负责理解 intent、执行
+deterministic CLI、读取 local briefing，并把重点直接返回 conversation；Web 不是前置条件。
 
-## 60 秒上手
+## 日常使用
+
+在 project-aware Agent 中直接说：
+
+- “今天有什么值得看？”
+- “现在跑 GitHub 和 papers，给我五条重点。”
+- “把每日搜索主题改成 agent memory。”
+- “每天早上九点自动跑。”
+- “昨天为什么失败？”
+
+Agent 会检查现有 status，避免重复执行今日成功 run；需要运行时创建或最小修改 ignored
+config，执行 dry-run validation，读取 briefing / log，并返回成功内容与 partial failure。
+只有明确要求 install schedule 时才修改本机 scheduler。
+
+## Lightweight bootstrap
+
+默认环境只安装 core runtime：
 
 ```bash
-cd /path/to/ai-intel-station
-
-# 1) 拷贝示例配置（首次）
-uv run research init-config
-
-# 2) 不联网试运行（确认 YAML 合法 + 看会跑什么）
-uv run research discover --dry-run
-
-# 3) 安装每日 9:00 自动跑（macOS 一键版）
-uv run research schedule launchd --install
-
-# 4) 任何时候查看上次跑了啥
-uv run research discover --status
-uv run research discover --log-list 7    # 最近 7 次 summary（一行一条）
-
-# 5) 找生成的简报 markdown（如果忘了存在哪里）
-uv run research briefing --list
+uv sync --frozen
 ```
 
-到这里你已经"配好每日自动"。下面只在你需要时看。
+这条路径支持 GitHub、Papers、local query、briefing、discover、status 与 schedule control。
+WeChat browser stack 只有真正使用时才安装：
 
-## 完整上手
+```bash
+uv sync --extra wechat
+```
+
+未安装 WeChat extra 时，WeChat command 会返回这条 guidance；不会阻止其他 source 或输出
+Python traceback。
+
+## Manual CLI fallback
 
 ```bash
 # 1. 拷贝示例配置（首次）
 uv run research init-config
 #   ↳ 在 config/discovery.yaml.example 的基础上写入 config/discovery.yaml
 
-# 2. 按需编辑（GitHub repos / 搜索词 / arXiv 分类 / WeChat URLs）
-$EDITOR config/discovery.yaml
-
-# 3. 试运行（不联网，只看会跑什么）
+# 2. 试运行（不联网，只看会跑什么）
 uv run research discover --dry-run
 
-# 4. 手动跑一次
+# 3. 手动跑一次
 uv run research discover
 
-# 5. 安装每天 9:00 自动跑（macOS）
+# 4. 明确需要时安装每天 9:00 自动跑（macOS）
 uv run research schedule launchd
 #   ↳ 按提示 cp + launchctl load 即可
 ```
@@ -77,7 +83,7 @@ uv run research schedule launchd
 
 ```yaml
 output_root: output                  # 相对 REPO_ROOT；默认 ./output
-log_dir: .ai/L4-session/discovery    # 每次运行的 .log 文件
+log_dir: .state/discovery            # 每次运行的 .log 文件
 
 sources:
   github:
@@ -110,6 +116,11 @@ limits:
   skip_if_already_collected_hours: 20   # 同一 owner/repo 距上次 < 20h 跳过
 ```
 
+`.state/discovery/` 是未配置 `log_dir` 时的新 default。已有 `config/discovery.yaml`
+如果仍显式写着 `.ai/L4-session/discovery`，会继续使用旧目录；需要切换时请手动改为
+`.state/discovery`。migration 不会自动移动或删除旧 log，旧目录仍受原有
+`limits.max_log_files` retention 约束。
+
 ## 去重 & 限流
 
 - **GitHub repo**：`{owner}-{repo}` 目录在 `output/github/` 下存在，且 mtime < `skip_if_already_collected_hours`，跳过。
@@ -140,7 +151,7 @@ launchctl load -w /Users/<you>/Library/LaunchAgents/com.ai-intel-station.daily.p
 ```bash
 launchctl list | grep com.ai-intel-station.daily
 tail -f /tmp/ai-intel-station.daily.out
-tail -f /path/to/repo/.ai/L4-session/discovery/*.log
+tail -f /path/to/repo/.state/discovery/*.log
 ```
 
 停止 / 卸载：
@@ -165,7 +176,8 @@ uv run research schedule cron
 
 ### `Camoufox` / WeChat 抓取失败
 
-`collect/wechat.py` 需要 Camoufox + 浏览器内核。WeChat 有反爬，可能被风控。建议默认 `enabled: false`，只在需要时打开。
+先运行 `uv sync --extra wechat` 安装 optional browser stack。WeChat 有反爬，可能被风控；
+建议默认 `enabled: false`，只在需要时打开。
 
 ### `Failed to fetch arXiv: Tunnel connection failed`
 
@@ -181,7 +193,7 @@ uv run research schedule cron
 
 ## 运行日志
 
-每次 `research discover` 会创建 `.ai/L4-session/discovery/<timestamp>.log`，包含：
+每次 `research discover` 会创建 `.state/discovery/<timestamp>.log`，包含：
 
 - 每个 source 的 section 标题 + 成功 / 跳过 / 失败计数
 - 最终 JSON 摘要（含 output_paths、briefing 路径）
@@ -190,7 +202,7 @@ CLI 最后会打印一行 `📓 Log: <path>`。
 
 ### 日志轮转
 
-`limits.max_log_files` 控制 `.ai/L4-session/discovery/` 下保留的 log 文件数：
+`limits.max_log_files` 控制 `.state/discovery/` 下保留的 log 文件数：
 
 - **默认 30**：连续跑一个月也只保留最新 30 个；老的自动删。
 - **0**：不轮转，想看多久看多久（注意磁盘）。
@@ -201,8 +213,16 @@ CLI 最后会打印一行 `📓 Log: <path>`。
 ## 测试
 
 ```bash
-# 不依赖 pytest（venv 里没装），用 stdlib unittest：
-.venv/bin/python -m unittest tests.test_discovery_config tests.test_discovery_runner
+# Core discovery tests
+uv run --extra dev python -m pytest tests/test_agent_first_runtime.py tests/test_discovery_config.py
+
+# Runner 的 free-function compatibility suite 使用 unittest
+uv run python -m unittest tests.test_discovery_runner
+
+# WeChat tests 按需加载 optional source dependency
+uv run --extra wechat --extra dev python -m pytest -m wechat \
+  tests/test_research_item.py tests/test_wechat_collect.py
 ```
 
-19 个测试覆盖：YAML 校验 / 错误信息 / dry-run / 去重 / 单 source 过滤 / briefing 写入。
+覆盖 YAML 校验、错误信息、dry-run、去重、单 source 过滤、partial category failure、
+briefing 写入与 optional runtime boundary。

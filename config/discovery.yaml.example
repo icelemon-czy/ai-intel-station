@@ -3,7 +3,7 @@
 # `discovery.yaml` is git-ignored; this template is the source of truth.
 
 output_root: output                  # relative to repo root; defaults to ./output
-log_dir: .ai/L4-session/discovery    # per-run log files live here
+log_dir: .state/discovery            # per-run log files live here
 
 sources:
   github:

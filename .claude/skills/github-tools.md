@@ -1,1 +1,0 @@
-/Users/chansteven/LLM/learning/research/github-tools/SKILL.md

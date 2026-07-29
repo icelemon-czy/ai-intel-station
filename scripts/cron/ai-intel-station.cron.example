@@ -2,4 +2,4 @@
 # Pick an off-minute (07 here) to avoid the :00 cron stampede.
 # Add with:
 #   ( crontab -l 2>/dev/null; cat scripts/cron/ai-intel-station.cron.example ) | sed "s|__REPO_ROOT__|$PWD|g" | crontab -
-7 9 * * *  cd __REPO_ROOT__ && uv run research discover >> .ai/L4-session/discovery/cron.log 2>&1
+7 9 * * *  cd __REPO_ROOT__ && mkdir -p .state/discovery && uv run research discover >> .state/discovery/cron.log 2>&1

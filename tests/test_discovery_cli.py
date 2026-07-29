@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import io
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -82,17 +85,21 @@ class InitConfigCliTests(unittest.TestCase):
 
     def test_discover_help_includes_first_time_steps(self) -> None:
         """`research discover --help` must guide first-time users."""
-        import subprocess
-
+        repo_root = Path(__file__).resolve().parents[1]
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(repo_root)
         result = subprocess.run(
             [
-                "/Users/chansteven/LLM/learning/ai-intel-station/.venv/bin/research",
+                sys.executable,
+                "-c",
+                "from research.cli import console_main; console_main()",
                 "discover",
                 "--help",
             ],
             capture_output=True,
             text=True,
             check=False,
+            env=env,
         )
         self.assertEqual(result.returncode, 0)
         combined = result.stdout + result.stderr

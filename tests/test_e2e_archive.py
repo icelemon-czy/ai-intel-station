@@ -197,8 +197,8 @@ class L3SourceSegregatedArchiveTests(unittest.TestCase):
                 continue
             if path.resolve().is_relative_to(expected_prefix):
                 continue
-            # briefing/ and .ai/ are legitimate cross-cutting dirs.
-            if "briefing" in path.parts or ".ai" in path.parts:
+            # briefing/ is the only legitimate cross-cutting output dir.
+            if "briefing" in path.parts:
                 continue
             self.fail(
                 f"file leaked outside {source_subdir}: {path}"

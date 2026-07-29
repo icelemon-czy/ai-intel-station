@@ -3,10 +3,10 @@
 // This test does the strongest possible single-process e2e:
 //   1. Spawns the real `serve_workspace` Python process in a
 //      subprocess, on a kernel-assigned free TCP port.
-//   2. Probes every `/api/*` endpoint the React bundle actually
-//      calls (extracted by grepping the bundle, not hard-coded
-//      here — so a frontend renamer triggers a CI failure
-//      automatically).
+//   2. Extracts every `/api/*` endpoint from the React bundle and
+//      requires a method-aware request contract for it. A frontend
+//      renamer or new endpoint therefore triggers a CI failure until
+//      its method and minimum valid input are modeled.
 //   3. Asserts the response shape matches what the front-end
 //      components expect (e.g. /api/library items have
 //      `output_path`, `canonical_url`, `title`; /api/collect/sources
@@ -28,7 +28,14 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync } from "node:fs";
+import {
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    writeFileSync,
+    rmSync,
+    readdirSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
 import { dirname, resolve, join } from "node:path";
@@ -42,6 +49,38 @@ const ASSETS_DIR = join(STATIC_DIR, "assets");
 const SRC_DIR = resolve(__dirname, "../src");
 const REPO_ROOT = resolve(__dirname, "../../");
 const VENV_PYTHON = resolve(REPO_ROOT, ".venv/bin/python");
+const CONTRACT_TMP_ROOT = mkdtempSync(join(tmpdir(), "web-contract-"));
+const CONTRACT_OUTPUT_ROOT = join(CONTRACT_TMP_ROOT, "output");
+const FIXTURE_DIR = join(CONTRACT_OUTPUT_ROOT, "github", "contract-fixture");
+const FIXTURE_MARKDOWN_PATH = join(FIXTURE_DIR, "README.md");
+
+mkdirSync(FIXTURE_DIR, { recursive: true });
+writeFileSync(FIXTURE_MARKDOWN_PATH, "# Contract fixture\n", "utf8");
+writeFileSync(
+    join(FIXTURE_DIR, "research-item.json"),
+    JSON.stringify({
+        source: "github",
+        item_type: "repository",
+        title: "Contract fixture",
+        canonical_url: "https://example.invalid/contract-fixture",
+        summary: "Local fixture for method-aware HTTP contract probes.",
+        authors: [],
+        published_at: "2026-07-29",
+        updated_at: null,
+        tags: ["contract"],
+        output_path: FIXTURE_MARKDOWN_PATH,
+        metadata: {},
+    }),
+    "utf8",
+);
+
+process.on("exit", () => {
+    try {
+        rmSync(CONTRACT_TMP_ROOT, { recursive: true, force: true });
+    } catch (_e) {
+        // Best-effort teardown during process exit.
+    }
+});
 
 // ---------------------------------------------------------------------------
 // Locate the real bundled JS chunk by listing the assets directory.
@@ -81,24 +120,80 @@ const FRONTEND_FETCH_PATHS = (() => {
     return [...hits].sort();
 })();
 
-// Distinct endpoint paths (strip query string) for the cross-endpoint
-// status sweep below.
-const DISTINCT_ENDPOINTS = (() => {
-    const seen = new Set();
-    for (const p of FRONTEND_FETCH_PATHS) {
-        const [path] = p.split("?");
-        // Drop placeholders like ${...} that survived the regex.
-        if (!path.includes("$")) seen.add(path);
-    }
-    return [...seen].sort();
-})();
+// Test-local request oracle. `frontendPath` must match the literal extracted
+// from the built bundle; `requestPath` supplies a valid dynamic parameter
+// where the real route requires one. Descriptors deliberately live in the
+// test rather than production runtime — they are validation input, not a
+// second API implementation.
+const FRONTEND_API_CONTRACTS = [
+    { frontendPath: "/api/briefing/metadata", requestPath: "/api/briefing/metadata", method: "GET" },
+    {
+        frontendPath: "/api/briefing/preview",
+        requestPath: "/api/briefing/preview",
+        method: "POST",
+        body: { mode: "digest", keyword: "contract", sources: ["github"] },
+    },
+    {
+        frontendPath: "/api/briefing/save",
+        requestPath: "/api/briefing/save",
+        method: "POST",
+        body: { mode: "digest", keyword: "contract", title: "Contract", sources: ["github"] },
+    },
+    { frontendPath: "/api/collect/form/", requestPath: "/api/collect/form/github", method: "GET" },
+    {
+        frontendPath: "/api/collect/run",
+        requestPath: "/api/collect/run",
+        method: "POST",
+        body: { source: "contract-probe", fields: {} },
+    },
+    { frontendPath: "/api/collect/sources", requestPath: "/api/collect/sources", method: "GET" },
+    { frontendPath: "/api/dashboard", requestPath: "/api/dashboard", method: "GET" },
+    {
+        frontendPath: "/api/discover/job?id=",
+        requestPath: "/api/discover/job?id=contract-missing",
+        method: "GET",
+        expectedStatus: 404,
+        expectedError: "unknown job",
+    },
+    {
+        frontendPath: "/api/discover/run",
+        requestPath: "/api/discover/run",
+        method: "POST",
+        body: { config_path: join(CONTRACT_TMP_ROOT, "missing-discovery.yaml") },
+    },
+    { frontendPath: "/api/discover/status", requestPath: "/api/discover/status", method: "GET" },
+    {
+        frontendPath: "/api/library/item?output_path=",
+        requestPath: `/api/library/item?output_path=${encodeURIComponent(FIXTURE_MARKDOWN_PATH)}`,
+        method: "GET",
+    },
+    {
+        frontendPath: "/api/library/preview?output_path=",
+        requestPath: `/api/library/preview?output_path=${encodeURIComponent(FIXTURE_MARKDOWN_PATH)}`,
+        method: "GET",
+    },
+    { frontendPath: "/api/library?", requestPath: "/api/library?source=github", method: "GET" },
+    { frontendPath: "/api/navigation", requestPath: "/api/navigation", method: "GET" },
+    { frontendPath: "/api/page-purposes", requestPath: "/api/page-purposes", method: "GET" },
+];
 
 test("every /api/* path the React bundle calls is served by the real backend", async (t) => {
-    if (DISTINCT_ENDPOINTS.length === 0) {
+    if (FRONTEND_FETCH_PATHS.length === 0) {
         throw new Error(
             "could not extract any /api/* paths from the bundle — has the frontend changed?",
         );
     }
+    const modeledPaths = FRONTEND_API_CONTRACTS.map(({ frontendPath }) => frontendPath);
+    assert.equal(
+        new Set(modeledPaths).size,
+        modeledPaths.length,
+        "each frontend API literal must have exactly one request contract",
+    );
+    assert.deepEqual(
+        [...modeledPaths].sort(),
+        FRONTEND_FETCH_PATHS,
+        "built frontend API literals and method-aware request contracts must match exactly",
+    );
 
     const proc = await spawnSubprocessServer();
     if (!proc) {
@@ -106,25 +201,34 @@ test("every /api/* path the React bundle calls is served by the real backend", a
         return;
     }
     try {
-        for (const path of DISTINCT_ENDPOINTS) {
-            const url = `http://127.0.0.1:${proc.port}${path}`;
-            const res = await fetch(url, { method: "GET" });
-            // The contract: every endpoint the React bundle calls
-            // MUST respond with 200 + JSON (or 4xx for malformed
-            // input we control — but never 404 or 5xx).
-            assert.ok(
-                res.status < 400,
-                `endpoint ${path} returned ${res.status}; frontend bundle calls this URL but server does not serve it. ` +
-                `Either the frontend or the backend changed without coordination — fix one of them.`,
+        for (const contract of FRONTEND_API_CONTRACTS) {
+            const url = `http://127.0.0.1:${proc.port}${contract.requestPath}`;
+            const options = { method: contract.method };
+            if (contract.body !== undefined) {
+                options.headers = { "Content-Type": "application/json" };
+                options.body = JSON.stringify(contract.body);
+            }
+            const res = await fetch(url, options);
+            const expectedStatus = contract.expectedStatus ?? 200;
+            assert.equal(
+                res.status,
+                expectedStatus,
+                `${contract.method} ${contract.requestPath} returned ${res.status}; ` +
+                `the built frontend literal ${contract.frontendPath} expects ${expectedStatus}.`,
             );
-            // Distinguishing 200 (good) vs 3xx (probably missing
-            // redirect handler) — both are not what we want, but we
-            // only fail hard on 4xx/5xx.
             const ct = res.headers.get("content-type") || "";
             assert.ok(
                 ct.includes("application/json") || ct.includes("text/"),
-                `endpoint ${path} returned non-JSON, non-text content type ${ct}`,
+                `${contract.method} ${contract.requestPath} returned unsupported content type ${ct}`,
             );
+            if (contract.expectedError) {
+                const body = await res.json();
+                assert.equal(
+                    body.error,
+                    contract.expectedError,
+                    `${contract.method} ${contract.requestPath} must hit its route-specific error branch`,
+                );
+            }
         }
     } finally {
         proc.kill();
@@ -219,7 +323,7 @@ async function spawnSubprocessServer() {
         "import sys, pathlib",
         `sys.path.insert(0, ${JSON.stringify(REPO_ROOT)})`,
         "from workspace_web.server import serve_workspace",
-        `serve_workspace(pathlib.Path('output'), port=${port})`,
+        `serve_workspace(pathlib.Path(${JSON.stringify(CONTRACT_OUTPUT_ROOT)}), port=${port})`,
     ].join("\n");
     const proc = spawn(VENV_PYTHON, ["-c", script], {
         cwd: REPO_ROOT,

@@ -44,6 +44,7 @@ class DiscoveryConfigTests(unittest.TestCase):
         with self._tempdir() as tmp:
             config = _load_or_fail(Path(tmp), "sources: {}\nbriefing: {}\nlimits: {}\n")
         self.assertEqual(config.output_root, REPO_ROOT / "output")
+        self.assertEqual(config.log_dir, REPO_ROOT / ".state" / "discovery")
         self.assertTrue(config.sources.github.enabled)
         self.assertEqual(config.sources.github.repos, [])
         self.assertEqual(config.sources.papers.categories, [])
@@ -53,6 +54,8 @@ class DiscoveryConfigTests(unittest.TestCase):
         self.assertEqual(config.limits.max_github_search_calls, 5)
 
     def test_load_full_config(self) -> None:
+        from research.discovery.config import REPO_ROOT
+
         yaml = """
 output_root: output
 log_dir: .ai/discovery
@@ -115,6 +118,7 @@ limits:
         self.assertEqual(config.limits.max_github_search_calls, 4)
         self.assertEqual(config.limits.max_paper_categories, 2)
         self.assertEqual(config.limits.skip_if_already_collected_hours, 8)
+        self.assertEqual(config.log_dir, REPO_ROOT / ".ai" / "discovery")
 
     def test_load_rejects_unknown_paper_category(self) -> None:
         yaml = """
@@ -218,6 +222,8 @@ limits:
             config = _load_or_fail(Path(tmp), text)
         self.assertIsInstance(config.sources, SourceConfig)
         self.assertEqual(config.sources.wechat, WeChatSource(enabled=False, urls=[]))
+        self.assertIn("log_dir: .state/discovery", text)
+        self.assertNotIn(".ai/", text)
 
     def _tempdir(self) -> "tempfile.TemporaryDirectory[str]":
         import tempfile

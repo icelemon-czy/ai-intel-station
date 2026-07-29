@@ -4,6 +4,7 @@ import pytest
 from bs4 import BeautifulSoup
 
 from collect.wechat import (
+    _load_wechat_runtime,
     convert_to_markdown,
     extract_publish_time,
     format_timestamp,
@@ -11,6 +12,15 @@ from collect.wechat import (
     process_content,
     replace_image_urls,
 )
+
+pytestmark = pytest.mark.wechat
+
+
+def test_wechat_optional_runtime_is_importable() -> None:
+    soup_class, browser_class = _load_wechat_runtime()
+
+    assert soup_class is BeautifulSoup
+    assert browser_class.__name__ == "AsyncCamoufox"
 
 
 @pytest.mark.parametrize(

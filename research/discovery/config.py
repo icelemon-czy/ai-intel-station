@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "config" / "discovery.yaml"
 EXAMPLE_CONFIG_PATH = REPO_ROOT / "config" / "discovery.yaml.example"
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "output"
-DEFAULT_LOG_DIR = REPO_ROOT / ".ai" / "L4-session" / "discovery"
+DEFAULT_LOG_DIR = REPO_ROOT / ".state" / "discovery"
 
 
 class DiscoveryConfigError(ValueError):
@@ -525,7 +525,7 @@ EXAMPLE_CONFIG = """\
 # `discovery.yaml` is git-ignored; this template is the source of truth.
 
 output_root: output                  # relative to repo root; defaults to ./output
-log_dir: .ai/L4-session/discovery    # per-run log files live here
+log_dir: .state/discovery            # per-run log files live here
 
 sources:
   github:
@@ -558,7 +558,7 @@ limits:
   max_github_search_calls: 5
   max_paper_categories: 5
   skip_if_already_collected_hours: 20
-  max_log_files: 30
+  max_log_files: 30                 # keep at most 30 log files; 0 = unlimited
 """
 
 

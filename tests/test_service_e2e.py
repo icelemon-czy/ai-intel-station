@@ -321,7 +321,7 @@ class ServiceDirectTests(unittest.TestCase):
 
         original = papers_collect.fetch_papers_by_category
         papers_collect.fetch_papers_by_category = (
-            lambda categories, max_results: exec(
+            lambda categories, max_results, **_kwargs: exec(
                 'raise RuntimeError("arXiv timeout")'
             )
         )
@@ -338,6 +338,23 @@ class ServiceDirectTests(unittest.TestCase):
         self.assertEqual(result["status"], "error")
         self.assertIn("papers", result["source"])
         self.assertIn("arXiv", result["message"])
+
+    def test_run_collect_rejects_unknown_arxiv_category_without_writing(self) -> None:
+        """Invalid category input is an explicit source error, not empty success."""
+        import workspace_web.service as service
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_root = Path(tmp)
+            result = service.run_collect(
+                "papers",
+                {"category": "cs.UNKNOWN", "max": 5},
+                output_root=output_root,
+            )
+
+            self.assertEqual(result["status"], "error")
+            self.assertEqual(result["item_count"], 0)
+            self.assertIn("cs.UNKNOWN", result["message"])
+            self.assertFalse((output_root / "papers" / "cs.UNKNOWN").exists())
 
     def test_run_collect_wraps_wechat_failure(self) -> None:
         """WeChat fetch errors become structured results, not 500s."""
@@ -454,21 +471,30 @@ class ServiceHttpEndToEndTests(unittest.TestCase):
     def test_get_collect_form_for_papers(self) -> None:
         status, body = self._get("/api/collect/form/papers")
         self.assertEqual(status, 200)
-        self.assertEqual(body["label"], "arXiv papers")
+        self.assertEqual(body["id"], "papers")
+        self.assertIn("arXiv", body["label"])
+        self.assertIn("category", [field["name"] for field in body["fields"]])
 
     def test_get_briefing_metadata(self) -> None:
         status, body = self._get("/api/briefing/metadata")
         self.assertEqual(status, 200)
-        self.assertIn("modes", body)
+        self.assertEqual(set(body), {"flow_notes", "mode_purposes", "action_purposes"})
+        self.assertEqual(set(body["mode_purposes"]), {"digest", "reading-list"})
+        self.assertEqual(set(body["action_purposes"]), {"preview", "save"})
+        self.assertIn("input_source", body["flow_notes"])
 
-    def test_post_briefing_preview_writes_markdown(self) -> None:
+    def test_post_briefing_preview_returns_markdown_without_saving(self) -> None:
+        briefing_root = self.output_root / "briefing"
+        before = sorted(briefing_root.rglob("*.md")) if briefing_root.exists() else []
         status, body = self._post(
             "/api/briefing/preview",
             {"mode": "reading-list", "keyword": "", "sources": ["github"]},
         )
         self.assertEqual(status, 200)
-        self.assertIn("Reading List", body["markdown"])
-        self.assertEqual(body["item_count"], 3)
+        self.assertIn("Reading List", body["content"])
+        self.assertGreater(body["item_count"], 0)
+        after = sorted(briefing_root.rglob("*.md")) if briefing_root.exists() else []
+        self.assertEqual(after, before)
 
     def test_post_briefing_save_creates_file(self) -> None:
         status, body = self._post(
@@ -480,12 +506,15 @@ class ServiceHttpEndToEndTests(unittest.TestCase):
         self.assertTrue(path.is_file(), f"expected briefing at {path}")
 
     def test_post_run_collect_unknown_source_returns_error_json(self) -> None:
-        import urllib.error
-
-        with self.assertRaises(urllib.error.HTTPError) as ctx:
-            self._post("/api/collect/run", {"source": "bogus", "fields": {}})
-        # 4xx — body explains why.
-        self.assertGreaterEqual(ctx.exception.code, 400)
+        status, body = self._post(
+            "/api/collect/run",
+            {"source": "bogus", "fields": {}},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(body["status"], "error")
+        self.assertEqual(body["source"], "bogus")
+        self.assertTrue(body["summary"])
+        self.assertTrue(body["next_step"])
 
 
 if __name__ == "__main__":

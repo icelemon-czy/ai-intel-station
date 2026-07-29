@@ -125,7 +125,7 @@ test("network error during initial load: user sees error + Retry button", () => 
     assert.ok(html.includes("ECONNREFUSED"));
     assert.ok(/<button[^>]*>[\s\S]*?Retry<\/button>/.test(html),
               "missing Retry button");
-    assert.ok(html.includes(".ai/L4-session/discovery/"));
+    assert.ok(html.includes(".state/discovery/"));
 });
 
 test("non-error state never shows a Retry button", () => {

@@ -15,6 +15,27 @@ from library.items import build_wechat_item, write_research_item
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = ROOT_DIR / "output" / "wechat"
 IMAGE_CONCURRENCY = 5
+WECHAT_EXTRA_INSTALL_COMMAND = "uv sync --extra wechat"
+
+
+class WeChatRuntimeDependencyError(RuntimeError):
+    """Raised when the optional WeChat collection stack is not installed."""
+
+
+def _load_wechat_runtime():
+    try:
+        import httpx  # noqa: F401
+        import markdownify  # noqa: F401
+        from bs4 import BeautifulSoup
+        from camoufox.async_api import AsyncCamoufox
+    except ImportError as exc:
+        missing = getattr(exc, "name", None) or str(exc)
+        raise WeChatRuntimeDependencyError(
+            "WeChat collection uses an optional browser runtime "
+            f"({missing} is unavailable). Install it with "
+            f"`{WECHAT_EXTRA_INSTALL_COMMAND}` and retry."
+        ) from exc
+    return BeautifulSoup, AsyncCamoufox
 
 
 def normalize_wechat_url(raw: str) -> str:
@@ -284,8 +305,7 @@ async def fetch_article(url: str, output_dir: Path | None = None) -> None:
     if output_dir is None:
         output_dir = DEFAULT_OUTPUT_DIR
 
-    from bs4 import BeautifulSoup
-    from camoufox.async_api import AsyncCamoufox
+    BeautifulSoup, AsyncCamoufox = _load_wechat_runtime()
 
     print(f"🔄 正在抓取: {url}")
     print("🦊 启动 Camoufox 浏览器...")

@@ -162,12 +162,16 @@ class ScheduleRenderTests(unittest.TestCase):
         self.assertIn("cp ", text)
         self.assertIn("launchctl load", text)
         self.assertIn("LaunchAgents", text)
+        self.assertIn(".state/discovery/", text)
+        self.assertNotIn(".ai/", text)
 
     def test_render_install_instructions_cron_has_crontab(self) -> None:
         with _tempdir() as tmp:
             text = render_install_instructions("cron", Path(tmp))
         self.assertIn("crontab", text)
         self.assertIn(str(Path(tmp).as_posix()), text)
+        self.assertIn(".state/discovery/cron.log", text)
+        self.assertNotIn(".ai/", text)
 
 
 import tempfile as _tempfile

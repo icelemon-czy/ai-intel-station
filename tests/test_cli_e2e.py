@@ -116,12 +116,22 @@ class CliEndToEndTests(unittest.TestCase):
         self.assertIn("Latest log:", status.stdout)
 
     def test_discover_log_list_shows_summary(self) -> None:
-        config = REPO_ROOT / "config" / "discovery.yaml.example"
         with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "discovery.yaml"
+            example = (REPO_ROOT / "config" / "discovery.yaml.example").read_text(
+                encoding="utf-8"
+            )
+            config.write_text(
+                example.replace(
+                    "log_dir: .state/discovery",
+                    f"log_dir: {Path(tmp) / 'logs'}",
+                ),
+                encoding="utf-8",
+            )
             _run_cli("discover", "--dry-run", "-c", str(config), "-o", tmp)
             listed = _run_cli("discover", "--log-list", "3", "-c", str(config), "-o", tmp)
         self.assertEqual(listed.returncode, 0)
-        self.assertIn("Last 3 runs", listed.stdout)
+        self.assertIn("Last 1 runs", listed.stdout)
 
     def test_discover_invalid_source_exits_2(self) -> None:
         config = REPO_ROOT / "config" / "discovery.yaml.example"

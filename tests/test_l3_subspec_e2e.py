@@ -4,9 +4,9 @@ papers / research-operations / github sub-spec requirements.
 These tests fill the gap left by `test_l3_requirements.py` and
 `test_l3_http_e2e.py`: those cover the top-level system spec, but
 specifications are also written at the capability level
-(`.ai/L3-specs/specs/papers/spec.md`,
-`.ai/L3-specs/specs/research-operations/spec.md`,
-`.ai/L3-specs/specs/github/spec.md`) with their own requirements
+(`.compass/context/L3-specs/specs/papers/spec.md`,
+`.compass/context/L3-specs/specs/research-operations/spec.md`,
+`.compass/context/L3-specs/specs/github/spec.md`) with their own requirements
 and scenarios. Each test below is one REAL `subprocess.run` of the
 unified `research` entrypoint — no business-layer mocking.
 """
@@ -110,26 +110,78 @@ class L3PapersListSubprocessTests(unittest.TestCase):
 
 class L3PapersMixedOutcomeSubprocessTests(unittest.TestCase):
     def test_invalid_category_reported_and_does_not_block_valid_one(self):
-        # `xx.NOTREAL` is not in AI_CATEGORIES; `cs.AI` is. The CLI must
-        # print a warning naming the unknown category, NOT crash, and
-        # must still process `cs.AI`. The cs.AI result depends on
-        # network availability, which we don't gate on — we only assert
-        # the *unknown* contract.
-        result = _run_research("collect", "papers", "cs.AI", "xx.NOTREAL")
-        combined = result.stdout + result.stderr
-        # The unknown category must be reported (not silently dropped).
-        self.assertIn(
-            "xx.NOTREAL",
-            combined,
-            f"unknown category xx.NOTREAL was not reported in any output:\n{combined[:600]}",
-        )
-        # Some indicator that the warning was meaningful — either
-        # "Unknown" or a localized equivalent. We don't pin the exact
-        # wording to avoid breaking the test on copy edits.
-        self.assertTrue(
-            "Unknown" in combined or "⚠️" in combined or "unknown" in combined.lower(),
-            f"unknown-category warning marker missing from output:\n{combined[:600]}",
-        )
+        # Redirect only the network layer to a local Atom fixture. The
+        # production parser, category loop, CLI dispatch, and persistence
+        # remain real; all writes are contained by the temporary output.
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            output_root = tmp_path / "output"
+            xml_path = tmp_path / "arxiv_fixture.xml"
+            xml_path.write_text(
+                """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>http://arxiv.org/abs/2606.12345v1</id>
+    <title>Mixed outcome fixture paper</title>
+    <summary>Local network-boundary fixture.</summary>
+    <published>2026-06-01T00:00:00Z</published>
+    <updated>2026-06-02T00:00:00Z</updated>
+    <author><name>Alice</name></author>
+    <category term="cs.AI" />
+  </entry>
+</feed>
+""",
+                encoding="utf-8",
+            )
+            script = (
+                "import sys\n"
+                f"sys.path.insert(0, {str(REPO_ROOT)!r})\n"
+                "from collect import papers as papers_collect\n"
+                "from urllib import request as urllib_request\n"
+                "original = urllib_request.urlopen\n"
+                f"fixture_url = {xml_path.as_uri()!r}\n"
+                "def redirect(_request, *args, **kwargs):\n"
+                "    return original(fixture_url, *args, **kwargs)\n"
+                "papers_collect.urlopen = redirect\n"
+                "from research.cli import console_main\n"
+                "console_main()\n"
+            )
+            result = subprocess.run(
+                [
+                    PYTHON,
+                    "-c",
+                    script,
+                    "collect",
+                    "papers",
+                    "xx.NOTREAL",
+                    "cs.AI",
+                    "--max",
+                    "1",
+                    "-o",
+                    str(output_root),
+                ],
+                capture_output=True,
+                text=True,
+                env={**os.environ, "PYTHONPATH": str(REPO_ROOT)},
+                cwd=str(REPO_ROOT),
+                timeout=60,
+            )
+
+            combined = result.stdout + result.stderr
+            self.assertEqual(result.returncode, 0, combined[-800:])
+            self.assertIn("xx.NOTREAL", combined)
+            self.assertTrue(
+                "Unknown" in combined
+                or "⚠️" in combined
+                or "unknown" in combined.lower(),
+                f"unknown-category warning marker missing from output:\n{combined[:600]}",
+            )
+            saved = list((output_root / "papers" / "arXiv-cs.AI").glob("*.md"))
+            self.assertEqual(len(saved), 1, combined[-800:])
+            self.assertIn(
+                "Mixed outcome fixture paper",
+                saved[0].read_text(encoding="utf-8"),
+            )
 
 
 # ---------------------------------------------------------------------------

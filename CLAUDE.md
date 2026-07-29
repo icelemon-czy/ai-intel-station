@@ -21,37 +21,44 @@ ai-intel-station/
 │   ├── wechat/      # WeChat 原始归档
 │   └── briefing/    # 派生阅读产物
 ├── tests/           # 根级测试，围绕业务层和 operator surface
-└── .claude/skills/  # 项目级 skill 配置
+└── .agents/skills/ # canonical project Workflow + product Skill
 ```
 
 ## Skills
 
 ### Project Workflow Skills
 
-This project now keeps a Claude-specific workflow skill copy under `.claude/skills/<name>/SKILL.md`.
+Project Workflow 的唯一 source of truth 位于 `.agents/skills/<name>/SKILL.md`。
 
-When a user explicitly invokes or clearly implies one of these workflow commands, open the matching skill file and follow it:
+当用户明确调用或语义上命中这些 Workflow 时，完整读取对应 canonical Skill：
 
-- `/git-init`, `/git-commit`
-- `/init-project`, `/build-ai`, `/update-ai`, `/setup-testing`
-- `/new-change`, `/continue-change`, `/check-changes`
-- `/review-tests`, `/fix-bug`, `/archive-change`, `/ask-codebase`
+- `/init-project`, `/build-context`, `/brainstorm`, `/develop`
+- `/fix-bug`, `/ask-codebase`, `/audit-tests`
+- `/ralph-loop`, `/skill-creator`
 
-These workflow skills are separate from the existing source-specific helper notes in `.claude/skills/*.md`.
+不要创建 platform-specific full mirror；`.claude/skills/` 只保留需要 platform discovery 的
+thin adapter。
 
-Use the workflow copy at `.claude/skills/<name>/SKILL.md` for process orchestration, and keep the flat `.md` helper notes for tool-specific reference.
+### Product Operator Skill
+
+Daily use is Agent-first. For “今天有什么值得看”、每日情报、自动探索、status 或 schedule，
+load `.claude/skills/daily-discovery/SKILL.md`; it forwards to the canonical project Workflow in
+`.agents/skills/daily-discovery/SKILL.md`. The Agent executes the deterministic CLI and reads local
+artifacts. Web is an optional viewer, not a prerequisite.
 
 | Skill | 说明 | 触发关键词 |
 | ----- | ---- | ---------- |
-| **wechat-article-to-markdown** | 抓取微信公众号文章 | `wechat`、`微信`、`公众号`、`抓取微信` |
-| **github-tools** | 抓取 GitHub 仓库信息 | `github`、`搜仓库`、`gh search` |
-| **papers-tools** | 抓取 arXiv 论文 | `论文`、`arXiv`、`paper`、`抓取论文` |
+| **daily-discovery** | Agent 执行每日情报、读取 artifact 并返回重点 | `今天有什么值得看`、`每日情报`、`status`、`schedule` |
+| **wechat** | 抓取单篇微信公众号文章 | `抓取这篇微信`、`公众号 URL` |
+| **github** | 抓取单个 repo 或执行一次 repo search | `抓取这个 repo`、`搜一次仓库` |
+| **papers** | 按 category 执行一次 arXiv 收集 | `抓取 cs.AI`、`拉取这批论文` |
 
 ## Key Commands
 
 ### 收集
 
 ```bash
+uv sync --extra wechat
 uv run research collect wechat "<url>"
 ```
 
@@ -84,6 +91,6 @@ uv run research schedule cron              # 打印 crontab 片段
 ## Tech Stack
 
 - Python 3.10+ with `uv` for dependency management
-- Camoufox (反检测浏览器) for WeChat article fetching
-- BeautifulSoup + markdownify for HTML→Markdown conversion
+- Core runtime only requires PyYAML
+- Optional `wechat` extra: Camoufox + BeautifulSoup + markdownify + httpx
 - arXiv public API for paper fetching

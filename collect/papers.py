@@ -38,12 +38,24 @@ AI-related categories:
 """
 
 
-def fetch_papers_by_category(categories: list[str], max_results: int = 10) -> list[dict]:
+class PapersFetchError(RuntimeError):
+    """A category fetch failed before a valid arXiv response was available."""
+
+
+def fetch_papers_by_category(
+    categories: list[str],
+    max_results: int = 10,
+    *,
+    raise_on_error: bool = False,
+) -> list[dict]:
     papers = []
 
     for category in categories:
         if category not in AI_CATEGORIES:
-            print(f"⚠️  Unknown category: {category}")
+            message = f"Unknown category: {category}"
+            print(f"⚠️  {message}")
+            if raise_on_error:
+                raise PapersFetchError(message)
             continue
 
         params = urlencode(
@@ -92,11 +104,14 @@ def fetch_papers_by_category(categories: list[str], max_results: int = 10) -> li
                 # exactly-5MB read is suspicious enough to skip.
                 truncated = too_big_from_header or len(raw) >= max_bytes
                 if truncated:
-                    print(
-                        f"⚠️  arXiv response for {category} "
+                    message = (
+                        f"arXiv response for {category} "
                         f"({'header' if too_big_from_header else 'truncated-buffer'} "
-                        f"exceeds {max_bytes}-byte cap); skipping"
+                        f"exceeds {max_bytes}-byte cap)"
                     )
+                    print(f"⚠️  {message}; skipping")
+                    if raise_on_error:
+                        raise PapersFetchError(message)
                     continue
                 xml_content = raw.decode("utf-8")
 
@@ -111,8 +126,13 @@ def fetch_papers_by_category(categories: list[str], max_results: int = 10) -> li
                     continue
                 papers.append(paper)
                 print(f"  ✅ {paper['title'][:60]}...")
+        except PapersFetchError:
+            raise
         except Exception as exc:
-            print(f"  ❌ Failed to fetch {category}: {exc}")
+            message = f"Failed to fetch {category}: {exc}"
+            print(f"  ❌ {message}")
+            if raise_on_error:
+                raise PapersFetchError(message) from exc
 
     return papers
 

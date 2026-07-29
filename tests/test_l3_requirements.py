@@ -1,5 +1,5 @@
 """L3 spec compliance — real e2e tests for each top-level requirement in
-`.ai/L3-specs/specs/system.md`. Every test exercises the actual public
+`.compass/context/L3-specs/specs/system.md`. Every test exercises the actual public
 surface (CLI, fetch, ThreadingHTTPServer) and asserts behaviour the spec
 calls out, not internal implementation details.
 """
@@ -112,7 +112,7 @@ class L3OptionalLiveVerificationTests(unittest.TestCase):
         env.pop("WECHAT_E2E_URLS", None)
         env["PYTHONPATH"] = str(REPO_ROOT)
         result = subprocess.run(
-            [PYTHON, "-m", "unittest", "tests.test_wechat_e2e_live", "-v"],
+            [PYTHON, "-m", "pytest", "-q", "tests/test_wechat_e2e_live.py"],
             capture_output=True,
             text=True,
             env=env,
@@ -122,20 +122,10 @@ class L3OptionalLiveVerificationTests(unittest.TestCase):
         # when prerequisites are absent". Two acceptable outcomes:
         #   1. The test self-skipped (pytest fixtures unavailable
         #      gracefully skip the live test).
-        #   2. The test module itself fails to import (pytest not
-        #      installed in this venv). Either way: the project
-        #      correctly avoids treating a missing-prereq as a
-        #      product failure.
+        # The pytest module is the real test runner for this file.
         combined = result.stdout + result.stderr
-        outcome_ok = (
-            "skipped" in combined.lower()
-            or "No module named 'pytest'" in combined
-            or "ImportError" in combined
-        )
-        self.assertTrue(
-            outcome_ok,
-            f"expected self-skip or import-skipped; got:\n{combined[:600]}",
-        )
+        self.assertEqual(result.returncode, 0, combined[:600])
+        self.assertIn("skipped", combined.lower())
 
 
 # ---------------------------------------------------------------------------

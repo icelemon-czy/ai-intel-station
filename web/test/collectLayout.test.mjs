@@ -72,7 +72,7 @@ function stripComments(body) {
 
 // ---------------------------------------------------------------------------
 // Requirement 1: Collect Form Stays Above The Fold
-//   Spec: `.ai/L3-specs/changes/fix-web-collect-workspace-layout/
+//   Spec: `.compass/context/L3-specs/changes/fix-web-collect-workspace-layout/
 //         specs/research-web-workspace/spec.md` → "Collect Form Stays
 //         Above The Fold"
 // ---------------------------------------------------------------------------

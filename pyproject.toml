@@ -9,11 +9,17 @@ description = "Unified operator surface for AI Intel Station"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+wechat = [
   "camoufox[geoip]",
   "markdownify",
   "beautifulsoup4",
   "httpx",
-  "PyYAML>=6.0",
+]
+dev = [
   "pytest>=7.0",
 ]
 
@@ -23,9 +29,17 @@ research = "research.cli:console_main"
 [tool.setuptools.packages.find]
 include = ["research*", "collect*", "library*", "briefing*", "publish*", "workspace_web*"]
 
+[tool.setuptools.package-data]
+workspace_web = [
+  "static/index.html",
+  "static/assets/*.css",
+  "static/assets/*.js",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 markers = [
   "e2e: live end-to-end tests that require external services or credentials",
+  "wechat: tests that require the optional WeChat runtime",
 ]

@@ -173,7 +173,7 @@ export function StatusBlock({ status, onRetry }) {
         ) : null}
         <p className="muted">
           The latest log file in{" "}
-          <code>.ai/L4-session/discovery/</code> still has the most recent run
+          <code>.state/discovery/</code> still has the most recent run
           details.
         </p>
       </div>
@@ -363,7 +363,7 @@ export function RecoveryHints() {
         Run <code>uv run research discover --dry-run</code> to see what would have happened.
       </li>
       <li>
-        Check <code>.ai/L4-session/discovery/</code> for the latest log file.
+        Check <code>.state/discovery/</code> for the latest log file.
       </li>
       <li>
         If the YAML is wrong, edit <code>config/discovery.yaml</code> and try again.

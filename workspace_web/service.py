@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 _DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[1] / "output"
@@ -358,7 +358,7 @@ def save_briefing(
         "mode": mode,
         "path": path.as_posix(),
         "content": path.read_text(encoding="utf-8"),
-        "saved_at": datetime.utcnow().isoformat() + "Z",
+        "saved_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
 
 
@@ -552,7 +552,11 @@ def run_collect(source: str, fields: dict[str, object], output_root: Path | None
         try:
             category = fields.get("category", "cs.AI")
             max_results = int(fields.get("max", 10))
-            papers = papers_collect.fetch_papers_by_category([category], max_results=max_results)
+            papers = papers_collect.fetch_papers_by_category(
+                [category],
+                max_results=max_results,
+                raise_on_error=True,
+            )
             papers_collect.save_papers(papers, category, root / "papers")
             return _format_collect_result(
                 source="papers",
@@ -732,7 +736,7 @@ def run_discover_from_request(output_root: Path, payload: dict) -> dict:
         only=only,
         dry_run=bool(payload.get("dry_run", False)),
         enable_briefing=not bool(payload.get("no_briefing", False)),
-        log_dir=_resolve_discovery_log_dir(),
+        log_dir=config.log_dir,
     )
     result = report.to_dict()
     result["status"] = "ok" if not any(s.get("failed") for s in result["sources"].values()) else "partial"

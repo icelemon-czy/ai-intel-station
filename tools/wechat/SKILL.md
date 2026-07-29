@@ -19,6 +19,7 @@ Collect a WeChat Official Account article into the unified research workspace.
 ## Usage
 
 ```bash
+uv sync --extra wechat
 uv run research collect wechat "<WECHAT_ARTICLE_URL>"
 ```
 
@@ -26,4 +27,5 @@ uv run research collect wechat "<WECHAT_ARTICLE_URL>"
 
 - Runtime entrypoint: `research/cli.py`
 - Source implementation: `collect/wechat.py`
+- WeChat browser dependencies are optional and do not belong to the core runtime
 - Root tests: `tests/test_wechat_collect.py` and `tests/test_wechat_e2e_live.py`

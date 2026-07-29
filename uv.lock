@@ -11,23 +11,30 @@ name = "ai-intel-station"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "pyyaml" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+]
+wechat = [
     { name = "beautifulsoup4" },
     { name = "camoufox", extra = ["geoip"] },
     { name = "httpx" },
     { name = "markdownify" },
-    { name = "pytest" },
-    { name = "pyyaml" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "beautifulsoup4" },
-    { name = "camoufox", extras = ["geoip"] },
-    { name = "httpx" },
-    { name = "markdownify" },
-    { name = "pytest", specifier = ">=7.0" },
+    { name = "beautifulsoup4", marker = "extra == 'wechat'" },
+    { name = "camoufox", extras = ["geoip"], marker = "extra == 'wechat'" },
+    { name = "httpx", marker = "extra == 'wechat'" },
+    { name = "markdownify", marker = "extra == 'wechat'" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
+provides-extras = ["dev", "wechat"]
 
 [[package]]
 name = "aiohappyeyeballs"

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -11,6 +12,33 @@ import pytest
 
 from library.items import ResearchItem
 from publish.obsidian import write_markdown
+
+
+def _free_loopback_port() -> int:
+    """Return a kernel-assigned port or skip when the sandbox blocks bind."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            return int(sock.getsockname()[1])
+    except (PermissionError, OSError):
+        pytest.skip("sandbox blocks binding 127.0.0.1")
+
+
+def _wait_for_json(url: str, *, timeout: float = 4.0) -> dict:
+    """Poll a subprocess server until the route returns JSON."""
+    import urllib.error
+    import urllib.request
+
+    deadline = time.time() + timeout
+    last_error: Exception | None = None
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=1) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, ConnectionError, OSError) as exc:
+            last_error = exc
+            time.sleep(0.05)
+    raise AssertionError(f"server did not become reachable at {url}: {last_error!r}")
 
 
 def _write_markdown(path: Path, title: str, body: str = "") -> Path:
@@ -465,7 +493,11 @@ def test_run_collect_papers(tmp_path: Path, monkeypatch) -> None:
     called_with: list = []
     save_called: list = []
 
-    def mock_fetch_papers(categories: list[str], max_results: int = 10) -> list:
+    def mock_fetch_papers(
+        categories: list[str],
+        max_results: int = 10,
+        **_kwargs,
+    ) -> list:
         called_with.append((categories, max_results))
         return [{"title": "Agent Harness", "url": "https://arxiv.org/abs/2605.00001"}]
 
@@ -646,7 +678,11 @@ def test_run_collect_papers_saves_to_output_root(tmp_path: Path, monkeypatch) ->
 
     save_captured: dict = {}
 
-    def mock_fetch(categories: list, max_results: int = 10) -> list:
+    def mock_fetch(
+        categories: list,
+        max_results: int = 10,
+        **_kwargs,
+    ) -> list:
         return [{"title": "Test Paper", "arxiv_id": "2605.00001"}]
 
     def mock_save(papers: list, category: str, output_dir: Path) -> None:
@@ -1219,7 +1255,7 @@ def test_run_collect_papers_includes_summary_next_step_and_details(monkeypatch) 
     monkeypatch.setattr(
         papers_collect,
         "fetch_papers_by_category",
-        lambda categories, max_results=10: [{"title": "T", "url": "u"}],
+        lambda categories, max_results=10, **_kwargs: [{"title": "T", "url": "u"}],
     )
     monkeypatch.setattr(papers_collect, "save_papers", lambda papers, category, output_dir: None)
     from workspace_web.service import run_collect
@@ -1650,6 +1686,7 @@ def test_serve_workspace_resolves_relative_output_root_against_project_root(tmp_
     import subprocess
 
     project_root = Path(__file__).resolve().parents[1]
+    port = _free_loopback_port()
 
     # Seed a temp output dir + chdir into a DIFFERENT cwd (simulating the
     # server being launched from `web/`). The seed tree MUST be reachable
@@ -1668,7 +1705,7 @@ def test_serve_workspace_resolves_relative_output_root_against_project_root(tmp_
         "    time.sleep(1.0)\n"
         "    os._exit(0)\n"
         "threading.Thread(target=stop, daemon=True).start()\n"
-        "srv.serve_workspace(pathlib.Path('output'), port=14173)\n"
+        f"srv.serve_workspace(pathlib.Path('output'), port={port})\n"
     )
     server_proc = subprocess.Popen(
         [sys.executable, "-c", serve_script],
@@ -1677,13 +1714,7 @@ def test_serve_workspace_resolves_relative_output_root_against_project_root(tmp_
         stderr=subprocess.PIPE,
     )
     try:
-        # Give the server a moment to bind.
-        time.sleep(0.8)
-        import json
-        import urllib.request
-
-        resp = urllib.request.urlopen("http://127.0.0.1:14173/api/dashboard", timeout=3)
-        body = json.loads(resp.read().decode("utf-8"))
+        body = _wait_for_json(f"http://127.0.0.1:{port}/api/dashboard")
         # The fix MUST make this > 0 even though the server's cwd is wrong.
         assert body.get("total_items", 0) > 0, (
             f"server cwd is {project_root / 'web'} but /api/dashboard reports 0 items; "
@@ -1714,6 +1745,7 @@ def test_serve_workspace_passes_absolute_output_root_through_unchanged(tmp_path:
     # Use a tmp dir as the absolute path. We do not require the dir to exist
     # for the resolution test; we only need the printed line.
     absolute_dir = (tmp_path / "abs-output").resolve()
+    port = _free_loopback_port()
 
     # Use subprocess.bufsize=0 to read stdout line-by-line as it streams
     # so we don't lose prints to the `os._exit(0)` cleanup race.
@@ -1727,7 +1759,7 @@ def test_serve_workspace_passes_absolute_output_root_through_unchanged(tmp_path:
         "    sys.stderr.flush()\n"
         "    os._exit(0)\n"
         "threading.Thread(target=stop, daemon=True).start()\n"
-        f"srv.serve_workspace(pathlib.Path({str(absolute_dir)!r}), port=14174)\n"
+        f"srv.serve_workspace(pathlib.Path({str(absolute_dir)!r}), port={port})\n"
     )
     server_proc = subprocess.Popen(
         [sys.executable, "-u", "-c", serve_script],  # -u = unbuffered I/O
@@ -1777,6 +1809,7 @@ def test_serve_workspace_with_nonexistent_relative_path_does_not_crash_dashboard
     # project_root / 'nonexistent-fix-resolve-dir') and the API MUST
     # respond with HTTP 200 + empty state rather than crash.
     expected = project_root / "nonexistent-fix-resolve-dir"
+    port = _free_loopback_port()
 
     serve_script = (
         "import sys, threading, time, pathlib, os\n"
@@ -1788,7 +1821,7 @@ def test_serve_workspace_with_nonexistent_relative_path_does_not_crash_dashboard
         "    sys.stderr.flush()\n"
         "    os._exit(0)\n"
         "threading.Thread(target=stop, daemon=True).start()\n"
-        "srv.serve_workspace(pathlib.Path('nonexistent-fix-resolve-dir'), port=14175)\n"
+        f"srv.serve_workspace(pathlib.Path('nonexistent-fix-resolve-dir'), port={port})\n"
     )
     server_proc = subprocess.Popen(
         [sys.executable, "-u", "-c", serve_script],
@@ -1797,13 +1830,9 @@ def test_serve_workspace_with_nonexistent_relative_path_does_not_crash_dashboard
         stderr=subprocess.STDOUT,
     )
     try:
-        # Give the server a moment to bind the port.
-        time.sleep(0.6)
-
         # /api/dashboard must return 200 + empty state rather than crashing.
         try:
-            resp = urllib.request.urlopen("http://127.0.0.1:14175/api/dashboard", timeout=3)
-            body = json.loads(resp.read().decode("utf-8"))
+            body = _wait_for_json(f"http://127.0.0.1:{port}/api/dashboard")
             assert body.get("total_items") == 0, (
                 f"Expected total_items=0 for nonexistent path, got {body!r}"
             )

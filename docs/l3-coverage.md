@@ -1,41 +1,53 @@
-# L3 Spec → Real end-to-end test coverage
+# L3 Spec Coverage
 
-Each row maps one requirement from
-[`.ai/L3-specs/specs/system.md`](specs/system.md) to the **real**
-end-to-end tests that exercise it. "Real" means the test
-exercises the actual public surface a user hits in production
-— `serve_workspace` running in a real subprocess, `requestJson`
-issuing real HTTP, `subprocess.run(["gh", ...])` looking up the
-real `PATH` — without stubbing the business layer.
+当前 behavior source of truth 位于
+[`.compass/context/L3-specs/specs/`](../.compass/context/L3-specs/specs/)。
+详细 Requirement → implementation → test evidence 维护在
+[`.compass/context/L5-validation/traceability/`](../.compass/context/L5-validation/traceability/)；
+本页只保留 operator-facing overview，避免复制每条 Requirement。
 
-On sandboxes that block `bind(2)` / `connect(2)`, the cross-process
-HTTP tests in `tests/test_l3_http_e2e.py` self-skip. On developer
-machines and CI the whole stack runs end-to-end.
+| Capability | Main evidence surface | 2026-07-29 status |
+|:-----------|:----------------------|:------------------|
+| system | CLI、archive round-trip、partial failure tests | verified |
+| collection | source list、archive/sidecar、failure isolation tests | verified |
+| github | repo/search/issues/sidecar/CLI failure tests | verified |
+| papers | category/list/fetch/persist/mixed-result tests | verified |
+| wechat | URL/content/image/sidecar/failure tests | verified |
+| library | ResearchItem/backfill/query/resilient loading tests | verified |
+| briefing | local input/modes/output/source-gap/preview tests | verified |
+| research-operations | CLI help/dispatch/query/status + lightweight core + real optional install + escalated socket tests | verified |
+| web-workspace | service direct tests + Node render/controller tests | verified |
+| daily-discovery | config/runner/log/schedule/Web migration + Today/Preference Agent forward tests | verified |
 
-## How to run the L3 e2e surface
+## Commands
 
 ```bash
-.venv/bin/python -m unittest \
-  tests.test_e2e_archive \
-  tests.test_l3_http_e2e \
-  tests.test_l3_requirements \
-  tests.test_l3_subspec_e2e \
-  tests.test_l3_subspec_remaining_e2e \
-  tests.test_l3_policy_meta
+# Lightweight core regression
+uv sync --extra dev --frozen
+uv run --frozen --extra dev python -m pytest -q tests \
+  -m "not wechat" \
+  --ignore=tests/test_discovery_runner.py \
+  --ignore=tests/test_wechat_collect.py \
+  --ignore=tests/test_wechat_e2e_live.py \
+  --deselect=tests/test_web_workspace.py::test_npm_test_in_web_runs_node_test_suite
+uv run --frozen --extra dev python -m unittest tests.test_discovery_runner
+
+# Optional WeChat runtime
+uv sync --extra dev --extra wechat --frozen
+uv run --frozen --extra dev --extra wechat python -m pytest -q \
+  -m wechat tests/test_research_item.py tests/test_wechat_collect.py
+
+# Web + package
+npm --prefix web ci
+npm --prefix web run build
+npm --prefix web test
+uv build
+uv run --frozen --extra dev python scripts/check_release_artifacts.py
+uv venv --python 3.10 /tmp/ai-intel-wheel-smoke
+uv pip install --python /tmp/ai-intel-wheel-smoke/bin/python dist/*.whl
+/tmp/ai-intel-wheel-smoke/bin/research --help
+/tmp/ai-intel-wheel-smoke/bin/python -I scripts/smoke_installed_wheel.py
 ```
 
-## What "real" means here
-
-For an L3 test to count as "real", the policy enforced by
-`tests/test_l3_policy_meta.py` is:
-
-1. **No `monkeypatch.setattr(<business_module>, ...)`** replacing
-   the whole of `run_gh`, `save_repo`, `fetch_repo`,
-   `fetch_papers_by_category`, `save_papers`, `fetch_article`,
-   `run_collect`, or `run_web_workspace` with a fake.
-2. **No `patch.object(server, "do_GET")`** over the WorkspaceHandler.
-3. **Network-layer substitution IS allowed**: a fake `gh` shell
-   script on PATH, or `urllib.request.urlopen` redirected to a
-   local file. These are network-layer changes, not business.
-
-See `test_l3_policy_meta.py` for the regex-enforced version.
+local sandbox 可能禁止 `bind(2)` / `connect(2)`；此时 HTTP socket tests 必须明确记录为
+skip 或 limitation，不能用静态检查冒充 full-stack verification。

@@ -8,7 +8,11 @@ from pathlib import Path
 from briefing.reports import write_digest_report, write_reading_list_report
 from collect.github import run_gh, save_repo, save_search_results
 from collect.papers import CATEGORIES_HELP, fetch_papers_by_category, save_papers
-from collect.wechat import fetch_article, normalize_wechat_url
+from collect.wechat import (
+    WeChatRuntimeDependencyError,
+    fetch_article,
+    normalize_wechat_url,
+)
 from library.items import backfill_output_tree
 from library.query import query_research_items
 from research.discovery import (
@@ -461,6 +465,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         return _dispatch(args)
+    except WeChatRuntimeDependencyError as exc:
+        print(f"❌ {exc}")
+        return 2
     except ValueError as exc:
         # User-input date filters or config errors raise ValueError from
         # query_research_items / load_config. Surface a one-line message
