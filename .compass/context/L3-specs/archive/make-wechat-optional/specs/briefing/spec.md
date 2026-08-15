@@ -1,60 +1,6 @@
-# Briefing Specification
+# Briefing — Delta Spec
 
-## Purpose
-
-从 local Library 生成适合 Obsidian 阅读的 digest 或 reading list，不重新抓取远端来源。
-
-## Requirements
-
-### Requirement: Local Briefing Input
-
-briefing SHALL 只消费本地 ResearchItem query result。
-
-#### Scenario: Generate from local archive
-
-- **WHEN** operator 生成 briefing
-- **THEN**输入来自指定 `output_root` 的 sidecar
-- **AND**不会触发 GitHub、arXiv 或 WeChat fetch
-
-### Requirement: Digest and Reading List Modes
-
-briefing SHALL 支持 digest 和 reading-list 两种派生阅读 artifact。
-
-#### Scenario: Select a mode
-
-- **WHEN** operator 选择 digest 或 reading-list
-- **THEN**系统生成对应结构的 Markdown
-- **AND**保留 item source link 与必要 metadata
-
-### Requirement: Derived Output Boundary
-
-保存的 briefing MUST 写入 `output/briefing/`，不得覆盖 source archive。
-
-#### Scenario: Save briefing
-
-- **WHEN** briefing save 成功
-- **THEN**文件写入 digest 或 reading-list 的派生目录
-- **AND**`output/github|papers|wechat` 中的 raw artifact 不被修改
-
-### Requirement: Explicit Source Gaps
-
-缺失请求来源或无匹配 item 时，briefing MAY 继续生成，但 MUST 解释 coverage gap。
-
-#### Scenario: Requested source has no items
-
-- **WHEN**其他来源有结果但某个请求来源为空
-- **THEN**生成的 briefing 保留成功内容
-- **AND**明确标记缺失来源
-
-### Requirement: Preview and Listing
-
-operator SHALL 能在写文件前 preview briefing，并能只读列出已有 briefing。
-
-#### Scenario: Preview without saving
-
-- **WHEN** operator 请求 preview
-- **THEN**系统返回派生 Markdown content
-- **AND**不会创建 briefing file
+## MODIFIED Requirements
 
 ### Requirement: Daily Signal Briefing
 
@@ -72,12 +18,12 @@ Signal outcome SHALL 仅在 configured required quota 全部满足且 required s
 `ready`。有至少一条 entry 时，required quota shortfall、required attempted-source failure 或
 unattempted positive-quota source 任一存在都 SHALL 为 `partial`。零 entry 且 required attempted
 coverage 完整时为 `no_fresh_signals`；required attempted-source failure 或 unattempted positive-quota
-source 存在时为 `coverage_incomplete`。
-Generation crash SHALL 为 `failed`，planning 为 `dry_run`；generic digest/reading-list 为 `legacy`。
-Status SHALL 同时出现在 Markdown header、serialized DiscoveryReport 与 log summary。
+source 存在时为 `coverage_incomplete`。Generation crash SHALL 为 `failed`，planning 为 `dry_run`；
+generic digest/reading-list 为 `legacy`。Status SHALL 同时出现在 Markdown header、serialized
+DiscoveryReport 与 log summary。
 
-Signals mode 的 source/config state SHALL 遵循：positive GitHub/Paper/legacy WeChat minimum 对应 source
-不在 `briefing.sources`、disabled 或没有 configured target 时必须在 network 前 config error；
+Signals mode 的 source/config state SHALL 遵循：positive GitHub/Paper/legacy WeChat minimum 对应
+source 不在 `briefing.sources`、disabled 或没有 configured target 时必须在 network 前 config error；
 `news_items>0` 但 `briefing.sources` 内没有 enabled 且有 work 的 realtime source 时同样失败。
 Explicit `--source` 未尝试任何 viable News provider，或漏掉 positive quota 的 required source 时，
 artifact coverage 不完整。Default optional WeChat source failure SHALL 显示在 coverage；当另一个
@@ -142,8 +88,8 @@ Outcome decision table：
 
 ### Requirement: Honest Empty Signal Result
 
-完成的 run SHALL 对每个 configured lane 独立应用 freshness。Empty 或 short lane MUST NOT 使用
-stale、timestamp-unknown 或 wrong-lane item 补位。新 signals config 默认 SHALL 使用
+完成的 run SHALL 对每个 configured lane 独立应用 freshness。Empty 或 short required lane MUST NOT
+使用 stale、timestamp-unknown 或 wrong-lane item 补位。新 signals config 默认 SHALL 使用
 `news_items=5`、`wechat_min_items=0`、`wechat_max_items=2`、`github_items=1`、`paper_items=1`。
 
 New quota field SHALL 为 integer：`news_items` 在 1..10，`wechat_min_items` 与
@@ -176,37 +122,14 @@ New quota field SHALL 为 integer：`news_items` 在 1..10，`wechat_min_items` 
 - **THEN**runtime 保留 required minimum behavior，并允许 WeChat 上限覆盖整个 News lane
 - **AND**WeChat minimum shortfall 与 source failure 继续影响 outcome
 
-#### Scenario: Legacy max-items config stays backward compatible
-
-- **WHEN** existing signals config 只有 `max_items: 5`，没有 explicit lane quota field
-- **THEN**runtime 将其解释为最多 5 条 News、且 WeChat/GitHub/Paper minimum 为 0
-- **AND**complete attempted coverage 下只有 1 条 fresh News 仍为 `ready`
-
 #### Scenario: Legacy max-items coverage behavior stays compatible
 
 - **WHEN**legacy `max_items` signals run 中任一 attempted selected enabled realtime source 失败
 - **THEN**nonempty result 为 `partial`，zero result 为 `coverage_incomplete`
 - **AND**optional WeChat exception 不适用于 legacy cap mode
 
-#### Scenario: Selective run omits every News provider
-
-- **WHEN**new quota mode 要求 News，但 explicit selective run 只尝试 GitHub/Papers，local 仍有 fresh News sidecar
-- **THEN**local News MAY 保留显示，但 result 不能为 `ready`
-- **AND**nonempty output 为 `partial`，zero output 为 `coverage_incomplete`
-
 #### Scenario: Conflicting or invalid quota fields are rejected
 
 - **WHEN**signals config 混用 `max_items` 与 lane quota、违反 min/max/news bounds/relations，或 positive required quota 没有 viable source
 - **THEN**config validation 一次报告所有 discoverable quota/source problem
 - **AND**discovery network action 不开始
-
-### Requirement: Source Coverage in Daily Briefing
-
-Daily signal briefing SHALL 独立展示 configured source coverage 与 content ranking，使 blocked
-WeChat 或 X source 不被误报为 quiet day。
-
-#### Scenario: One realtime source fails
-
-- **WHEN**一个 configured realtime source 失败，另一个产生 usable signal
-- **THEN**briefing 保留并排名成功 signal
-- **AND**failed source 与 reason 出现在 coverage note

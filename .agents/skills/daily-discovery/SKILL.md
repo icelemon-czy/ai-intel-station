@@ -55,8 +55,8 @@ description: "Operate AI Intel Station as an Agent-first daily intelligence loop
    ```
 
    bundled default 启用 WeChat public-index + Hacker News + GitHub + Papers；X 保持
-   optional。默认 composition 是 5 条 News（其中至少 2 条 WeChat）+ 1 条 GitHub +
-   1 条 arXiv。不要让用户自己打开
+   optional。默认 composition 是 5 条 News（其中 optional、最多 2 条 WeChat）+
+   1 条 GitHub + 1 条 arXiv。不要让用户自己打开
    `$EDITOR` 才能继续。
 4. config invalid 时读取完整 validation error。用户 intent 足够明确时直接最小修正；
    会改变来源、主题或 schedule 的歧义只问一个关键问题。
@@ -91,7 +91,8 @@ description: "Operate AI Intel Station as an Agent-first daily intelligence loop
 5. 从 command output 定位 Summary、briefing status、log 和 briefing path。读取 signal
    artifact，按 arXiv / GitHub / News 分组返回最多 7 条 item；每条说明“是什么”、
    “为什么现在值得看”、confidence 和 signal/evidence 来源。
-   同时报告各 lane expected / actual / missing；WeChat minimum 按去重后的 News entry 计算。
+   同时报告各 required lane expected / actual / missing；WeChat 按去重后的 News entry
+   报告 actual / optional maximum，缺少时不形成 required shortfall。
 6. partial failure 或 quota shortfall 不丢弃成功结果。先返回可用 briefing，再单独说明
    failed source 与缺少的 lane/WeChat 数量。
 
@@ -141,8 +142,8 @@ description: "Operate AI Intel Station as an Agent-first daily intelligence loop
 
 - `invalid source`：只接受 `github|papers|wechat|hackernews|x`，根据用户原始 intent 修正。
 - `gh` 缺失或未登录：解释 GitHub source 不可用；Papers 等独立来源继续返回。
-- WeChat public-index 验证码或 access block：标记 coverage incomplete，保留其他
-  signal 结果，不把它说成“公众号今天没更新”。
+- WeChat public-index 验证码或 access block：保留 failure detail；另一个 viable News source
+  已完成时按 optional failure 处理，否则标记 coverage incomplete。不要把它说成“公众号今天没更新”。
 - X token 缺失：报告配置的 env name，不发 request，不阻断 Hacker News / WeChat。
 - network 或 sandbox 阻断：如执行目标必须联网，按当前环境 permission flow 请求一次授权；
   不能授权时返回已存在的 local briefing。
@@ -155,7 +156,7 @@ description: "Operate AI Intel Station as an Agent-first daily intelligence loop
 
 - 今日结论或 run/status 结论
 - 按 arXiv / GitHub / News 分组的最多 7 条重点内容
-- lane 与 WeChat minimum 的 expected / actual / missing
+- required lane 的 expected / actual / missing，以及 WeChat actual / optional maximum
 - succeeded / skipped / failed source
 - briefing 与 log 的 clickable local path
 - 需要用户决策的唯一 blocker（如果存在）

@@ -99,7 +99,8 @@ limits: {}
     assert config.briefing.freshness_hours == 48
     assert config.briefing.quota_mode is True
     assert config.briefing.news_items == 5
-    assert config.briefing.wechat_min_items == 2
+    assert config.briefing.wechat_min_items == 0
+    assert config.briefing.wechat_max_items == 2
     assert config.briefing.github_items == 1
     assert config.briefing.paper_items == 1
 
@@ -130,6 +131,7 @@ limits: {}
     assert legacy.max_items == 5
     assert legacy.news_items == 5
     assert legacy.wechat_min_items == 0
+    assert legacy.wechat_max_items == 5
     assert legacy.github_items == 0
     assert legacy.paper_items == 0
 
@@ -143,12 +145,26 @@ limits: {}
     with pytest.raises(DiscoveryConfigError, match="max_items"):
         load_config(conflict_path)
 
+    max_conflict_path = tmp_path / "max-conflict.yaml"
+    max_conflict_path.write_text(
+        legacy_path.read_text(encoding="utf-8").replace(
+            "  max_items: 5", "  max_items: 5\n  wechat_max_items: 2"
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(DiscoveryConfigError, match="max_items"):
+        load_config(max_conflict_path)
+
 
 @pytest.mark.parametrize(
     ("briefing", "needle"),
     [
         ("news_items: 0", "news_items"),
-        ("news_items: 2\n  wechat_min_items: 3", "wechat_min_items"),
+        ("news_items: 2\n  wechat_max_items: 3", "wechat_max_items"),
+        (
+            "news_items: 5\n  wechat_min_items: 3\n  wechat_max_items: 2",
+            "wechat_min_items",
+        ),
         ("news_items: 10\n  github_items: 6\n  paper_items: 5\n  wechat_min_items: 2", "total"),
     ],
 )
@@ -179,6 +195,107 @@ limits: {{}}
 
     with pytest.raises(DiscoveryConfigError, match=needle):
         load_config(config_path)
+
+
+def test_signal_config_preserves_explicit_legacy_wechat_minimum_without_maximum(
+    tmp_path: Path,
+) -> None:
+    from research.discovery import load_config
+
+    config_path = tmp_path / "legacy-wechat-minimum.yaml"
+    config_path.write_text(
+        """
+sources:
+  github: {enabled: false}
+  papers: {enabled: false}
+  wechat:
+    enabled: true
+    accounts: [{name: 架构师, wechat_id: JiaGouX}]
+  hackernews: {enabled: true, feeds: [newstories]}
+  x: {enabled: false}
+briefing:
+  mode: signals
+  sources: [wechat, hackernews]
+  news_items: 5
+  wechat_min_items: 2
+  github_items: 0
+  paper_items: 0
+limits: {}
+""",
+        encoding="utf-8",
+    )
+
+    briefing = load_config(config_path).briefing
+
+    assert briefing.wechat_min_items == 2
+    assert briefing.wechat_max_items == 5
+
+
+def test_signal_config_does_not_expand_explicit_zero_wechat_minimum(
+    tmp_path: Path,
+) -> None:
+    from research.discovery import load_config
+
+    config_path = tmp_path / "explicit-zero-wechat-minimum.yaml"
+    config_path.write_text(
+        """
+sources:
+  github: {enabled: false}
+  papers: {enabled: false}
+  wechat: {enabled: false}
+  hackernews: {enabled: true, feeds: [newstories]}
+  x: {enabled: false}
+briefing:
+  mode: signals
+  sources: [hackernews]
+  news_items: 5
+  wechat_min_items: 0
+  github_items: 0
+  paper_items: 0
+limits: {}
+""",
+        encoding="utf-8",
+    )
+
+    briefing = load_config(config_path).briefing
+
+    assert briefing.wechat_min_items == 0
+    assert briefing.wechat_max_items == 2
+
+
+def test_optional_wechat_maximum_does_not_require_a_wechat_source(
+    tmp_path: Path,
+) -> None:
+    from research.discovery import load_config
+
+    config_path = tmp_path / "optional-wechat-without-source.yaml"
+    config_path.write_text(
+        """
+sources:
+  github: {enabled: false}
+  papers: {enabled: false}
+  wechat: {enabled: false, accounts: []}
+  hackernews: {enabled: true, feeds: [newstories]}
+  x: {enabled: false}
+briefing:
+  mode: signals
+  sources: [hackernews]
+  news_items: 5
+  wechat_min_items: 0
+  wechat_max_items: 2
+  github_items: 0
+  paper_items: 0
+limits: {}
+""",
+        encoding="utf-8",
+    )
+
+    config = load_config(config_path)
+
+    assert config.sources.wechat.enabled is False
+    assert config.briefing.sources == ["hackernews"]
+    assert config.briefing.wechat_min_items == 0
+    assert config.briefing.wechat_max_items == 2
 
 
 def test_signal_config_rejects_positive_quota_without_viable_sources(
@@ -692,7 +809,8 @@ def test_quota_selector_builds_five_news_two_wechat_github_and_paper() -> None:
         now=now,
         freshness_hours=48,
         news_items=5,
-        wechat_min_items=2,
+        wechat_min_items=0,
+        wechat_max_items=2,
         github_items=1,
         paper_items=1,
     )
@@ -703,6 +821,86 @@ def test_quota_selector_builds_five_news_two_wechat_github_and_paper() -> None:
     assert [entry.title for entry in selection.papers] == ["fresh paper"]
     assert len(selection.entries) == 7
     assert selection.has_quota_shortfall is False
+
+
+def test_optional_wechat_cap_uses_non_wechat_replacements() -> None:
+    from briefing.signals import select_daily_briefing
+
+    now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
+    wechat = [
+        _signal(
+            f"wechat {index}",
+            source="wechat",
+            published_at=f"2026-08-13T00:{50 - index:02d}:00Z",
+            watchlist=True,
+        )
+        for index in range(4)
+    ]
+    hackernews = [
+        _signal(
+            f"hn {index}",
+            published_at=f"2026-08-13T00:{30 - index:02d}:00Z",
+        )
+        for index in range(3)
+    ]
+
+    selection = select_daily_briefing(
+        [*wechat, *hackernews],
+        now=now,
+        news_items=5,
+        wechat_min_items=0,
+        wechat_max_items=2,
+        github_items=0,
+        paper_items=0,
+    )
+
+    assert len(selection.news) == 5
+    assert selection.actual_wechat == 2
+    assert {entry.title for entry in selection.news if entry.title.startswith("hn ")} == {
+        "hn 0",
+        "hn 1",
+        "hn 2",
+    }
+    assert selection.missing == {}
+
+
+def test_optional_wechat_cap_can_leave_news_quota_short() -> None:
+    from briefing.signals import render_daily_signal_markdown, select_daily_briefing
+    from research.discovery.runner import SourceReport
+
+    now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
+    selection = select_daily_briefing(
+        [
+            _signal(
+                f"wechat {index}",
+                source="wechat",
+                published_at=f"2026-08-13T00:{10 + index:02d}:00Z",
+            )
+            for index in range(5)
+        ],
+        now=now,
+        news_items=5,
+        wechat_min_items=0,
+        wechat_max_items=2,
+        github_items=0,
+        paper_items=0,
+    )
+
+    rendered = render_daily_signal_markdown(
+        "daily",
+        selection,
+        {"wechat": SourceReport(name="wechat", enabled=True, succeeded=1)},
+        now=now,
+        coverage_sources=["wechat"],
+        viable_news_sources=["wechat"],
+        optional_sources=["wechat"],
+    )
+
+    assert len(selection.news) == 2
+    assert selection.actual_wechat == 2
+    assert selection.missing == {"news": 3}
+    assert rendered.status == "partial"
+    assert "WeChat optional maximum: 2/2" in rendered.markdown
 
 
 def test_wechat_minimum_counts_deduped_news_entries_and_reports_shortfall() -> None:
@@ -1257,6 +1455,137 @@ def test_wechat_quota_shortfall_alone_makes_nonempty_result_partial() -> None:
     assert "| WeChat minimum | 1 | 0 | 1 |" in rendered.markdown
 
 
+def test_optional_wechat_failure_does_not_downgrade_completed_news_coverage() -> None:
+    from briefing.signals import render_daily_signal_markdown, select_daily_briefing
+    from research.discovery.runner import SourceReport
+
+    now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
+    reports = {
+        "hackernews": SourceReport(name="hackernews", enabled=True, succeeded=1),
+        "wechat": SourceReport(
+            name="wechat", enabled=True, failed=1, notes=["public index unavailable"]
+        ),
+    }
+    selection = select_daily_briefing(
+        [_signal("HN fills News", published_at="2026-08-13T00:30:00Z")],
+        now=now,
+        news_items=1,
+        wechat_min_items=0,
+        wechat_max_items=1,
+        github_items=0,
+        paper_items=0,
+    )
+
+    rendered = render_daily_signal_markdown(
+        "daily",
+        selection,
+        reports,
+        now=now,
+        coverage_sources=list(reports),
+        viable_news_sources=["hackernews", "wechat"],
+        optional_sources=["wechat"],
+    )
+    empty = render_daily_signal_markdown(
+        "daily-empty",
+        select_daily_briefing(
+            [],
+            now=now,
+            news_items=1,
+            wechat_min_items=0,
+            wechat_max_items=1,
+            github_items=0,
+            paper_items=0,
+        ),
+        reports,
+        now=now,
+        coverage_sources=list(reports),
+        viable_news_sources=["hackernews", "wechat"],
+        optional_sources=["wechat"],
+    )
+
+    assert rendered.status == "ready"
+    assert empty.status == "no_fresh_signals"
+    assert "optional-failed" in rendered.markdown
+    assert "public index unavailable" in rendered.markdown
+    assert "attempted source failed: wechat" not in rendered.markdown
+
+
+def test_optional_wechat_failure_still_blocks_when_it_is_the_only_news_provider() -> None:
+    from briefing.signals import render_daily_signal_markdown, select_daily_briefing
+    from research.discovery.runner import SourceReport
+
+    now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
+    reports = {
+        "wechat": SourceReport(name="wechat", enabled=True, failed=1, notes=["blocked"])
+    }
+    options = {
+        "now": now,
+        "coverage_sources": ["wechat"],
+        "viable_news_sources": ["wechat"],
+        "optional_sources": ["wechat"],
+    }
+    nonempty_selection = select_daily_briefing(
+        [_signal("Cached News", published_at="2026-08-13T00:30:00Z")],
+        now=now,
+        news_items=1,
+        wechat_min_items=0,
+        wechat_max_items=1,
+        github_items=0,
+        paper_items=0,
+    )
+    empty_selection = select_daily_briefing(
+        [],
+        now=now,
+        news_items=1,
+        wechat_min_items=0,
+        wechat_max_items=1,
+        github_items=0,
+        paper_items=0,
+    )
+
+    nonempty = render_daily_signal_markdown("daily", nonempty_selection, reports, **options)
+    empty = render_daily_signal_markdown("daily", empty_selection, reports, **options)
+
+    assert nonempty.status == "partial"
+    assert empty.status == "coverage_incomplete"
+    assert "attempted source failed: wechat" in nonempty.markdown
+
+
+def test_optional_wechat_exception_does_not_hide_x_failure() -> None:
+    from briefing.signals import render_daily_signal_markdown, select_daily_briefing
+    from research.discovery.runner import SourceReport
+
+    now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
+    selection = select_daily_briefing(
+        [_signal("HN fills News", published_at="2026-08-13T00:30:00Z")],
+        now=now,
+        news_items=1,
+        wechat_min_items=0,
+        wechat_max_items=1,
+        github_items=0,
+        paper_items=0,
+    )
+    reports = {
+        "hackernews": SourceReport(name="hackernews", enabled=True, succeeded=1),
+        "wechat": SourceReport(name="wechat", enabled=True, failed=1),
+        "x": SourceReport(name="x", enabled=True, failed=1),
+    }
+
+    rendered = render_daily_signal_markdown(
+        "daily",
+        selection,
+        reports,
+        now=now,
+        coverage_sources=list(reports),
+        viable_news_sources=["hackernews", "wechat", "x"],
+        optional_sources=["wechat"],
+    )
+
+    assert rendered.status == "partial"
+    assert "attempted source failed: x" in rendered.markdown
+    assert "attempted source failed: wechat" not in rendered.markdown
+
+
 def test_quota_renderer_marks_unattempted_news_and_required_lane_incomplete() -> None:
     from briefing.signals import render_daily_signal_markdown, select_daily_briefing
     from research.discovery.runner import SourceReport
@@ -1554,6 +1883,127 @@ def test_generate_quota_briefing_runs_real_production_path_with_seven_items(
     assert "| WeChat minimum | 2 | 2 | 0 |" in markdown
 
 
+@pytest.mark.parametrize(
+    ("case", "briefing_sources", "item_source", "reports", "expected_status"),
+    [
+        (
+            "hn-with-optional-wechat-failure",
+            ["hackernews", "wechat"],
+            "hackernews",
+            {"hackernews": (1, 0), "wechat": (0, 1)},
+            "ready",
+        ),
+        (
+            "quiet-hn-with-optional-wechat-failure",
+            ["hackernews", "wechat"],
+            None,
+            {"hackernews": (1, 0), "wechat": (0, 1)},
+            "no_fresh_signals",
+        ),
+        (
+            "cached-wechat-with-only-provider-failure",
+            ["wechat"],
+            "wechat",
+            {"wechat": (0, 1)},
+            "partial",
+        ),
+        (
+            "empty-with-only-provider-failure",
+            ["wechat"],
+            None,
+            {"wechat": (0, 1)},
+            "coverage_incomplete",
+        ),
+        (
+            "x-failure-remains-visible",
+            ["hackernews", "wechat", "x"],
+            "hackernews",
+            {"hackernews": (1, 0), "wechat": (0, 1), "x": (0, 1)},
+            "partial",
+        ),
+    ],
+)
+def test_generate_quota_briefing_applies_optional_wechat_outcome_matrix(
+    tmp_path: Path,
+    case: str,
+    briefing_sources: list[str],
+    item_source: str | None,
+    reports: dict[str, tuple[int, int]],
+    expected_status: str,
+) -> None:
+    from research.discovery import (
+        BriefingConfig,
+        DiscoveryConfig,
+        HackerNewsSource,
+        SourceConfig,
+        WeChatAccount,
+        WeChatSource,
+        XSource,
+    )
+    from research.discovery.runner import SourceReport, generate_briefing
+
+    now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
+    output_root = tmp_path / case
+    if item_source is not None:
+        item = _signal(
+            f"Fresh {item_source}",
+            source=item_source,
+            published_at="2026-08-13T00:30:00Z",
+        )
+        write_research_item(
+            item,
+            output_root / item_source / "item" / "research-item.json",
+        )
+    config = DiscoveryConfig(
+        output_root=output_root,
+        log_dir=output_root / "logs",
+        sources=SourceConfig(
+            wechat=WeChatSource(
+                enabled="wechat" in briefing_sources,
+                accounts=[WeChatAccount(name="架构师", wechat_id="JiaGouX")],
+            ),
+            hackernews=HackerNewsSource(
+                enabled="hackernews" in briefing_sources,
+                feeds=["newstories"],
+            ),
+            x=XSource(
+                enabled="x" in briefing_sources,
+                queries=["agent"],
+            ),
+        ),
+        briefing=BriefingConfig(
+            mode="signals",
+            sources=briefing_sources,
+            news_items=1,
+            wechat_min_items=0,
+            wechat_max_items=1,
+            github_items=0,
+            paper_items=0,
+            quota_mode=True,
+        ),
+    )
+    source_reports = {
+        name: SourceReport(
+            name=name,
+            enabled=True,
+            succeeded=succeeded,
+            failed=failed,
+            notes=["fixture failure"] if failed else [],
+        )
+        for name, (succeeded, failed) in reports.items()
+    }
+
+    artifact = generate_briefing(config, now=now, source_reports=source_reports)
+
+    assert artifact is not None and artifact.path is not None
+    assert artifact.status == expected_status
+    markdown = artifact.path.read_text(encoding="utf-8")
+    if reports.get("wechat", (0, 0))[1]:
+        assert "fixture failure" in markdown
+    if case == "x-failure-remains-visible":
+        assert "attempted source failed: x" in markdown
+
+
 def test_legacy_max_items_runner_keeps_one_fresh_news_item_ready(
     tmp_path: Path,
 ) -> None:
@@ -1655,6 +2105,7 @@ def test_runner_counts_attempted_failure_outside_briefing_sources_as_partial(
             sources=["hackernews", "github", "papers"],
             news_items=1,
             wechat_min_items=0,
+            wechat_max_items=1,
             github_items=1,
             paper_items=1,
             quota_mode=True,
@@ -1699,7 +2150,14 @@ def test_run_discovery_isolates_missing_x_token_and_keeps_hn_signal(
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("# fixture", encoding="utf-8")
         write_research_items_jsonl(
-            [_signal("HN survives", published_at="2026-08-13T00:30:00Z")],
+            [
+                _signal(
+                    "HN survives",
+                    published_at=(datetime.now(timezone.utc) - timedelta(hours=1))
+                    .isoformat()
+                    .replace("+00:00", "Z"),
+                )
+            ],
             feed_dir / "research-items.jsonl",
         )
         return path
@@ -1728,6 +2186,7 @@ def test_run_discovery_isolates_missing_x_token_and_keeps_hn_signal(
             sources=["hackernews", "x"],
             freshness_hours=48,
             max_items=5,
+            quota_mode=False,
         ),
     )
 

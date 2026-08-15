@@ -86,8 +86,11 @@ for cat in categories:
 - 输出路径作为参数开放时，默认仍应指向当前来源的 `output/<source>/`
 - News/Paper item 必须有 freshness window 内可解析的 `published_at`；GitHub item 使用
   `updated_at` fallback `published_at`；`discovered_at` 只表示首次观测
-- New signals quota config 使用 integer `news_items` / `wechat_min_items` / `github_items` /
-  `paper_items`，positive quota 必须在 network 前验证 source membership、enabled 与 target
+- New signals quota config 使用 integer `news_items` / `wechat_min_items` /
+  `wechat_max_items` / `github_items` / `paper_items`，并验证
+  `0 <= wechat_min_items <= wechat_max_items <= news_items`；positive required quota 必须在
+  network 前验证 source membership、enabled 与 target。default WeChat 是 optional maximum，
+  不是 required minimum
 - X credential value 只从 configured environment variable 读取，不写入 YAML、log 或 artifact
 
 ## 反模式清单

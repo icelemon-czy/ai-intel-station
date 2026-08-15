@@ -170,7 +170,8 @@ research/discovery/runner.py
 | `WECHAT_E2E_URLS` | 环境变量 | 是否运行微信 live e2e | 空值时跳过 |
 | `briefing.freshness_hours` | discovery YAML | verified publication age window | `48`，最大 `72` |
 | `briefing.news_items` | discovery YAML | verified fresh News quota | `5` |
-| `briefing.wechat_min_items` | discovery YAML | deduped News 中 WeChat minimum | `2` |
+| `briefing.wechat_min_items` | discovery YAML | deduped News 中 required WeChat minimum | `0` |
+| `briefing.wechat_max_items` | discovery YAML | deduped News 中 optional WeChat maximum | `2` |
 | `briefing.github_items` | discovery YAML | dedicated GitHub quota | `1` |
 | `briefing.paper_items` | discovery YAML | dedicated arXiv quota | `1` |
 | `briefing.max_items` | legacy discovery YAML | legacy News cap（不能与新 quota 混用） | existing config only |

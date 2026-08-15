@@ -188,7 +188,7 @@ raise SystemExit(
         self.assertIn("覆盖不完整，无法得出今日无新内容的结论", text)
         self.assertIn("github|papers|wechat|hackernews|x", text)
         self.assertIn("最多 7 条", text)
-        self.assertIn("至少 2 条 WeChat", text)
+        self.assertIn("optional、最多 2 条 WeChat", text)
         self.assertIn("expected / actual / missing", text)
         self.assertIn("arXiv / GitHub / News", text)
 

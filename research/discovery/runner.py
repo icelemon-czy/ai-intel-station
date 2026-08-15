@@ -446,7 +446,8 @@ def generate_briefing(
         if report_log:
             composition = (
                 f"composition={briefing.news_items} News "
-                f"(WeChat minimum={briefing.wechat_min_items}) + "
+                f"(WeChat optional maximum={briefing.wechat_max_items}, "
+                f"minimum={briefing.wechat_min_items}) + "
                 f"{briefing.github_items} GitHub + {briefing.paper_items} arXiv"
                 if briefing.mode == "signals" and briefing.quota_mode
                 else f"max_items={briefing.max_items}"
@@ -474,6 +475,7 @@ def generate_briefing(
                 freshness_hours=briefing.freshness_hours,
                 news_items=briefing.news_items,
                 wechat_min_items=briefing.wechat_min_items,
+                wechat_max_items=briefing.wechat_max_items,
                 github_items=briefing.github_items,
                 paper_items=briefing.paper_items,
                 quota_mode=True,
@@ -511,6 +513,12 @@ def generate_briefing(
                 ),
                 "required_sources": required_sources,
                 "viable_news_sources": viable_news_sources,
+                "optional_sources": (
+                    ["wechat"]
+                    if briefing.wechat_min_items == 0
+                    and briefing.wechat_max_items > 0
+                    else []
+                ),
             }
             item_count = len(entries.entries)
         else:

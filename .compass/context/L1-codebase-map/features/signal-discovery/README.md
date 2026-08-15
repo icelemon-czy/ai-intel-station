@@ -9,9 +9,9 @@ evidence 组成 dedicated lane。不把 lifetime popularity 或无 source time �
 HN / WeChat watchlist / optional X
   → ResearchItem(signal)
   → publication-time gate (default 48h, max 72h)
-  → News rank + reserve deduped WeChat minimum
+  → News rank + apply deduped WeChat optional cap
   → papers > github > news exact dedupe + corroboration
-  → 5 News (2 WeChat min) + 1 GitHub + 1 arXiv
+  → 5 News (up to 2 WeChat) + 1 GitHub + 1 arXiv
   → output/briefing/signals/ + source coverage status
 
 GitHub / Papers → ResearchItem(evidence) → lane-specific source-time gate ─┘
@@ -30,7 +30,11 @@ GitHub / Papers → ResearchItem(evidence) → lane-specific source-time gate �
 - News item 必须由 `signal` 发起，且 `published_at` 可解析并在 freshness window 内。
 - `discovered_at` 是第一次观测时间，重复收集不得刷新，也不得代替 publication time。
 - GitHub repository/search 和 Papers 保持 `evidence`；不能填充 News，但 fresh item 可进入 dedicated lane。
-- WeChat minimum 按 deduped rendered News entry 计数；shortfall 必须保持 `partial`，不能用 HN/X 冒充。
+- WeChat default minimum 是 0、maximum 是 2，均按 deduped rendered News entry 计数；超过
+  maximum 的 WeChat candidate 由 HN/X candidate 补位，补不到时只形成 News shortfall。
+- optional WeChat failure 始终展示；只有另一个 viable News source 已完成时才不单独降低
+  outcome。若 WeChat 是唯一尝试的 News provider，failure 仍产生 `partial` 或
+  `coverage_incomplete`。
 - 跨平台 engagement 不比 raw count，只比同 source candidate percentile。
 - 每次 run 的 status 是 `ready|partial|no_fresh_signals|coverage_incomplete`；
   `failed|dry_run|legacy` 不是可当作今日 signal result 的状态。

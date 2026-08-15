@@ -14,8 +14,8 @@ deterministic CLI、读取 local briefing，并把重点直接返回 conversatio
 - “昨天为什么失败？”
 
 Agent 会检查现有 status，避免重复执行今日成功 run；需要运行时创建或最小修改 ignored
-config，执行 dry-run validation，读取 signal briefing / log，并默认返回 5 条 News（至少
-2 条去重后的 WeChat）+ 1 条 GitHub + 1 条 arXiv，以及 partial failure / quota shortfall。
+config，执行 dry-run validation，读取 signal briefing / log，并默认返回 5 条 News（其中
+WeChat optional、最多 2 条）+ 1 条 GitHub + 1 条 arXiv，以及 partial failure / quota shortfall。
 GitHub / Papers 保持 evidence role，只能进入各自 dedicated lane，不会挤占 News quota。
 只有明确要求 install schedule 时才修改本机 scheduler。
 
@@ -104,7 +104,7 @@ sources:
     max_per_category: 10
 
   wechat:
-    enabled: true                    # default WeChat minimum 需要；public index 仍可能触发验证
+    enabled: true                    # optional News provider；public index 仍可能触发验证
     urls: []                         # optional 直接全文链接
     accounts:
       - {name: 架构师, wechat_id: JiaGouX}
@@ -129,7 +129,8 @@ briefing:
   sources: [wechat, hackernews, x, github, papers]
   freshness_hours: 48                # inclusive lower boundary；上限 72
   news_items: 5
-  wechat_min_items: 2
+  wechat_min_items: 0                # optional，不足不形成 required shortfall
+  wechat_max_items: 2                # 在 deduped News 中最多占 2 条
   github_items: 1
   paper_items: 1
   since_days: 1                      # legacy mode only
@@ -202,8 +203,11 @@ uv run research schedule cron
 ### `Camoufox` / WeChat 抓取失败
 
 先运行 `uv sync --extra wechat` 安装 optional browser stack。WeChat 有反爬，可能被风控；
-default quota 需要 public-index watchlist 保持 enabled；如果不需要 WeChat，可把
-`wechat_min_items` 调成 0 后再关闭 source。直接全文抓取才需要 optional browser stack。
+default quota 仅将 WeChat 作为 optional News provider，最多 2 条；如果 HN/X 中至少一个
+viable News source 完成，单独的 WeChat failure 会保留在报告中但不会降低 outcome。如果
+WeChat 是唯一尝试的 News provider 且失败，仍会得到 `partial` 或 `coverage_incomplete`。
+不需要 WeChat 时可将 `wechat_max_items` 调成 0 并关闭 source。直接全文抓取才需要
+optional browser stack。
 
 ### `Failed to fetch arXiv: Tunnel connection failed`
 

@@ -22,7 +22,7 @@ sources:
     max_per_category: 10
 
   wechat:
-    enabled: true                    # required by the default 2-item WeChat minimum
+    enabled: true                    # optional News source; failures do not block a completed HN/X sweep
     urls: []                         # direct articles remain supported as signal inputs
     accounts:                        # public-index watchlist; no WeChat login required
       - name: 架构师
@@ -49,7 +49,8 @@ briefing:
   sources: [wechat, hackernews, x, github, papers]
   freshness_hours: 48                # verified publication time; maximum allowed is 72
   news_items: 5
-  wechat_min_items: 2
+  wechat_min_items: 0                # optional: missing WeChat is not a quota shortfall
+  wechat_max_items: 2                # at most 2 deduped WeChat entries inside News
   github_items: 1
   paper_items: 1
   since_days: 1                      # legacy modes only

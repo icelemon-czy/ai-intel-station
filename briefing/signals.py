@@ -58,7 +58,8 @@ class DailyBriefingSelection:
     github: list[SelectedSignal] = field(default_factory=list)
     news: list[SelectedSignal] = field(default_factory=list)
     expected_news: int = 5
-    expected_wechat: int = 2
+    expected_wechat: int = 0
+    max_wechat: int = 2
     expected_github: int = 1
     expected_papers: int = 1
     quota_mode: bool = True
@@ -467,7 +468,8 @@ def select_daily_briefing(
     now: datetime | None = None,
     freshness_hours: int = 48,
     news_items: int = 5,
-    wechat_min_items: int = 2,
+    wechat_min_items: int = 0,
+    wechat_max_items: int | None = None,
     github_items: int = 1,
     paper_items: int = 1,
     quota_mode: bool = True,
@@ -483,8 +485,11 @@ def select_daily_briefing(
         raise ValueError("news_items must be positive")
     if min(wechat_min_items, github_items, paper_items) < 0:
         raise ValueError("lane quotas must be non-negative")
-    if wechat_min_items > news_items:
-        raise ValueError("wechat_min_items must not exceed news_items")
+    resolved_wechat_max = news_items if wechat_max_items is None else wechat_max_items
+    if resolved_wechat_max < 0 or resolved_wechat_max > news_items:
+        raise ValueError("wechat_max_items must be between zero and news_items")
+    if wechat_min_items > resolved_wechat_max:
+        raise ValueError("wechat_min_items must not exceed wechat_max_items")
 
     evaluation_time = now or datetime.now(timezone.utc)
     if evaluation_time.tzinfo is None:
@@ -566,10 +571,18 @@ def select_daily_briefing(
         if any(signal.source == "wechat" for signal in entry.signals)
     ][:wechat_min_items]
     chosen_ids = {id(entry) for entry in reserved_wechat}
+    chosen_wechat = len(reserved_wechat)
     for entry in available_news:
         if len(chosen_ids) >= news_items:
             break
+        if id(entry) in chosen_ids:
+            continue
+        entry_has_wechat = any(signal.source == "wechat" for signal in entry.signals)
+        if entry_has_wechat and chosen_wechat >= resolved_wechat_max:
+            continue
         chosen_ids.add(id(entry))
+        if entry_has_wechat:
+            chosen_wechat += 1
     news = [entry for entry in available_news if id(entry) in chosen_ids][:news_items]
     for entry in news:
         entry.lane = "news"
@@ -581,6 +594,7 @@ def select_daily_briefing(
         news=news,
         expected_news=news_items,
         expected_wechat=wechat_min_items,
+        max_wechat=resolved_wechat_max,
         expected_github=github_items,
         expected_papers=paper_items,
         quota_mode=quota_mode,
@@ -593,22 +607,45 @@ def _source_status_lines(
     coverage_sources: Sequence[str] | None = None,
     required_sources: Sequence[str] = (),
     viable_news_sources: Sequence[str] = (),
+    optional_sources: Sequence[str] = (),
 ) -> tuple[list[str], bool, list[str]]:
     lines = ["## Source Coverage", "", "| Source | Status | Succeeded | Skipped | Failed | Notes |", "|---|---:|---:|---:|---:|---|"]
     coverage_scope = set(coverage_sources) if coverage_sources is not None else None
     coverage_incomplete = False
     issues: list[str] = []
+    optional = set(optional_sources)
+    completed_news_sources = {
+        name
+        for name, report in source_reports.items()
+        if name in viable_news_sources
+        and bool(getattr(report, "enabled", False))
+        and int(getattr(report, "failed", 0)) == 0
+    }
     for name, report in source_reports.items():
         enabled = bool(getattr(report, "enabled", False))
         succeeded = int(getattr(report, "succeeded", 0))
         skipped = int(getattr(report, "skipped", 0))
         failed = int(getattr(report, "failed", 0))
         notes = "; ".join(_table_cell(note) for note in getattr(report, "notes", []))
-        status = "disabled" if not enabled else ("failed" if failed else "succeeded")
+        ignored_optional_failure = bool(
+            enabled
+            and failed
+            and name in optional
+            and (completed_news_sources - {name})
+        )
+        status = (
+            "disabled"
+            if not enabled
+            else "optional-failed"
+            if ignored_optional_failure
+            else "failed"
+            if failed
+            else "succeeded"
+        )
         failure_is_relevant = (
             name in coverage_scope if coverage_scope is not None else name in REALTIME_SOURCES
         )
-        if enabled and failure_is_relevant and failed:
+        if enabled and failure_is_relevant and failed and not ignored_optional_failure:
             coverage_incomplete = True
             issues.append(f"attempted source failed: {name}")
         lines.append(f"| {name} | {status} | {succeeded} | {skipped} | {failed} | {notes} |")
@@ -665,6 +702,7 @@ def render_daily_signal_markdown(
     coverage_sources: Sequence[str] | None = None,
     required_sources: Sequence[str] = (),
     viable_news_sources: Sequence[str] = (),
+    optional_sources: Sequence[str] = (),
 ) -> RenderedSignalBriefing:
     generated = now or datetime.now(timezone.utc)
     if generated.tzinfo is None:
@@ -674,6 +712,7 @@ def render_daily_signal_markdown(
         coverage_sources=coverage_sources,
         required_sources=required_sources,
         viable_news_sources=viable_news_sources,
+        optional_sources=optional_sources,
     )
     selection = entries if isinstance(entries, DailyBriefingSelection) else None
     rendered_entries = selection.entries if selection is not None else list(entries)
@@ -694,12 +733,15 @@ def render_daily_signal_markdown(
     ]
     lines.extend(coverage_lines)
     if selection is not None and selection.quota_mode:
-        quota_rows = (
+        quota_rows = [
             ("arXiv", selection.expected_papers, len(selection.papers)),
             ("GitHub", selection.expected_github, len(selection.github)),
             ("News", selection.expected_news, len(selection.news)),
-            ("WeChat minimum", selection.expected_wechat, selection.actual_wechat),
-        )
+        ]
+        if selection.expected_wechat > 0:
+            quota_rows.append(
+                ("WeChat minimum", selection.expected_wechat, selection.actual_wechat)
+            )
         lines.extend(
             [
                 "## Quota Coverage",
@@ -710,7 +752,13 @@ def render_daily_signal_markdown(
         )
         for lane, expected, actual in quota_rows:
             lines.append(f"| {lane} | {expected} | {actual} | {max(0, expected - actual)} |")
-        lines.append("")
+        lines.extend(
+            [
+                "",
+                f"WeChat optional maximum: {selection.actual_wechat}/{selection.max_wechat}",
+                "",
+            ]
+        )
     if not rendered_entries:
         if status == "coverage_incomplete":
             lines.extend(
@@ -757,6 +805,7 @@ def write_daily_signal_report(
     coverage_sources: Sequence[str] | None = None,
     required_sources: Sequence[str] = (),
     viable_news_sources: Sequence[str] = (),
+    optional_sources: Sequence[str] = (),
 ) -> tuple[Path, str]:
     rendered = render_daily_signal_markdown(
         title,
@@ -767,6 +816,7 @@ def write_daily_signal_report(
         coverage_sources=coverage_sources,
         required_sources=required_sources,
         viable_news_sources=viable_news_sources,
+        optional_sources=optional_sources,
     )
     path = briefing_output_path(output_root, "signals", title)
     write_markdown(path, rendered.markdown)
