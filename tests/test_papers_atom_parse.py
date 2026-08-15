@@ -9,6 +9,7 @@ the bad row.
 from __future__ import annotations
 
 import unittest
+from urllib.error import HTTPError
 from unittest.mock import patch
 from xml.etree import ElementTree as ET
 
@@ -44,6 +45,189 @@ def _entry(xml: str) -> ET.Element:
 
 
 class ParseAtomEntryTests(unittest.TestCase):
+    def test_category_fetch_closes_the_arxiv_api_connection(self) -> None:
+        response = _FakeResponse(
+            b'<feed xmlns="http://www.w3.org/2005/Atom"></feed>'
+        )
+
+        def _open(request, *, timeout: int):
+            self.assertEqual(
+                request.full_url.split("?", 1)[0],
+                "https://export.arxiv.org/api/query",
+            )
+            self.assertEqual(request.get_header("Connection"), "close")
+            self.assertEqual(timeout, 15)
+            return response
+
+        with patch("collect.papers.urlopen", side_effect=_open):
+            papers = fetch_papers_by_category(
+                ["cs.AI"],
+                max_results=1,
+                raise_on_error=True,
+            )
+
+        self.assertEqual(papers, [])
+
+    def test_category_fetch_retries_one_transient_timeout(self) -> None:
+        response = _FakeResponse(
+            b'<feed xmlns="http://www.w3.org/2005/Atom"></feed>'
+        )
+
+        with (
+            patch(
+                "collect.papers.urlopen",
+                side_effect=[TimeoutError("read timed out"), response],
+            ) as open_mock,
+            patch("collect.papers.sleep", create=True) as sleep_mock,
+        ):
+            papers = fetch_papers_by_category(
+                ["cs.AI"],
+                max_results=1,
+                raise_on_error=True,
+            )
+
+        self.assertEqual(papers, [])
+        self.assertEqual(open_mock.call_count, 2)
+        sleep_mock.assert_called_once_with(3)
+
+    def test_category_fetch_falls_back_to_official_atom_feed_on_429(self) -> None:
+        response = _FakeResponse(
+            b'''<feed xmlns="http://www.w3.org/2005/Atom"
+                         xmlns:dc="http://purl.org/dc/elements/1.1/">
+              <entry>
+                <id>oai:arXiv.org:2608.12325v1</id>
+                <title>Fallback paper</title>
+                <summary>Fallback abstract.</summary>
+                <published>2026-08-14T00:00:00-04:00</published>
+                <updated>2026-08-14T00:00:00-04:00</updated>
+                <dc:creator>Ada Researcher, Grace Scientist</dc:creator>
+                <category term="cs.AI" />
+                <link rel="alternate" type="text/html"
+                      href="https://arxiv.org/abs/2608.12325v1" />
+              </entry>
+              <entry>
+                <id>oai:arXiv.org:2608.99999v1</id>
+                <title>Must be truncated</title>
+                <summary>Second fallback abstract.</summary>
+                <published>2026-08-14T00:00:00-04:00</published>
+                <updated>2026-08-14T00:00:00-04:00</updated>
+                <dc:creator>Second Author</dc:creator>
+                <category term="cs.AI" />
+                <link rel="alternate" type="text/html"
+                      href="https://arxiv.org/abs/2608.99999v1" />
+              </entry>
+            </feed>'''
+        )
+        throttled = HTTPError(
+            "https://export.arxiv.org/api/query",
+            429,
+            "Too Many Requests",
+            {"Retry-After": "7"},
+            None,
+        )
+
+        requested_urls: list[str] = []
+
+        def _open(request, *, timeout: int):
+            requested_urls.append(request.full_url)
+            if "export.arxiv.org/api/query" in request.full_url:
+                raise throttled
+            self.assertEqual(request.full_url, "https://rss.arxiv.org/atom/cs.AI")
+            self.assertEqual(timeout, 15)
+            return response
+
+        with (
+            patch("collect.papers.urlopen", side_effect=_open),
+            patch("collect.papers.sleep") as sleep_mock,
+        ):
+            papers = fetch_papers_by_category(
+                ["cs.AI"],
+                max_results=1,
+                raise_on_error=True,
+            )
+
+        self.assertEqual([paper["title"] for paper in papers], ["Fallback paper"])
+        self.assertEqual(
+            papers[0]["authors"],
+            ["Ada Researcher", "Grace Scientist"],
+        )
+        self.assertEqual(papers[0]["arxiv_id"], "2608.12325v1")
+        self.assertEqual(
+            papers[0]["pdf_url"],
+            "https://arxiv.org/pdf/2608.12325v1",
+        )
+        self.assertEqual(len(requested_urls), 2)
+        self.assertIn("export.arxiv.org/api/query", requested_urls[0])
+        self.assertEqual(requested_urls[1], "https://rss.arxiv.org/atom/cs.AI")
+        sleep_mock.assert_not_called()
+
+    def test_category_fetch_falls_back_after_exhausting_5xx_retry(self) -> None:
+        response = _FakeResponse(
+            b'''<feed xmlns="http://www.w3.org/2005/Atom"
+                         xmlns:dc="http://purl.org/dc/elements/1.1/">
+              <entry>
+                <id>oai:arXiv.org:2608.12325v1</id>
+                <title>Recovered after 5xx</title>
+                <summary>Recovered abstract.</summary>
+                <published>2026-08-14T00:00:00-04:00</published>
+                <updated>2026-08-14T00:00:00-04:00</updated>
+                <dc:creator>Ada Researcher</dc:creator>
+                <category term="cs.AI" />
+                <link rel="alternate" type="text/html"
+                      href="https://arxiv.org/abs/2608.12325v1" />
+              </entry>
+            </feed>'''
+        )
+        service_unavailable = HTTPError(
+            "https://export.arxiv.org/api/query",
+            503,
+            "Service Unavailable",
+            {"Retry-After": "90"},
+            None,
+        )
+        bad_gateway = HTTPError(
+            "https://export.arxiv.org/api/query",
+            502,
+            "Bad Gateway",
+            {},
+            None,
+        )
+        requested_urls: list[str] = []
+
+        def _open(request, *, timeout: int):
+            requested_urls.append(request.full_url)
+            if len(requested_urls) == 1:
+                raise service_unavailable
+            if len(requested_urls) == 2:
+                raise bad_gateway
+            self.assertEqual(request.full_url, "https://rss.arxiv.org/atom/cs.AI")
+            self.assertEqual(timeout, 15)
+            return response
+
+        with (
+            patch("collect.papers.urlopen", side_effect=_open),
+            patch("collect.papers.sleep") as sleep_mock,
+        ):
+            papers = fetch_papers_by_category(
+                ["cs.AI"],
+                max_results=1,
+                raise_on_error=True,
+            )
+
+        self.assertEqual(
+            [paper["title"] for paper in papers],
+            ["Recovered after 5xx"],
+        )
+        self.assertEqual(len(requested_urls), 3)
+        self.assertTrue(
+            all(
+                "export.arxiv.org/api/query" in url
+                for url in requested_urls[:2]
+            )
+        )
+        self.assertEqual(requested_urls[2], "https://rss.arxiv.org/atom/cs.AI")
+        sleep_mock.assert_called_once_with(30)
+
     def test_full_entry_round_trips(self) -> None:
         entry = _entry(
             """
@@ -129,9 +313,12 @@ class ParseAtomEntryTests(unittest.TestCase):
         self.assertEqual(paper["authors"], ["", "Grace Hopper"])
 
     def test_single_category_caller_can_surface_remote_failure(self) -> None:
-        with patch(
-            "collect.papers.urlopen",
-            side_effect=OSError("offline"),
+        with (
+            patch(
+                "collect.papers.urlopen",
+                side_effect=OSError("offline"),
+            ) as open_mock,
+            patch("collect.papers.sleep") as sleep_mock,
         ):
             with self.assertRaises(PapersFetchError) as context:
                 fetch_papers_by_category(
@@ -140,6 +327,8 @@ class ParseAtomEntryTests(unittest.TestCase):
                     raise_on_error=True,
                 )
 
+        self.assertEqual(open_mock.call_count, 3)
+        sleep_mock.assert_called_once_with(3)
         self.assertIn("cs.AI", str(context.exception))
         self.assertIn("offline", str(context.exception))
 

@@ -22,6 +22,8 @@ research collect papers ...
   │   → 打印 AI_CATEGORIES 说明并退出
   └─ categories 模式
       → fetch_papers_by_category()
+      → arXiv search API（bounded retry）
+      → official category Atom feed fallback（429 / timeout / 5xx）
       → 解析 Atom XML
       → paper_to_markdown()
       → build_paper_item()
@@ -32,7 +34,10 @@ research collect papers ...
 ## 关键约束
 
 - 只支持 `AI_CATEGORIES` 中列出的类别；未知类别当前只 warning，不抛异常
-- 数据源是 arXiv 公共 API，无认证，但网络和返回格式变化会直接影响解析
+- 数据源是 arXiv 公共 search API；遇到 throttle 或 transient failure 时回退到官方 daily
+  category Atom feed。两者都无认证，但网络和返回格式变化会直接影响解析
+- 每次 search API request 最多尝试两次、单次 15 秒；fallback 只尝试一次，避免 daily run
+  因单个 category 无限阻塞
 - 每个 category 单独落到 `arXiv-<category>/`，每篇文件名前缀用两位编号
 - 文件名安全化逻辑在 `save_papers()`，改它会影响整个目录的稳定性
 - papers sidecar 文件名和 Markdown stem 绑定；改命名规则时要同步 backfill 与历史样本兼容性
@@ -52,9 +57,11 @@ research collect papers ...
 ```bash
 uv run research collect papers --list
 uv run research collect papers cs.AI --max 3
+uv run python -m pytest -q tests/test_papers_atom_parse.py tests/test_save_papers.py
 ```
 
 ## 已知边界
 
-- 当前没有自动化测试；分类过滤和 Markdown 结构都靠手动 smoke run 保护
+- parser、transport/fallback 与 Markdown/sidecar 有 deterministic test；真实 availability 仍需
+  `research collect papers cs.AI --max 1` smoke run 验证
 - 一个类别失败时脚本会继续跑其他类别，排查时不要误以为全局成功

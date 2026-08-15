@@ -4,6 +4,8 @@ import argparse
 import html
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from time import sleep
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -13,6 +15,12 @@ from library.items import build_paper_item, write_research_item
 ROOT_DIR = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT_DIR / "output" / "papers"
 ARXIV_API = "https://export.arxiv.org/api/query"
+ARXIV_ATOM_FEED = "https://rss.arxiv.org/atom/{category}"
+ARXIV_REQUEST_TIMEOUT_SECONDS = 15
+ARXIV_MAX_ATTEMPTS = 2
+ARXIV_RETRY_DELAY_SECONDS = 3
+ARXIV_MAX_RETRY_AFTER_SECONDS = 30
+ARXIV_RESPONSE_CAP_BYTES = 5 * 1024 * 1024
 
 AI_CATEGORIES = {
     "cs.AI": "Artificial Intelligence",
@@ -40,6 +48,69 @@ AI-related categories:
 
 class PapersFetchError(RuntimeError):
     """A category fetch failed before a valid arXiv response was available."""
+
+
+def _is_retryable_fetch_error(exc: Exception) -> bool:
+    if isinstance(exc, HTTPError):
+        # A throttled search API switches immediately to the separate
+        # official daily feed instead of spending another rate-limited call.
+        return 500 <= exc.code < 600
+    return isinstance(exc, (URLError, TimeoutError, ConnectionError, OSError))
+
+
+def _retry_delay_seconds(exc: Exception) -> int:
+    if isinstance(exc, HTTPError) and exc.headers is not None:
+        retry_after = exc.headers.get("Retry-After")
+        if retry_after is not None:
+            try:
+                return min(
+                    ARXIV_MAX_RETRY_AFTER_SECONDS,
+                    max(0, int(retry_after)),
+                )
+            except (TypeError, ValueError):
+                pass
+    return ARXIV_RETRY_DELAY_SECONDS
+
+
+def _request_headers() -> dict[str, str]:
+    return {
+        # arXiv recommends identifying clients; a missing User-Agent has
+        # historically produced 403s.
+        "User-Agent": "ai-intel-station/0.1 (research workspace; +https://github.com/example/ai-intel-station)",
+        # Some arXiv/proxy paths leave a keep-alive response open after
+        # sending the Atom body. Closing this one-shot request makes
+        # end-of-body observable without abandoning HTTPS.
+        "Connection": "close",
+    }
+
+
+def _read_arxiv_response(
+    request: Request,
+    *,
+    category: str,
+    max_attempts: int,
+) -> tuple[bytes, str | None]:
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with urlopen(
+                request,
+                timeout=ARXIV_REQUEST_TIMEOUT_SECONDS,
+            ) as response:
+                return (
+                    response.read(ARXIV_RESPONSE_CAP_BYTES),
+                    response.headers.get("Content-Length"),
+                )
+        except Exception as exc:
+            final_attempt = attempt >= max_attempts
+            if final_attempt or not _is_retryable_fetch_error(exc):
+                raise
+            delay = _retry_delay_seconds(exc)
+            print(
+                f"  ↻ transient arXiv error for {category}: {exc}; "
+                f"retrying in {delay}s"
+            )
+            sleep(delay)
+    raise AssertionError("arXiv retry loop exited without a response")
 
 
 def fetch_papers_by_category(
@@ -70,54 +141,64 @@ def fetch_papers_by_category(
         print(f"📚 Fetching {category} ({AI_CATEGORIES[category]})...")
 
         try:
-            request = Request(
-                url,
-                headers={
-                    # arXiv recommends identifying clients; a missing
-                    # User-Agent has historically produced 403s.
-                    "User-Agent": "ai-intel-station/0.1 (research workspace; +https://github.com/example/ai-intel-station)",
-                },
-            )
-            with urlopen(request, timeout=30) as response:
-                # Cap the read at 5 MB so a misbehaving or hostile
-                # server cannot stream unlimited content into our
-                # memory while the parser is busy.
-                max_bytes = 5 * 1024 * 1024
-                raw = response.read(max_bytes)
-                # If the response indicates more data (Content-Length
-                # larger than our cap, or the read() returned the
-                # full cap meaning the server probably had more),
-                # refuse to parse — the result would be incomplete
-                # and the user has no signal for it.
-                content_length = response.headers.get("Content-Length")
-                too_big_from_header = False
-                if content_length is not None:
-                    try:
-                        too_big_from_header = int(content_length) > max_bytes
-                    except ValueError:
-                        pass
-                # A chunked / unknown-length response that filled the
-                # buffer is also a truncation signal. urlopen does not
-                # expose "is EOF" cleanly, but read(N) returning
-                # exactly N bytes is suspicious; in practice a
-                # well-formed arxiv response is < 1 MB and any
-                # exactly-5MB read is suspicious enough to skip.
-                truncated = too_big_from_header or len(raw) >= max_bytes
-                if truncated:
-                    message = (
-                        f"arXiv response for {category} "
-                        f"({'header' if too_big_from_header else 'truncated-buffer'} "
-                        f"exceeds {max_bytes}-byte cap)"
+            request = Request(url, headers=_request_headers())
+            try:
+                raw, content_length = _read_arxiv_response(
+                    request,
+                    category=category,
+                    max_attempts=ARXIV_MAX_ATTEMPTS,
+                )
+            except Exception as api_exc:
+                fallback_url = ARXIV_ATOM_FEED.format(category=category)
+                print(
+                    f"  ↳ arXiv search API unavailable for {category}: {api_exc}; "
+                    "using official Atom feed"
+                )
+                fallback_request = Request(
+                    fallback_url,
+                    headers=_request_headers(),
+                )
+                try:
+                    raw, content_length = _read_arxiv_response(
+                        fallback_request,
+                        category=category,
+                        max_attempts=1,
                     )
-                    print(f"⚠️  {message}; skipping")
-                    if raise_on_error:
-                        raise PapersFetchError(message)
-                    continue
-                xml_content = raw.decode("utf-8")
+                except Exception as fallback_exc:
+                    raise RuntimeError(
+                        f"search API failed ({api_exc}); "
+                        f"official Atom feed failed ({fallback_exc})"
+                    ) from fallback_exc
+
+            # If the response indicates more data (Content-Length larger
+            # than our cap, or the read() returned the full cap meaning the
+            # server probably had more), refuse to parse an incomplete feed.
+            too_big_from_header = False
+            if content_length is not None:
+                try:
+                    too_big_from_header = (
+                        int(content_length) > ARXIV_RESPONSE_CAP_BYTES
+                    )
+                except ValueError:
+                    pass
+            truncated = (
+                too_big_from_header or len(raw) >= ARXIV_RESPONSE_CAP_BYTES
+            )
+            if truncated:
+                message = (
+                    f"arXiv response for {category} "
+                    f"({'header' if too_big_from_header else 'truncated-buffer'} "
+                    f"exceeds {ARXIV_RESPONSE_CAP_BYTES}-byte cap)"
+                )
+                print(f"⚠️  {message}; skipping")
+                if raise_on_error:
+                    raise PapersFetchError(message)
+                continue
+            xml_content = raw.decode("utf-8")
 
             root = ET.fromstring(xml_content)
             ns = {"atom": "http://www.w3.org/2005/Atom"}
-            for entry in root.findall("atom:entry", ns):
+            for entry in root.findall("atom:entry", ns)[:max_results]:
                 paper = parse_atom_entry(entry, ns)
                 # Skip entries that yielded nothing usable — a row
                 # with no title and no arxiv id is about-the-format
@@ -186,12 +267,22 @@ def parse_atom_entry(entry, ns=None) -> dict:
             return None
         return tail
 
+    authors = [
+        html.unescape(_text_or_blank(author.find("atom:name", ns))).strip()
+        for author in entry.findall("atom:author", ns)
+    ]
+    if not authors:
+        creator = entry.find("{http://purl.org/dc/elements/1.1/}creator")
+        creator_text = _text_or_blank(creator)
+        authors = [
+            html.unescape(name).strip()
+            for name in creator_text.split(",")
+            if name.strip()
+        ]
+
     paper = {
         "title": html.unescape(_text_or_blank(title_el)).strip().replace("\n", " "),
-        "authors": [
-            html.unescape(_text_or_blank(author.find("atom:name", ns))).strip()
-            for author in entry.findall("atom:author", ns)
-        ],
+        "authors": authors,
         "summary": html.unescape(_text_or_blank(summary_el)).strip(),
         "published": _text_or_blank(published_el).strip(),
         "updated": _text_or_blank(updated_el).strip(),
@@ -206,6 +297,13 @@ def parse_atom_entry(entry, ns=None) -> dict:
             paper["pdf_url"] = link.get("href")
         elif link.get("rel") == "alternate" and link.get("type") == "text/html":
             paper["abs_url"] = link.get("href")
+
+    if paper["arxiv_id"] is None and paper["abs_url"]:
+        candidate = paper["abs_url"].rstrip("/").rsplit("/", 1)[-1]
+        if candidate and any(char.isdigit() for char in candidate):
+            paper["arxiv_id"] = candidate
+    if paper["pdf_url"] is None and paper["arxiv_id"]:
+        paper["pdf_url"] = f"https://arxiv.org/pdf/{paper['arxiv_id']}"
 
     for category_elem in entry.findall("atom:category", ns):
         term = category_elem.get("term", "")

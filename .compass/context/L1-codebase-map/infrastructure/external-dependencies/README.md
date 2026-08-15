@@ -7,7 +7,7 @@
 | Camoufox（`wechat` extra） | wechat | 绕过 WeChat 抓取限制并获取页面 HTML | 未安装 extra、浏览器启动失败、抓取不到正文 |
 | BeautifulSoup / markdownify / httpx（`wechat` extra） | wechat | 解析、转换并下载图片 | 未安装 extra、图片缺失、链接未重写 |
 | `gh` CLI | github | 查询仓库、议题、搜索结果 | `run_gh()` 抛 `RuntimeError` |
-| arXiv API | papers | 拉取 Atom feed | 某类别打印 `Failed to fetch` |
+| arXiv search API + official category Atom feed | papers | 拉取最新 paper evidence；search API throttle/timeout 时使用 daily feed fallback | search 与 fallback 都失败后某类别打印 `Failed to fetch` |
 | Hacker News public API | hackernews discovery | 拉取 bounded feed 与 item JSON | malformed / unavailable response 记 source failure |
 | WeChat public index | wechat discovery | best-effort account watchlist discovery | CAPTCHA、access block、空页、缺 publication time |
 | X recent-search API | optional x discovery | 拉取 bounded recent Posts | token 缺失或 remote failure；其他 source 继续 |
