@@ -301,7 +301,7 @@ def build_markdown(meta: dict, body_md: str) -> str:
     return "\n".join(lines) + body_md
 
 
-async def fetch_article(url: str, output_dir: Path | None = None) -> None:
+async def fetch_article(url: str, output_dir: Path | None = None) -> Path:
     if output_dir is None:
         output_dir = DEFAULT_OUTPUT_DIR
 
@@ -327,7 +327,7 @@ async def fetch_article(url: str, output_dir: Path | None = None) -> None:
         debug_path = output_dir / "debug.html"
         debug_path.write_text(html, encoding="utf-8")
         print(f"已保存原始 HTML 到 {debug_path}")
-        sys.exit(1)
+        raise RuntimeError("WeChat article title was unavailable; verification may be required")
 
     meta["source_url"] = url
     print(f"📄 标题: {meta.get('title', '')}")
@@ -337,7 +337,7 @@ async def fetch_article(url: str, output_dir: Path | None = None) -> None:
     content_html, code_blocks, img_urls = process_content(soup)
     if not content_html:
         print("❌ 未能提取到正文内容")
-        sys.exit(1)
+        raise RuntimeError("WeChat article body was unavailable")
 
     md = convert_to_markdown(content_html, code_blocks)
 
@@ -365,6 +365,7 @@ async def fetch_article(url: str, output_dir: Path | None = None) -> None:
 
     print(f"✅ 已保存: {md_path}")
     print(f"📊 Markdown 约 {len(md)} 字符")
+    return md_path
 
 
 def main() -> None:

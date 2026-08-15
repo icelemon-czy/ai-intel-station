@@ -6,6 +6,7 @@ import os
 import re
 import tempfile
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -52,6 +53,9 @@ class ResearchItem:
     authors: list[str] = field(default_factory=list)
     published_at: str | None = None
     updated_at: str | None = None
+    discovered_at: str | None = None
+    signal_role: str | None = None
+    discovery_method: str | None = None
     tags: list[str] = field(default_factory=list)
     output_path: str | None = None
     metadata: dict = field(default_factory=dict)
@@ -65,6 +69,13 @@ class ResearchItem:
         self.authors = _clean_list(self.authors)
         self.published_at = _clean_text(self.published_at)
         self.updated_at = _clean_text(self.updated_at)
+        self.discovered_at = _clean_text(self.discovered_at)
+        self.signal_role = _clean_text(self.signal_role)
+        if self.signal_role not in (None, "signal", "evidence"):
+            raise ValueError(
+                f"signal_role must be 'signal', 'evidence', or None; got {self.signal_role!r}"
+            )
+        self.discovery_method = _clean_text(self.discovery_method)
         self.tags = _clean_list(self.tags)
         self.output_path = _normalize_output_path(self.output_path)
         self.metadata = {
@@ -99,6 +110,10 @@ def _clean_list(values: list[str] | tuple[str, ...] | None) -> list[str]:
         if text:
             cleaned.append(text)
     return cleaned
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _normalize_output_path(path: str | Path | None) -> str | None:
@@ -183,6 +198,9 @@ def build_github_repo_item(owner: str, repo: str, data: dict, markdown_path: Pat
         summary=data.get("description"),
         published_at=data.get("createdAt"),
         updated_at=data.get("updatedAt"),
+        discovered_at=utc_now_iso(),
+        signal_role="evidence",
+        discovery_method="github-repository",
         tags=topics,
         output_path=markdown_path,
         metadata={
@@ -207,6 +225,11 @@ def build_github_search_items(query: str, repos: list[dict], markdown_path: Path
                 title=repo.get("name") or parsed_repo or "unknown",
                 canonical_url=repo.get("url"),
                 summary=repo.get("description"),
+                published_at=repo.get("createdAt"),
+                updated_at=repo.get("updatedAt"),
+                discovered_at=utc_now_iso(),
+                signal_role="evidence",
+                discovery_method="github-repository-search",
                 output_path=markdown_path,
                 metadata={
                     "query": query,
@@ -233,6 +256,10 @@ def build_paper_item(paper: dict, markdown_path: Path) -> ResearchItem:
         summary=paper.get("summary"),
         authors=paper.get("authors") or [],
         published_at=paper.get("published"),
+        updated_at=paper.get("updated"),
+        discovered_at=utc_now_iso(),
+        signal_role="evidence",
+        discovery_method="arxiv-category",
         tags=paper.get("categories") or [],
         output_path=markdown_path,
         metadata={
@@ -252,10 +279,115 @@ def build_wechat_item(meta: dict, markdown_path: Path, body_markdown: str | None
         summary=summary,
         authors=[author] if author else [],
         published_at=meta.get("publish_time") or meta.get("published_at"),
+        discovered_at=utc_now_iso(),
+        signal_role="signal",
+        discovery_method=meta.get("discovery_method") or "direct-url",
         output_path=markdown_path,
         metadata={
             "publisher": author,
             "body_length": len(body_markdown or ""),
+        },
+    )
+
+
+def build_hackernews_item(
+    story: dict,
+    markdown_path: Path,
+    *,
+    feed: str,
+    discovered_at: str | None = None,
+) -> ResearchItem:
+    item_id = story.get("id")
+    timestamp = story.get("time")
+    published_at = None
+    if isinstance(timestamp, (int, float)) and timestamp > 0:
+        published_at = datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+    score = story.get("score") if isinstance(story.get("score"), int) else 0
+    comments = story.get("descendants") if isinstance(story.get("descendants"), int) else 0
+    discussion_url = f"https://news.ycombinator.com/item?id={item_id}" if item_id is not None else None
+    return ResearchItem(
+        source="hackernews",
+        item_type="story",
+        title=story.get("title") or f"Hacker News item {item_id or ''}".strip(),
+        canonical_url=story.get("url") or discussion_url,
+        authors=[story["by"]] if story.get("by") else [],
+        published_at=published_at,
+        discovered_at=discovered_at or utc_now_iso(),
+        signal_role="signal",
+        discovery_method=f"hackernews-{feed}",
+        output_path=markdown_path,
+        metadata={
+            "feed": feed,
+            "item_id": item_id,
+            "discussion_url": discussion_url,
+            "score": score,
+            "comment_count": comments,
+            "engagement_count": score + comments,
+        },
+    )
+
+
+def build_x_item(
+    post: dict,
+    markdown_path: Path,
+    *,
+    query: str,
+    discovered_at: str | None = None,
+) -> ResearchItem:
+    post_id = str(post.get("id") or "").strip()
+    metrics = post.get("public_metrics") if isinstance(post.get("public_metrics"), dict) else {}
+    engagement_count = sum(
+        int(metrics.get(key) or 0)
+        for key in ("like_count", "retweet_count", "reply_count", "quote_count", "bookmark_count")
+        if isinstance(metrics.get(key, 0), (int, float))
+    )
+    text = str(post.get("text") or "").strip()
+    return ResearchItem(
+        source="x",
+        item_type="post",
+        title=text[:140] or f"X post {post_id}",
+        canonical_url=f"https://x.com/i/web/status/{post_id}" if post_id else None,
+        summary=text,
+        authors=[str(post["author_id"])] if post.get("author_id") else [],
+        published_at=post.get("created_at"),
+        discovered_at=discovered_at or utc_now_iso(),
+        signal_role="signal",
+        discovery_method="x-recent-search",
+        output_path=markdown_path,
+        metadata={
+            "query": query,
+            "post_id": post_id,
+            "public_metrics": metrics,
+            "engagement_count": engagement_count,
+        },
+    )
+
+
+def build_wechat_index_item(
+    article: dict,
+    markdown_path: Path,
+    *,
+    account: str,
+    wechat_id: str,
+    discovered_at: str | None = None,
+) -> ResearchItem:
+    return ResearchItem(
+        source="wechat",
+        item_type="article-index",
+        title=article.get("title") or "Untitled WeChat article",
+        canonical_url=article.get("url"),
+        summary=article.get("summary"),
+        authors=[account],
+        published_at=article.get("published_at"),
+        discovered_at=discovered_at or utc_now_iso(),
+        signal_role="signal",
+        discovery_method="wechat-public-index",
+        output_path=markdown_path,
+        metadata={
+            "account": account,
+            "wechat_id": wechat_id,
+            "watchlist": True,
+            "index_provider": article.get("index_provider") or "sogou",
         },
     )
 
@@ -269,15 +401,56 @@ def write_research_item(item: ResearchItem, output_path: Path) -> Path:
     are line-delimited and ``load_research_items`` splits by ``}\n{``.
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    if output_path.is_file() and item.discovered_at:
+        try:
+            existing = json.loads(output_path.read_text(encoding="utf-8-sig"))
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            existing = None
+        if isinstance(existing, dict) and existing.get("discovered_at"):
+            item.discovered_at = str(existing["discovered_at"])
     _atomic_write_text(output_path, item.to_json())
     return output_path
 
 
 def write_research_items_jsonl(items: list[ResearchItem], output_path: Path) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    body = "\n".join(
-        json.dumps(item.to_dict(), ensure_ascii=False) for item in items
-    )
+    first_seen: dict[tuple[str, str], str] = {}
+    existing_payloads: list[dict] = []
+    if output_path.is_file():
+        try:
+            for raw in output_path.read_text(encoding="utf-8-sig").splitlines():
+                payload = json.loads(raw)
+                if not isinstance(payload, dict):
+                    continue
+                existing_payloads.append(payload)
+                if not payload.get("discovered_at"):
+                    continue
+                key = (
+                    str(payload.get("source") or ""),
+                    str(payload.get("canonical_url") or payload.get("title") or ""),
+                )
+                first_seen[key] = str(payload["discovered_at"])
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            first_seen = {}
+            existing_payloads = []
+    current_keys: set[tuple[str, str]] = set()
+    for item in items:
+        key = (item.source, str(item.canonical_url or item.title))
+        current_keys.add(key)
+        if key in first_seen:
+            item.discovered_at = first_seen[key]
+    serialized = [item.to_dict() for item in items]
+    # Keep older observations that are absent from the latest bounded feed.
+    # Otherwise an item falling out of a Top-N snapshot for one run and
+    # reappearing later would lose its true first-discovered timestamp.
+    for payload in existing_payloads:
+        key = (
+            str(payload.get("source") or ""),
+            str(payload.get("canonical_url") or payload.get("title") or ""),
+        )
+        if key not in current_keys:
+            serialized.append(payload)
+    body = "\n".join(json.dumps(payload, ensure_ascii=False) for payload in serialized)
     if body:
         body += "\n"
     _atomic_write_text(output_path, body)
@@ -410,6 +583,8 @@ def parse_github_search_markdown(markdown_path: Path) -> list[ResearchItem]:
         url = match.group(2)
         stars = None
         description = None
+        created = None
+        updated = None
 
         if index + 1 < len(lines) and lines[index + 1].startswith("- ⭐ "):
             star_text = lines[index + 1].removeprefix("- ⭐ ").removesuffix(" stars").strip()
@@ -417,6 +592,14 @@ def parse_github_search_markdown(markdown_path: Path) -> list[ResearchItem]:
                 stars = int(star_text)
         if index + 2 < len(lines) and lines[index + 2].startswith("- "):
             description = lines[index + 2].removeprefix("- ").strip()
+        block_end = index + 3
+        while block_end < len(lines) and not lines[block_end].startswith("## "):
+            line = lines[block_end]
+            if line.startswith("- 📅 Created: "):
+                created = _clean_text(line.removeprefix("- 📅 Created: "))
+            elif line.startswith("- 🔄 Updated: "):
+                updated = _clean_text(line.removeprefix("- 🔄 Updated: "))
+            block_end += 1
 
         owner, repo = _github_owner_repo_from_url(url)
         items.append(
@@ -426,7 +609,11 @@ def parse_github_search_markdown(markdown_path: Path) -> list[ResearchItem]:
                 title=title,
                 canonical_url=url,
                 summary=description,
+                published_at=created,
+                updated_at=updated,
                 output_path=markdown_path,
+                signal_role="evidence",
+                discovery_method="github-repository-search",
                 metadata={
                     "query": query,
                     "owner": owner,
@@ -435,7 +622,7 @@ def parse_github_search_markdown(markdown_path: Path) -> list[ResearchItem]:
                 },
             )
         )
-        index += 3
+        index = block_end
 
     return items
 

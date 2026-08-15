@@ -12,8 +12,8 @@ description: "Operate AI Intel Station as an Agent-first daily intelligence loop
 用户 intent
   → Agent 选择 setup / today / preferences / status / schedule
   → `uv run research ...` deterministic runtime
-  → local archive + briefing + run log
-  → Agent 读取 artifact，返回结论与 Top items
+  → local signal archive + coverage-aware briefing + run log
+  → Agent 读取 artifact status，返回结论与 Top items
 ```
 
 ## Boundary
@@ -54,7 +54,9 @@ description: "Operate AI Intel Station as an Agent-first daily intelligence loop
    uv run research discover --dry-run
    ```
 
-   bundled default 启用 GitHub + Papers，关闭 WeChat。不要让用户自己打开
+   bundled default 启用 WeChat public-index + Hacker News + GitHub + Papers；X 保持
+   optional。默认 composition 是 5 条 News（其中至少 2 条 WeChat）+ 1 条 GitHub +
+   1 条 arXiv。不要让用户自己打开
    `$EDITOR` 才能继续。
 4. config invalid 时读取完整 validation error。用户 intent 足够明确时直接最小修正；
    会改变来源、主题或 schedule 的歧义只问一个关键问题。
@@ -68,10 +70,14 @@ description: "Operate AI Intel Station as an Agent-first daily intelligence loop
    uv run research briefing --list
    ```
 
-2. 只有今日存在真实 briefing file，且对应 run 不是 `dry_run`，才算可用 artifact。
-   dry-run log、`briefing.path=(dry-run)`、空 briefing 或旧 briefing 都不能当作今日结果，
-   也不能成为跳过 real run 的理由。
-3. 今日已有成功或 partial-success 的真实 briefing 时直接读取，不重复 network run。
+2. 只有今日存在真实 `signals` briefing file，且对应 status 是
+   `ready|partial|no_fresh_signals|coverage_incomplete`，才算可用 artifact。
+   dry-run log 对应的 `dry_run`、`failed`、`legacy`、`briefing.path=(dry-run)`、
+   stale artifact 或旧式空
+   briefing 都不能当作今日结果，也不能成为跳过 real run 的理由。
+3. 今日已有上述真实 artifact 时直接读取，不重复 network run。
+   `no_fresh_signals` 只能解释为“完整覆盖下没有验证到新 signal”；
+   `coverage_incomplete` 必须说“覆盖不完整，无法得出今日无新内容的结论”。
 4. 没有今日真实结果、结果 stale，或用户明确要求 rerun 时执行：
 
    ```bash
@@ -82,9 +88,12 @@ description: "Operate AI Intel Station as an Agent-first daily intelligence loop
    如果当前 environment 的 network action 需要 approval，按 permission flow 请求；
    approval 不可用时明确说明“今天没有可验证的新结果”，再将旧库存标为 fallback，
    不能把旧内容包装成今天的 briefing。
-5. 从 command output 定位 Summary、log 和 briefing path。读取 briefing artifact，
-   返回最多 5 条最值得关注的 item；每条说明“是什么”和“为什么值得看”。
-6. partial failure 不丢弃成功结果。先返回可用 briefing，再单独说明 failed source。
+5. 从 command output 定位 Summary、briefing status、log 和 briefing path。读取 signal
+   artifact，按 arXiv / GitHub / News 分组返回最多 7 条 item；每条说明“是什么”、
+   “为什么现在值得看”、confidence 和 signal/evidence 来源。
+   同时报告各 lane expected / actual / missing；WeChat minimum 按去重后的 News entry 计算。
+6. partial failure 或 quota shortfall 不丢弃成功结果。先返回可用 briefing，再单独说明
+   failed source 与缺少的 lane/WeChat 数量。
 
 ### 3. Preferences
 
@@ -130,9 +139,11 @@ description: "Operate AI Intel Station as an Agent-first daily intelligence loop
 
 ## Failure recovery
 
-- `invalid source`：只接受 `github|papers|wechat`，根据用户原始 intent 修正。
+- `invalid source`：只接受 `github|papers|wechat|hackernews|x`，根据用户原始 intent 修正。
 - `gh` 缺失或未登录：解释 GitHub source 不可用；Papers 等独立来源继续返回。
-- Camoufox 失败：保持 WeChat optional，不阻断 GitHub / Papers。
+- WeChat public-index 验证码或 access block：标记 coverage incomplete，保留其他
+  signal 结果，不把它说成“公众号今天没更新”。
+- X token 缺失：报告配置的 env name，不发 request，不阻断 Hacker News / WeChat。
 - network 或 sandbox 阻断：如执行目标必须联网，按当前环境 permission flow 请求一次授权；
   不能授权时返回已存在的 local briefing。
 - `DiscoveryConfigError`：报告具体 field；能从明确 intent 恢复时由 Agent 修复并重新 dry-run。
@@ -143,7 +154,8 @@ description: "Operate AI Intel Station as an Agent-first daily intelligence loop
 优先返回用户价值，不返回 command transcript：
 
 - 今日结论或 run/status 结论
-- 最多 5 条重点内容
+- 按 arXiv / GitHub / News 分组的最多 7 条重点内容
+- lane 与 WeChat minimum 的 expected / actual / missing
 - succeeded / skipped / failed source
 - briefing 与 log 的 clickable local path
 - 需要用户决策的唯一 blocker（如果存在）
@@ -153,7 +165,7 @@ description: "Operate AI Intel Station as an Agent-first daily intelligence loop
 Positive:
 
 - “今天 AI 圈有什么值得看？”
-- “现在跑一遍 GitHub 和 papers，然后给我五条重点。”
+- “现在跑一遍每日情报，按 arXiv、GitHub 和 News 分组给我重点。”
 - “每天早上九点自动收集，昨天失败的话告诉我原因。”
 - “把每日搜索主题改成 agent memory。”
 

@@ -2,19 +2,37 @@
 
 ## Purpose
 
-通过 YAML config 组合 GitHub、Papers、WeChat 与 briefing，使 AI Intel Station 能手动或按本地 schedule 运行一次可观察的 discovery sweep。
+通过 YAML config 组合 realtime signal、supporting evidence 与 briefing，使 AI Intel Station
+能手动或按本地 schedule 运行一次可观察、coverage-aware 的 discovery sweep。
 
 ## Requirements
 
 ### Requirement: Config Initialization and Validation
 
-operator SHALL 能从 bundled example 创建 discovery config；无效 config MUST 一次报告所有可发现 validation problem。
+operator SHALL 能从 bundled example 创建 discovery config；无效 config MUST 一次报告所有可发现
+validation problem。Newly initialized signals config SHALL 对 default quota internally viable：启用并
+配置至少一个 News source、`wechat_min_items=2` 所需 WeChat watchlist、GitHub target 与 Paper category。
+Signals config SHALL 在 network 前验证 quota bounds/relations 与 positive-quota source membership、
+enabled state 和 target availability。Explicit digest/reading-list config SHALL 保留 legacy rendering，
+不要求 signal quota source。
 
 #### Scenario: Initialize first-run config
 
 - **WHEN** operator 运行 `research init-config`
 - **THEN**系统从 example 写入目标 YAML
 - **AND**默认不覆盖已有文件，除非 operator 明确 force
+
+#### Scenario: Initialize a viable quota config
+
+- **WHEN** operator 运行 `research init-config`
+- **THEN**generated YAML 包含 5 News / 2 WeChat-minimum / 1 GitHub / 1 Paper quota 与 viable enabled target
+- **AND**network-free dry-run 验证 7-item composition
+
+#### Scenario: Positive quota has no viable source
+
+- **WHEN**signals config 要求的 lane/source 不在 `briefing.sources`、disabled 或没有 configured work
+- **THEN**validation 在 collection 前一次报告所有 discoverable source/quota problem
+- **AND**network request 不开始
 
 ### Requirement: Network-Free Dry Run
 
@@ -28,13 +46,15 @@ dry-run MUST 不执行 remote collection，并 SHALL 显示计划执行的来源
 
 ### Requirement: Selective and Fault-Isolated Sweep
 
-operator SHALL 能选择一个或多个 configured source；单个来源 failure MUST 被记录且不阻止其他独立来源完成。
+operator SHALL 能选择一个或多个 configured GitHub、Papers、WeChat、Hacker News 或 X source；
+每个 source MUST 独立报告 succeeded、skipped 与 failed，单个 source failure MUST NOT 阻止
+其他 source 或 briefing stage 完成。
 
-#### Scenario: Run selected sources
+#### Scenario: Run selected realtime sources
 
-- **WHEN** operator 通过 `--source` 选择 GitHub 和 Papers
-- **THEN**只运行两个选中来源
-- **AND**每个来源的 collected、skipped、failed 与 notes 分别记录
+- **WHEN** operator 选择 Hacker News 与 WeChat
+- **THEN**只运行两个 selected source collector
+- **AND**每个 source 的 succeeded、skipped、failed 与 coverage note 分别记录
 
 ### Requirement: Optional Briefing Stage
 
@@ -102,16 +122,43 @@ local Web workspace SHALL 能启动 discovery、查询 repository configured run
 
 ### Requirement: Agent-Operated Daily Intelligence
 
-project-local daily intelligence Skill SHALL 把自然语言 intent 转换为现有 `research`
-action，并由 Agent 执行 action、读取 local artifact 和返回结论；normal flow MUST NOT
-要求 user 自己编辑 YAML、读取 log、启动 Web 或编排 CLI。
+project-local daily intelligence Skill SHALL 把自然语言 intent 转换为现有 `research` action，
+执行它、读取 local quota-composed artifact，并按 arXiv、GitHub 与 News 分组返回不超过 configured
+lane total（default 7）的 verified fresh item，以及 source coverage 与 quota shortfall。Normal flow
+MUST NOT 把 missing required lane 表示为 complete daily briefing，也不得要求 user 自己编辑 YAML、
+读取 log、启动 Web 或编排 CLI。
 
 #### Scenario: Ask what is worth reading today
 
 - **WHEN** user 询问今天有什么值得关注，且没有明确要求 rerun
-- **THEN**Agent 先只读检查今日 discovery status 与 briefing
-- **AND**有今日可用 artifact 时不重复 network run
-- **AND**Agent 读取 artifact 并返回最多 5 条重点及 partial failure
+- **THEN**Agent 先只读检查今日 discovery 与 briefing status
+- **AND**今日 `ready`、`partial`、`no_fresh_signals` 或 `coverage_incomplete` 的 non-dry-run signal artifact 不被立即自动重跑
+- **AND**dry-run、failed、stale 或 legacy empty artifact 不得伪装成今日 signal result
+
+#### Scenario: Return the default grouped composition
+
+- **WHEN** user 询问今天有什么值得看，且 usable quota-composed artifact 存在
+- **THEN**Agent 在 default config 下返回最多 1 条 arXiv、1 条 GitHub 与 5 条 News
+- **AND**存在 fresh eligible WeChat 时，News group 至少包含 2 条 WeChat
+- **AND**每条说明它是什么与为什么现在值得看
+
+#### Scenario: Return a partial-success briefing
+
+- **WHEN**今日 run 有成功 signal source 且一个或多个 source 失败
+- **THEN**Agent 返回成功的 ranked item
+- **AND**单独报告 succeeded、skipped 与 failed source coverage
+
+#### Scenario: Return a partial quota briefing
+
+- **WHEN**今日 artifact 有 eligible item，但一个或多个 lane quota 未填满
+- **THEN**Agent 按 lane 返回成功 item
+- **AND**单独报告 missing lane count 与 succeeded/skipped/failed source coverage
+
+#### Scenario: Today's result has incomplete coverage and no Top items
+
+- **WHEN**今日真实 artifact status 是 `coverage_incomplete`
+- **THEN**Agent 说明因 coverage 不完整而没有可验证的新结果，而不是称为 quiet day
+- **AND**Agent 报告 failed source，并等待明确 rerun intent 或后续 schedule，不立即重复相同 network attempt
 
 #### Scenario: Set up a first daily sweep
 

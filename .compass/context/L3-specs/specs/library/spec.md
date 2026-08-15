@@ -8,13 +8,34 @@
 
 ### Requirement: Unified ResearchItem
 
-Library SHALL 使用统一 ResearchItem contract 表示 GitHub、Papers 和 WeChat 内容。
+Library SHALL 使用一个 backward-compatible ResearchItem contract 表示 archive item、realtime
+signal 与 supporting evidence。除 source、item type、title、canonical URL 与 output path 外，
+contract SHALL 允许 `discovered_at`、`signal_role` 与 `discovery_method`，以区分 observation
+time / publication time 与 signal / evidence。
 
 #### Scenario: Load items from different sources
 
-- **WHEN** Library 扫描多个 source tree
+- **WHEN** Library 扫描多个 legacy 与 current source tree
 - **THEN**所有有效 sidecar 被解析为统一 item shape
-- **AND**每个 item 至少包含 source、item type、title、canonical URL 与 output path
+- **AND**缺少新增 optional field 不会破坏 legacy sidecar
+
+#### Scenario: Save a newly discovered signal
+
+- **WHEN** realtime collector 第一次观测 source item
+- **THEN**sidecar 记录 `discovered_at`、`signal_role=signal` 与 discovery method
+- **AND**source publication time 仍由 `published_at` 独立表示
+
+#### Scenario: Observe the same canonical item again
+
+- **WHEN** collector 在后续 run 再次看到已归档 canonical item
+- **THEN**保留首次 `discovered_at`
+- **AND**mutable source metadata MAY 刷新，但不得把 item 伪装成新发现
+
+#### Scenario: Backfill historical archive
+
+- **WHEN** backfill 从历史 Markdown 重建 sidecar
+- **THEN**不捏造当前 `discovered_at`
+- **AND**历史 item 不能伪装成新发现内容
 
 ### Requirement: Partial Metadata Is Allowed
 

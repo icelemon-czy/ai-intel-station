@@ -1,11 +1,12 @@
 # Collection 追溯矩阵
 
 > 对应 Spec: `.compass/context/L3-specs/specs/collection/spec.md`
-> 验证日期: 2026-07-29
+> 验证日期: 2026-08-13
 
 | Requirement | Scenario | Implementation | Test evidence | Status |
 |:------------|:---------|:---------------|:--------------|:-------|
-| Supported Sources | Choose a collection source | `research/cli.py`, `workspace_web/service.py` | `tests/test_web_workspace.py`, `tests/test_l3_requirements.py` | ✅ verified |
+| Supported Sources | Choose standalone or discovery-only source | `research/cli.py`, `research/discovery/runner.py`, source adapters | `tests/test_discovery_cli.py`, `tests/test_realtime_signals.py`, `tests/test_l3_requirements.py` | ✅ verified |
+| Supported Sources | Start core commands without social credentials | lazy source imports + `collect/x.py` credential boundary | `tests/test_realtime_signals.py`, `tests/test_agent_first_runtime.py` | ✅ verified |
 | Archive and Sidecar Persistence | Persist a collected item | `collect/`, `library/items.py` | `tests/test_research_item.py`, `tests/test_e2e_archive.py` | ✅ verified |
 | Source-Specific Validation and Errors | Required dependency is unavailable | `collect/github.py`, `collect/papers.py`, `collect/wechat.py`, `workspace_web/service.py` | `tests/test_service_e2e.py`, `tests/test_l3_http_e2e.py`, `tests/test_papers_atom_parse.py` | ✅ verified |
 | Independent Progress | One paper category fails | `collect/papers.py`, `research/cli.py`, `research/discovery/runner.py` | `tests/test_l3_subspec_e2e.py`, `tests/test_discovery_runner.py` | ✅ verified |

@@ -18,13 +18,21 @@ GitHub collection SHALL 将一个 `owner/repo` 保存为包含来源 metadata �
 
 ### Requirement: Repository Search Snapshot
 
-GitHub collection SHALL 支持 repository search，并将一组结果保存在可查询的本地 artifact 中。
+GitHub collection SHALL 支持 repository search，并将结果保存为 recency-oriented supporting
+evidence。Search MUST 请求并保存可用 creation/update timestamp，且不得把 lifetime stars
+ordering 表述为 daily trend signal。
 
 #### Scenario: Search repositories
 
-- **WHEN** operator 以 search mode 提交 query
-- **THEN**系统写入 GitHub source tree 下的 search Markdown
-- **AND**对应 ResearchItem 集合可以被 Library 加载
+- **WHEN** operator 或 discovery runtime 以 search mode 提交 query
+- **THEN**系统按 recent update 请求结果，并写入 search Markdown 与 sidecar
+- **AND**每个结果保存可用 creation/update time 与 `signal_role=evidence`
+
+#### Scenario: Persist search output path
+
+- **WHEN** repository search artifact 与 sidecar 写入成功
+- **THEN**collection function 返回真实 Markdown Path
+- **AND**discovery run report 不会把缺失 output path 序列化为成功
 
 ### Requirement: Optional Issue Coverage
 
@@ -53,3 +61,15 @@ GitHub collection MUST 暴露 `gh` 的失败原因。
 
 - **WHEN** `gh` command 返回 non-zero
 - **THEN**当前 operation 失败并包含可操作的 stderr context
+
+### Requirement: GitHub Evidence Role
+
+GitHub repository snapshot 与 search result SHALL 保留 `signal_role=evidence`；缺少该字段的
+legacy GitHub item SHALL 也被解释为 evidence。GitHub evidence MUST NOT 独立 seed 或填充
+News lane，但 verified fresh GitHub evidence MAY 在 configured dedicated GitHub lane 作为 primary reading entry。
+
+#### Scenario: A fresh repository has no social signal
+
+- **WHEN** GitHub repository 有 verifiable recent source activity，但没有 matching realtime signal
+- **THEN**它 MAY 以 `low` confidence 占据 dedicated GitHub quota
+- **AND**它不消耗 News slot，也不声称 social corroboration

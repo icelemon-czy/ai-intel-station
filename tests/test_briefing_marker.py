@@ -31,6 +31,25 @@ class BriefingMarkerParserTests(unittest.TestCase):
         result = _parse_briefing_marker("(dry-run) (0 items)")
         self.assertEqual(result, {"path": "(dry-run)", "item_count": 0})
 
+    def test_parses_signal_status_marker(self) -> None:
+        result = _parse_briefing_marker(
+            "output/briefing/signals/daily-2026-08-13.md (3 items, status=partial)"
+        )
+        self.assertEqual(
+            result,
+            {
+                "path": "briefing/signals/daily-2026-08-13.md",
+                "item_count": 3,
+                "status": "partial",
+            },
+        )
+
+    def test_parses_failed_marker_without_clickable_path(self) -> None:
+        self.assertEqual(
+            _parse_briefing_marker("None (0 items, status=failed)"),
+            {"path": None, "item_count": 0, "status": "failed"},
+        )
+
     def test_returns_none_for_empty(self) -> None:
         self.assertIsNone(_parse_briefing_marker(None))
         self.assertIsNone(_parse_briefing_marker(""))
@@ -51,6 +70,7 @@ class BriefingMarkerParserTests(unittest.TestCase):
             ("a.md (1 item)", "a.md", "1"),
             ("x/y/z.md (42 items)", "x/y/z.md", "42"),
             ("(dry-run) (0 items)", "(dry-run)", "0"),
+            ("signals.md (2 items, status=ready)", "signals.md", "2"),
         ]
         for text, expected_path, expected_count in cases:
             with self.subTest(text=text):
@@ -95,6 +115,32 @@ class DiscoverStatusPayloadTests(unittest.TestCase):
         self.assertEqual(payload["briefing"]["item_count"], 3)
         # Legacy text marker is no longer shipped to the front-end.
         self.assertNotIsInstance(payload["briefing"], str)
+
+    def test_status_payload_exposes_signal_outcome(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log_dir = Path(tmp) / "logs"
+            log_dir.mkdir()
+            (log_dir / "2026-08-13T10-00-00.log").write_text(
+                "\n".join(
+                    [
+                        "📊 Summary: succeeded=2 skipped=0 failed=1",
+                        "📰 Briefing: output/briefing/signals/daily.md (2 items, status=partial)",
+                        '  "status": "partial"',
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            from workspace_web import service as _svc
+
+            original = _svc._resolve_discovery_log_dir
+            _svc._resolve_discovery_log_dir = lambda: log_dir
+            try:
+                payload = discover_status_payload(Path(tmp))
+            finally:
+                _svc._resolve_discovery_log_dir = original
+
+        self.assertEqual(payload["briefing_status"], "partial")
+        self.assertEqual(payload["briefing"]["status"], "partial")
 
 
 if __name__ == "__main__":

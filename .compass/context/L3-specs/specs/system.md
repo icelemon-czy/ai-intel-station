@@ -49,7 +49,7 @@ CLI、Web workspace 和 daily discovery SHALL 读取同一 `output_root` 下的 
 #### Scenario: Save raw and derived artifacts
 
 - **WHEN** collect 成功
-- **THEN**原始内容写入 `output/github/`、`output/papers/` 或 `output/wechat/`
+- **THEN**source archive 写入 `output/github|papers|wechat|hackernews|x/`
 - **AND** briefing 只写入 `output/briefing/`
 
 ### Requirement: Unified Documented Entrypoint

@@ -53,9 +53,10 @@ status、log list 和 briefing list action SHALL 在不重新执行 collect 或 
 
 ### Requirement: Lightweight Core Runtime
 
-default project environment SHALL 支持 GitHub、Papers、local query、briefing 与 discovery
-control actions，而不安装 WeChat browser stack 或 test-only dependency；source-specific
-optional dependency MUST NOT 阻止 core command surface 启动。
+default project environment SHALL 支持 Hacker News、WeChat public-index discovery、GitHub、Papers、
+local query、briefing 与 discovery control action，而不安装 WeChat browser stack 或 test-only
+dependency；source-specific optional dependency 或 disabled credential source MUST NOT 阻止 core
+command surface 启动。
 
 #### Scenario: Bootstrap the default operator environment
 
@@ -68,3 +69,14 @@ optional dependency MUST NOT 阻止 core command surface 启动。
 - **WHEN**operator 明确安装 `wechat` extra
 - **THEN**WeChat collection 所需 browser、HTML conversion 与 image download dependency 被安装
 - **AND**core command contract 保持不变
+
+### Requirement: Discovery-Only Social Source Selection
+
+Hacker News 与 X SHALL 可通过 `research discover --source hackernews|x` 和 configured daily
+discovery 选择，但本次变更 SHALL NOT 新增 standalone `research collect hackernews|x` command。
+
+#### Scenario: Select realtime sources for a discovery sweep
+
+- **WHEN** operator 运行 `research discover --source hackernews,x`
+- **THEN**runtime 只 dispatch configured Hacker News 与 X collector
+- **AND**CLI help 与 invalid-source guidance 列出两个名称，同时 existing collect subcommand 不变

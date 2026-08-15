@@ -309,7 +309,10 @@ def test_generate_briefing_writes_markdown(self) -> None:
     self._patch(briefing_reports, "write_digest_report", _capture_reading_list)
 
     with tempfile.TemporaryDirectory() as tmp:
-        config = _build_config(Path(tmp))
+        config = _build_config(
+            Path(tmp),
+            briefing=BriefingConfig(mode="reading-list", sources=["github"]),
+        )
         artifact = generate_briefing(config)
         self.assertIsNotNone(artifact)
         self.assertTrue(saved, "briefing markdown was not written")

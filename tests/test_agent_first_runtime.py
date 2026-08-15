@@ -183,6 +183,14 @@ raise SystemExit(
         self.assertIn("保留未涉及的 field", text)
         self.assertIn("不要替用户扩大关注范围", text)
         self.assertIn("修改后必须 dry-run validation", text)
+        self.assertIn("ready|partial|no_fresh_signals|coverage_incomplete", text)
+        self.assertIn("`dry_run`、`failed`、`legacy`", text)
+        self.assertIn("覆盖不完整，无法得出今日无新内容的结论", text)
+        self.assertIn("github|papers|wechat|hackernews|x", text)
+        self.assertIn("最多 7 条", text)
+        self.assertIn("至少 2 条 WeChat", text)
+        self.assertIn("expected / actual / missing", text)
+        self.assertIn("arXiv / GitHub / News", text)
 
         for platform_root in (".claude", ".github"):
             wrapper = (

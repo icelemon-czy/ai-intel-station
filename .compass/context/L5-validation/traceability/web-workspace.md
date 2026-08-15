@@ -1,7 +1,7 @@
 # Web Workspace 追溯矩阵
 
 > 对应 Spec: `.compass/context/L3-specs/specs/web-workspace/spec.md`
-> 验证日期: 2026-07-29
+> 验证日期: 2026-08-13
 
 | Requirement | Scenario | Implementation | Test evidence | Status |
 |:------------|:---------|:---------------|:--------------|:-------|
@@ -14,6 +14,7 @@
 | Manual Source Collection | Complete a manual collect | `workspace_web/service.py::run_collect` | `tests/test_service_e2e.py`, `tests/test_web_workspace.py` | ✅ verified |
 | Non-Blocking Auto Refresh | Polling request fails | `web/src/autoRefresh.js`, `web/src/App.jsx` | `web/test/autoRefresh.test.mjs`, `web/test/autoRefresh.react.test.mjs` | ✅ verified |
 | Daily Discovery Action | Trigger daily discovery from Dashboard | `web/src/DailyDiscoveryCard.jsx`, `workspace_web/service.py` | `web/test/discoveryCard.*.test.mjs`, `tests/test_discovery_web.py` | ✅ verified |
+| Daily Discovery Action | Display structured outcome and distinguish honest empty states | `workspace_web/service.py`, `web/src/DailyDiscoveryCard.jsx` | `tests/test_briefing_marker.py`, `web/test/discoveryCard.ssr.test.mjs` | ✅ verified |
 
 ## Reverse traceability
 

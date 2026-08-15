@@ -92,11 +92,11 @@ export default function DailyDiscoveryCard() {
       <header className="discovery-card-header">
         <p className="eyebrow">Daily discovery</p>
         <h2 id="discovery-heading" className="discovery-card-title">
-          Collect GitHub, arXiv, and WeChat — automatically
+          Fresh AI signals, with evidence
         </h2>
         <p className="discovery-card-subtitle">
-          Runs the configured sources, then writes a digest into{" "}
-          <code>output/briefing/</code>. No more manual <code>research collect</code> every morning.
+          Finds fresh Hacker News, WeChat, and optional X signals, then uses GitHub and arXiv
+          as evidence. Source coverage stays visible in <code>output/briefing/</code>.
         </p>
       </header>
 
@@ -218,10 +218,31 @@ export function StatusBlock({ status, onRetry }) {
             )}
             {" "}
             <span className="muted">({data.briefing.item_count ?? "?"} items)</span>
+            <BriefingOutcome status={data.briefing.status} />
           </dd>
         </>
       ) : null}
     </dl>
+  );
+}
+
+const BRIEFING_OUTCOME_COPY = {
+  ready: "Ready",
+  partial: "Partial coverage",
+  no_fresh_signals: "No verified fresh signals",
+  coverage_incomplete: "Coverage incomplete — no quiet-day conclusion",
+  failed: "Briefing failed",
+  dry_run: "Dry run only",
+  legacy: "Legacy briefing",
+};
+
+export function BriefingOutcome({ status }) {
+  if (!status) return null;
+  const label = BRIEFING_OUTCOME_COPY[status] || status;
+  return (
+    <span className="discovery-briefing-status" data-briefing-status={status}>
+      {" · "}{label}
+    </span>
   );
 }
 
@@ -310,17 +331,22 @@ export function ResultReport({ result }) {
           ))}
         </tbody>
       </table>
-      {result.briefing && result.briefing.path && result.briefing.path !== "(dry-run)" ? (
+      {result.briefing ? (
         <p>
-          📰 Briefing saved:{" "}
-          <a
-            href={`/${encodeURI(result.briefing.path)}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {result.briefing.path}
-          </a>{" "}
-          <span className="muted">({result.briefing.item_count} items)</span>
+          📰 Briefing:{" "}
+          {result.briefing.path && result.briefing.path !== "(dry-run)" ? (
+            <a
+              href={`/${encodeURI(result.briefing.path)}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {result.briefing.path}
+            </a>
+          ) : (
+            <span className="muted">{result.briefing.path || "(none)"}</span>
+          )}{" "}
+          <span className="muted">({result.briefing.item_count ?? "?"} items)</span>
+          <BriefingOutcome status={result.briefing.status} />
         </p>
       ) : null}
     </div>
@@ -341,7 +367,7 @@ export function FirstRunHint({ status, hasJob, forceVisible = false }) {
           <code>config/discovery.yaml</code>.
         </li>
         <li>
-          Edit that file — pick the GitHub repos and arXiv categories you care about.
+          Edit that file — pick realtime sources, watchlists, and evidence topics you care about.
         </li>
         <li>
           Run <code>uv run research discover --dry-run</code> to preview what would happen

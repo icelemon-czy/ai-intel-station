@@ -93,3 +93,9 @@ Dashboard SHALL 提供 daily discovery 的当前状态和手动触发 action。
 - **WHEN** operator 点击 Run daily discovery now
 - **THEN**Web API 启动一个 discovery run 并返回 job identifier
 - **AND**Dashboard 可以轮询该 run 直到终态
+
+#### Scenario: Display the daily briefing outcome
+
+- **WHEN** latest status 或 completed job 包含 structured briefing status
+- **THEN**Dashboard 展示该 outcome，而不只显示 item count
+- **AND**`no_fresh_signals` 与 `coverage_incomplete` 使用明确不同的用户文案

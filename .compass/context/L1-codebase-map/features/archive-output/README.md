@@ -10,11 +10,12 @@
 
 ```text
 output/
-  ├─ wechat/   ← `research collect wechat` 生成（文章目录内追加 research-item.json）
-  ├─ github/   ← `research collect github` 生成（repo 目录追加 research-item.json，search 目录追加 research-items.jsonl）
-  ├─ papers/   ← `research collect papers` 生成（每篇 Markdown 旁追加 <stem>.research-item.json）
-  ├─ briefing/ ← `research briefing` 生成（digest / reading-list 等派生阅读产物）
-  └─ twitter/  ← 预留，当前无真实生成器
+  ├─ wechat/     ← direct article + account-index signal archive
+  ├─ hackernews/ ← discovery-only feed signal archive
+  ├─ x/          ← optional discovery-only recent-search signal archive
+  ├─ github/     ← repository/search evidence archive
+  ├─ papers/     ← arXiv evidence archive
+  └─ briefing/   ← daily signals + legacy digest / reading-list
 ```
 
 ## 关键约束
@@ -24,16 +25,20 @@ output/
 - `research backfill` 是现有历史产物 sidecar backfill 的统一入口；不要在 `output/` 下手工补 JSON 掩盖脚本缺陷
 - `output/briefing/` 是派生阅读产物区，不应反向成为原始资料的唯一事实来源
 - 样例内容可以保留作研究资料，但不要靠手工修补去掩盖生成器问题
-- `twitter/` 目前是空占位；开始实现前先补 feature / rules / spec / validation 文档
+- `output/briefing/signals/` 是 daily outcome artifact；source coverage 与 status 必须来自 run，不得手工改写
 
 ## 生成器映射
 
 | 输出目录 | 生成器 | 关键函数 |
 | --- | --- | --- |
 | `output/wechat/` | `research collect wechat` | `collect/wechat.py` + `research-item.json` |
+| `output/wechat/` | `research discover --source wechat` | `collect/wechat_index.py` + `research-items.jsonl` |
+| `output/hackernews/` | `research discover --source hackernews` | `collect/hackernews.py` + `research-items.jsonl` |
+| `output/x/` | `research discover --source x` | `collect/x.py` + `research-items.jsonl` |
 | `output/github/` | `research collect github` | `collect/github.py` + `research-item*.json*` |
 | `output/papers/` | `research collect papers` | `collect/papers.py` + `<stem>.research-item.json` |
-| `output/briefing/` | `research briefing` | `write_digest_report()` / `write_reading_list_report()` |
+| `output/briefing/signals/` | `research discover` | `write_daily_signal_briefing()` |
+| `output/briefing/digests|reading-lists/` | `research briefing` | `write_digest_report()` / `write_reading_list_report()` |
 
 ## 常见改动与联动
 
@@ -51,4 +56,3 @@ output/
 3. 如果只有某一份历史输出异常，判断是旧版本产物还是脚本当前行为。
 4. 若历史 Markdown 缺 sidecar，优先运行 `uv run research backfill output` 回填。
 5. 若 briefing 内容异常，先确认 sidecar 与 query 结果是否正确，再看 `briefing/reports.py` 的展示逻辑。
-

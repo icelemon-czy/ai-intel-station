@@ -22,15 +22,37 @@ sources:
     max_per_category: 10
 
   wechat:
-    enabled: false                   # OFF by default — WeChat fetch is slow and can be rate-limited
-    urls: []                         # paste mp.weixin.qq.com URLs here when enabled
+    enabled: true                    # required by the default 2-item WeChat minimum
+    urls: []                         # direct articles remain supported as signal inputs
+    accounts:                        # public-index watchlist; no WeChat login required
+      - name: 架构师
+        wechat_id: JiaGouX
+    index_limit: 10
+
+  hackernews:
+    enabled: true
+    feeds: [newstories, showstories]
+    keywords: [agent, llm, claude, openai]
+    limit: 20
+
+  x:
+    enabled: false                   # requires a developer bearer token
+    queries:
+      - "(agent OR llm) lang:en -is:retweet"
+    token_env: X_BEARER_TOKEN
+    limit: 10
 
 briefing:
   enabled: true
-  mode: reading-list                 # or 'digest'
-  keyword: daily                     # becomes output/briefing/{reading-lists,digests}/<keyword>-<date>.md
-  sources: [github, papers, wechat]
-  since_days: 1                      # only items published within the last N days
+  mode: signals                      # legacy 'digest' and 'reading-list' remain available
+  keyword: daily
+  sources: [wechat, hackernews, x, github, papers]
+  freshness_hours: 48                # verified publication time; maximum allowed is 72
+  news_items: 5
+  wechat_min_items: 2
+  github_items: 1
+  paper_items: 1
+  since_days: 1                      # legacy modes only
 
 limits:
   max_github_search_calls: 5

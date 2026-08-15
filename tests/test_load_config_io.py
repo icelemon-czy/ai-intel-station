@@ -44,6 +44,7 @@ class LoadConfigIOTests(unittest.TestCase):
                 "output_root: output\n"
                 "log_dir: .ai/L4-session/discovery\n"
                 "sources: {}\n"
+                "briefing: {enabled: false}\n"
                 "limits: {}\n",
                 encoding="utf-8",
             )

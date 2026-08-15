@@ -58,6 +58,9 @@ def test_build_github_repo_item_normalizes_repository_metadata() -> None:
     assert item.summary == "Agentic coding tool"
     assert item.published_at == "2025-02-22T00:00:00Z"
     assert item.updated_at == "2026-04-22T00:00:00Z"
+    assert item.discovered_at is not None
+    assert item.signal_role == "evidence"
+    assert item.discovery_method == "github-repository"
     assert item.tags == ["agent", "cli"]
     assert item.metadata["owner"] == "anthropic"
     assert item.metadata["repo"] == "claude-code"
@@ -84,6 +87,9 @@ def test_build_wechat_item_allows_missing_optional_fields() -> None:
     assert item.canonical_url == "https://mp.weixin.qq.com/s/example"
     assert item.authors == []
     assert item.published_at is None
+    assert item.discovered_at is not None
+    assert item.signal_role == "signal"
+    assert item.discovery_method == "direct-url"
     assert item.tags == []
     payload = json.loads(item.to_json())
     assert payload["authors"] == []
@@ -323,6 +329,10 @@ def test_save_papers_writes_markdown_and_research_item_sidecar(tmp_path: Path) -
     assert payload["summary"] == "A benchmark for evaluating agent harness quality."
     assert payload["canonical_url"] == "https://arxiv.org/abs/2605.00001"
     assert payload["published_at"] == "2026-05-08T00:00:00Z"
+    assert payload["updated_at"] == "2026-05-09T00:00:00Z"
+    assert payload["discovered_at"] is not None
+    assert payload["signal_role"] == "evidence"
+    assert payload["discovery_method"] == "arxiv-category"
     assert payload["tags"] == ["cs.AI", "cs.CL"]
     assert payload["metadata"]["pdf_url"] == "https://arxiv.org/pdf/2605.00001"
     assert payload["output_path"].endswith("arXiv-cs.AI/01-Agent Harness Study.md")

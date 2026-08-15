@@ -1,6 +1,6 @@
 # 测试规范
 
-> 当前测试面已经收敛到根级 `tests/`，并围绕统一 operator surface 组织。WeChat 仍然拥有最完整的纯函数测试；GitHub / papers 仍以 smoke run 为主，但后续优先补到根级测试而不是继续分散在来源目录。
+> 当前测试面已经收敛到根级 `tests/`，并围绕统一 operator surface 组织。Daily signal contract 使用 local source fixture + pure ranking tests；live network 只作明确 opt-in e2e。
 
 ## 测试框架
 
@@ -60,6 +60,10 @@
   只看到 pre-bind banner 就当 server 已启动
 - remote source test 必须把 network boundary 指向 local fixture，并把 output_root 指向
   temporary directory；不得把 live response 写进 repository `output/`
+- realtime source fixture 必须覆盖 success、malformed/remote failure、bounded response 与 credential boundary；WeChat index 还要覆盖 CAPTCHA / empty / missing timestamp
+- freshness test 必须覆盖 timezone-aware now、inclusive lower boundary、future skew 与 unknown timestamp；`discovered_at` 不得替代 publication time
+- ranking test 必须验证 deterministic URL/title tie、within-source engagement percentile、signal/evidence role 与 confidence derivation，避免断言一次 fixture 的偶然顺序
+- outcome test 必须同时覆盖 items+failure=`partial`、zero+complete=`no_fresh_signals`、zero+failure=`coverage_incomplete`，并在 CLI/log/Web consumer 验证可观察性
 - test assertion 绑定 main Spec 与 frontend consumer 使用的 response contract，不绑定
   capitalization、旧 response key 或无 Requirement 支撑的 status code
 - GitHub / papers 一旦开始有复杂分支、重试或格式转换，优先补 `tests/` 而不是长期依赖 smoke run
@@ -71,6 +75,7 @@
 - ❌ smoke run 只看 `print("Saved")`，不检查落盘内容
 - ❌ 为了通过测试而改 `output/` 样例，而不改生成器逻辑
 - ❌ remote failure 被转换成 empty list 后继续报告 `success`
+- ❌ 用 lifetime stars、跨平台 raw engagement 或 filesystem mtime 当 daily freshness/rank 真值
 
 ## Release Commands
 

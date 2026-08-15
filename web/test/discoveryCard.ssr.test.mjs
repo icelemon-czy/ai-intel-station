@@ -118,7 +118,7 @@ test("first paint includes a heading describing what the card does", async () =>
     installFetchStub({ has_run: false });
     try {
         const html = await renderCard();
-        assert.match(html, /<h2[^>]*>[\s\S]*?GitHub, arXiv, and WeChat/i);
+        assert.match(html, /<h2[^>]*>[\s\S]*?Fresh AI signals, with evidence/i);
     } finally {
         uninstallFetchStub();
     }
@@ -341,7 +341,7 @@ test("StatusBlock renders the summary dl when a run is present", async () => {
                 has_run: true,
                 started_at: "2026-06-29T09:00:00",
                 summary: "succeeded=4 skipped=0 failed=0",
-                briefing: { path: "briefing/daily.md", item_count: 7 },
+                briefing: { path: "briefing/daily.md", item_count: 7, status: "ready" },
             },
         },
     });
@@ -354,6 +354,27 @@ test("StatusBlock renders the summary dl when a run is present", async () => {
         /7(?:<!--[^>]*-->)?\s*items/.test(html),
         `expected item count '7 items'; got:\n${html.slice(0, 1500)}`,
     );
+    assert.match(html, /data-briefing-status="ready"/);
+    assert.ok(html.includes("Ready"));
+});
+
+test("StatusBlock distinguishes honest empty outcomes", async () => {
+    for (const [status, copy] of [
+        ["no_fresh_signals", "No verified fresh signals"],
+        ["coverage_incomplete", "Coverage incomplete — no quiet-day conclusion"],
+    ]) {
+        const html = await renderNamedExport("StatusBlock", {
+            status: {
+                kind: "ready",
+                data: {
+                    has_run: true,
+                    briefing: { path: "briefing/signals/daily.md", item_count: 0, status },
+                },
+            },
+        });
+        assert.match(html, new RegExp(`data-briefing-status="${status}"`));
+        assert.ok(html.includes(copy), `missing copy for ${status}`);
+    }
 });
 
 test("StatusBlock renders an error banner when the fetch fails", async () => {
@@ -397,7 +418,7 @@ test("ResultReport renders a row per source with succeeded/skipped/failed counts
                 github: { succeeded: 3, skipped: 0, failed: 1, notes: ["ok", "rate limited"] },
                 papers: { succeeded: 0, skipped: 0, failed: 0, notes: ["no categories configured"] },
             },
-            briefing: { path: "briefing/daily.md" },
+            briefing: { path: "briefing/daily.md", item_count: 2, status: "partial" },
         },
     });
     assert.match(html, /<table[^>]*class="[^"]*job-table/);
@@ -412,6 +433,36 @@ test("ResultReport renders a row per source with succeeded/skipped/failed counts
         html.includes("briefing/daily.md") || html.includes("briefing%2Fdaily.md"),
         "briefing path must appear in the rendered HTML",
     );
+    assert.match(html, /data-briefing-status="partial"/);
+    assert.ok(html.includes("Partial coverage"));
+});
+
+test("ResultReport distinguishes empty complete and incomplete coverage", async () => {
+    const complete = await renderNamedExport("ResultReport", {
+        result: {
+            status: "ok",
+            sources: {},
+            briefing: {
+                path: "briefing/signals/empty.md",
+                item_count: 0,
+                status: "no_fresh_signals",
+            },
+        },
+    });
+    const incomplete = await renderNamedExport("ResultReport", {
+        result: {
+            status: "partial",
+            sources: {},
+            briefing: {
+                path: "briefing/signals/incomplete.md",
+                item_count: 0,
+                status: "coverage_incomplete",
+            },
+        },
+    });
+    assert.ok(complete.includes("No verified fresh signals"));
+    assert.ok(!complete.includes("no quiet-day conclusion"));
+    assert.ok(incomplete.includes("Coverage incomplete — no quiet-day conclusion"));
 });
 
 test("ResultReport hides the briefing link when path is the dry-run sentinel", async () => {

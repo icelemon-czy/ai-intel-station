@@ -13,10 +13,18 @@ from collect.github import (
 import collect.github as github_module
 from collect.papers import AI_CATEGORIES
 import collect.papers as papers_module
-from collect.wechat import fetch_article as wechat_fetch_article
 import collect.wechat as wechat_module
+import collect.hackernews as hackernews_module
+import collect.wechat_index as wechat_index_module
+import collect.x as x_module
 import briefing.reports as briefing_reports
+from briefing.signals import (
+    select_daily_briefing,
+    select_daily_signals,
+    write_daily_signal_report,
+)
 from library.query import query_research_items
+from library.storage import load_research_items
 
 from .config import DiscoveryConfig, GitHubSearchQuery
 from .log import DiscoveryLogger
@@ -35,9 +43,10 @@ class SourceReport:
 
 @dataclass
 class BriefingArtifact:
-    path: Path
+    path: Path | None
     mode: str
     item_count: int
+    status: str
 
 
 @dataclass
@@ -68,9 +77,10 @@ class DiscoveryReport:
             },
             "briefing": (
                 {
-                    "path": self.briefing.path.as_posix(),
+                    "path": self.briefing.path.as_posix() if self.briefing.path else None,
                     "mode": self.briefing.mode,
                     "item_count": self.briefing.item_count,
+                    "status": self.briefing.status,
                 }
                 if self.briefing
                 else None
@@ -101,11 +111,11 @@ def _github_search_repos(query: str, limit: int, logger: DiscoveryLogger | None)
             "repos",
             query,
             "--sort",
-            "stars",
+            "updated",
             "--limit",
             str(limit),
             "--json",
-            "name,owner,description,url,stargazersCount",
+            "name,owner,description,url,stargazersCount,createdAt,updatedAt",
         ]
     )
     return json.loads(payload)
@@ -158,7 +168,8 @@ def collect_github(
         try:
             if logger:
                 logger.log(f"📦 Fetching GitHub repo {owner}/{repo}...")
-            github_module.save_repo(owner, repo, github_root)
+            result_path = github_module.save_repo(owner, repo, github_root)
+            report.output_paths.append(result_path)
             report.succeeded += 1
         except Exception as exc:
             report.failed += 1
@@ -187,6 +198,97 @@ def collect_github(
             f"skipped {skipped} search calls (limits.max_github_search_calls={search_calls})"
         )
 
+    return report
+
+
+def collect_hackernews(
+    config: DiscoveryConfig,
+    logger: DiscoveryLogger | None = None,
+    *,
+    dry_run: bool = False,
+) -> SourceReport:
+    source = config.sources.hackernews
+    report = SourceReport(name="hackernews", enabled=source.enabled)
+    if not source.enabled:
+        report.notes.append("disabled in config")
+        return report
+    if not source.feeds:
+        report.failed = 1
+        report.notes.append("no Hacker News feeds configured; realtime coverage is incomplete")
+        return report
+    if dry_run:
+        for feed in source.feeds:
+            report.succeeded += 1
+            report.notes.append(
+                f"[dry-run] would scan Hacker News {feed} (limit={source.limit}, keywords={source.keywords})"
+            )
+        return report
+
+    output_root = config.output_root / "hackernews"
+    for feed in source.feeds:
+        try:
+            if logger:
+                logger.log(f"📰 Fetching Hacker News {feed}...")
+            path = hackernews_module.collect_feed(
+                feed,
+                keywords=source.keywords,
+                limit=source.limit,
+                output_dir=output_root,
+            )
+            report.output_paths.append(path)
+            report.succeeded += 1
+        except Exception as exc:
+            report.failed += 1
+            report.notes.append(f"{feed} failed: {exc}")
+            if logger:
+                logger.log(f"  ❌ {feed}: {exc}")
+    return report
+
+
+def collect_x(
+    config: DiscoveryConfig,
+    logger: DiscoveryLogger | None = None,
+    *,
+    dry_run: bool = False,
+) -> SourceReport:
+    source = config.sources.x
+    report = SourceReport(name="x", enabled=source.enabled)
+    if not source.enabled:
+        report.notes.append("disabled in config")
+        return report
+    if not source.queries:
+        report.failed = 1
+        report.notes.append("no X queries configured; realtime coverage is incomplete")
+        return report
+    if dry_run:
+        for query in source.queries:
+            report.succeeded += 1
+            report.notes.append(
+                f"[dry-run] would run X recent search {query!r} "
+                f"(limit={source.limit}, freshness={config.briefing.freshness_hours}h, "
+                f"token_env={source.token_env})"
+            )
+        return report
+
+    output_root = config.output_root / "x"
+    for query in source.queries:
+        try:
+            if logger:
+                logger.log(f"𝕏 Recent search: {query!r}")
+            path = x_module.collect_recent_search(
+                query,
+                token_env=source.token_env,
+                limit=source.limit,
+                output_dir=output_root,
+                freshness_hours=config.briefing.freshness_hours,
+            )
+            report.output_paths.append(path)
+            report.succeeded += 1
+        except Exception as exc:
+            report.failed += 1
+            report.notes.append(f"{query!r} failed: {exc}")
+            if logger:
+                logger.log(f"  ❌ {query!r}: {exc}")
     return report
 
 
@@ -263,13 +365,19 @@ def collect_wechat(
         report.notes.append("disabled in config (default)")
         return report
 
-    if not wechat.urls:
-        report.notes.append("no urls configured")
+    if not wechat.urls and not wechat.accounts:
+        report.failed = 1
+        report.notes.append("no WeChat URLs or accounts configured; realtime coverage is incomplete")
         return report
 
     if dry_run:
         for url in wechat.urls:
             report.notes.append(f"[dry-run] would fetch WeChat article {url}")
+            report.succeeded += 1
+        for account in wechat.accounts:
+            report.notes.append(
+                f"[dry-run] would query public WeChat index for {account.name} ({account.wechat_id})"
+            )
             report.succeeded += 1
         return report
 
@@ -288,13 +396,34 @@ def collect_wechat(
         try:
             if logger:
                 logger.log(f"🦊 Fetching WeChat article: {url}")
-            asyncio.run(wechat_module.fetch_article(url, output_dir=wechat_root))
+            path = asyncio.run(wechat_module.fetch_article(url, output_dir=wechat_root))
+            report.output_paths.append(path)
             report.succeeded += 1
         except Exception as exc:
             report.failed += 1
             report.notes.append(f"{url} failed: {exc}")
             if logger:
                 logger.log(f"  ❌ {url}: {exc}")
+
+    for account in wechat.accounts:
+        try:
+            if logger:
+                logger.log(
+                    f"🔎 WeChat public index: {account.name} ({account.wechat_id})"
+                )
+            path = wechat_index_module.collect_account(
+                account.name,
+                account.wechat_id,
+                limit=wechat.index_limit,
+                output_dir=wechat_root,
+            )
+            report.output_paths.append(path)
+            report.succeeded += 1
+        except Exception as exc:
+            report.failed += 1
+            report.notes.append(f"{account.name} index failed: {exc}")
+            if logger:
+                logger.log(f"  ❌ {account.name}: {exc}")
 
     return report
 
@@ -304,6 +433,8 @@ def generate_briefing(
     report_log: DiscoveryLogger | None = None,
     *,
     dry_run: bool = False,
+    source_reports: dict[str, SourceReport] | None = None,
+    now: datetime | None = None,
 ) -> BriefingArtifact | None:
     briefing = config.briefing
     if not briefing.enabled:
@@ -313,11 +444,103 @@ def generate_briefing(
 
     if dry_run:
         if report_log:
+            composition = (
+                f"composition={briefing.news_items} News "
+                f"(WeChat minimum={briefing.wechat_min_items}) + "
+                f"{briefing.github_items} GitHub + {briefing.paper_items} arXiv"
+                if briefing.mode == "signals" and briefing.quota_mode
+                else f"max_items={briefing.max_items}"
+            )
             report_log.log(
                 f"[dry-run] would generate {briefing.mode} briefing '{briefing.keyword}' "
-                f"from sources={briefing.sources} window={briefing.since_days}d"
+                f"from sources={briefing.sources} window={briefing.since_days}d {composition}"
             )
-        return BriefingArtifact(path=Path("(dry-run)"), mode=briefing.mode, item_count=0)
+        return BriefingArtifact(
+            path=Path("(dry-run)"), mode=briefing.mode, item_count=0, status="dry_run"
+        )
+
+    title_date = (now or datetime.now(timezone.utc)).astimezone().strftime("%Y-%m-%d")
+    title = f"{briefing.keyword}-{title_date}"
+    if briefing.mode == "signals":
+        items = [
+            item
+            for item in load_research_items(config.output_root)
+            if item.source in briefing.sources
+        ]
+        if briefing.quota_mode:
+            entries = select_daily_briefing(
+                items,
+                now=now,
+                freshness_hours=briefing.freshness_hours,
+                news_items=briefing.news_items,
+                wechat_min_items=briefing.wechat_min_items,
+                github_items=briefing.github_items,
+                paper_items=briefing.paper_items,
+                quota_mode=True,
+            )
+            required_sources = [
+                source_name
+                for source_name, minimum in (
+                    ("github", briefing.github_items),
+                    ("papers", briefing.paper_items),
+                    ("wechat", briefing.wechat_min_items),
+                )
+                if minimum > 0
+            ]
+            viable_news_sources = [
+                source_name
+                for source_name in ("wechat", "hackernews", "x")
+                if source_name in briefing.sources
+                and getattr(config.sources, source_name).enabled
+                and (
+                    bool(config.sources.wechat.urls or config.sources.wechat.accounts)
+                    if source_name == "wechat"
+                    else bool(config.sources.hackernews.feeds)
+                    if source_name == "hackernews"
+                    else bool(config.sources.x.queries)
+                )
+            ]
+            render_options = {
+                # A source selected by this actual sweep remains relevant to
+                # coverage even when it is not used as a briefing item input.
+                # Its failure must never coexist with a `ready` artifact.
+                "coverage_sources": list(
+                    dict.fromkeys(
+                        [*briefing.sources, *(source_reports or {}).keys()]
+                    )
+                ),
+                "required_sources": required_sources,
+                "viable_news_sources": viable_news_sources,
+            }
+            item_count = len(entries.entries)
+        else:
+            entries = select_daily_signals(
+                items,
+                now=now,
+                freshness_hours=briefing.freshness_hours,
+                max_items=briefing.max_items,
+            )
+            render_options = {}
+            item_count = len(entries)
+        path, status = write_daily_signal_report(
+            config.output_root,
+            title=title,
+            entries=entries,
+            source_reports=source_reports or {},
+            now=now,
+            freshness_hours=briefing.freshness_hours,
+            **render_options,
+        )
+        if report_log:
+            report_log.log(
+                f"📰 Signal briefing saved: {path} ({item_count} items, status={status})"
+            )
+        return BriefingArtifact(
+            path=path,
+            mode="signals",
+            item_count=item_count,
+            status=status,
+        )
 
     since = _format_since(briefing.since_days)
     items = query_research_items(
@@ -328,7 +551,6 @@ def generate_briefing(
         until=None,
     )
 
-    title = f"{briefing.keyword}-{datetime.now().strftime('%Y-%m-%d')}"
     if briefing.mode == "digest":
         path = briefing_reports.write_digest_report(
             config.output_root, title=title, items=items, requested_sources=briefing.sources
@@ -340,7 +562,9 @@ def generate_briefing(
 
     if report_log:
         report_log.log(f"📰 Briefing saved: {path} ({len(items)} items)")
-    return BriefingArtifact(path=path, mode=briefing.mode, item_count=len(items))
+    return BriefingArtifact(
+        path=path, mode=briefing.mode, item_count=len(items), status="legacy"
+    )
 
 
 def run_discovery(
@@ -358,7 +582,8 @@ def run_discovery(
     config:
         Validated :class:`DiscoveryConfig` instance.
     only:
-        Optional list of source names (``github`` / ``papers`` / ``wechat``) to limit the
+        Optional list of source names (``github`` / ``papers`` / ``wechat`` /
+        ``hackernews`` / ``x``) to limit the
         sweep to. Useful for ``research discover --source papers``.
     dry_run:
         When ``True``, do not hit the network; just report what would have been done.
@@ -380,6 +605,8 @@ def run_discovery(
             "github": collect_github,
             "papers": collect_papers,
             "wechat": collect_wechat,
+            "hackernews": collect_hackernews,
+            "x": collect_x,
         }
 
         source_reports: dict[str, SourceReport] = {}
@@ -401,10 +628,20 @@ def run_discovery(
         if enable_briefing:
             logger.header("briefing")
             try:
-                briefing_artifact = generate_briefing(config, logger, dry_run=dry_run)
+                briefing_artifact = generate_briefing(
+                    config,
+                    logger,
+                    dry_run=dry_run,
+                    source_reports=source_reports,
+                )
             except Exception as exc:
                 logger.log(f"❌ briefing crashed: {exc}")
-                briefing_artifact = None
+                briefing_artifact = BriefingArtifact(
+                    path=None,
+                    mode=config.briefing.mode,
+                    item_count=0,
+                    status="failed",
+                )
         else:
             logger.log("🗂  Briefing skipped (--no-briefing).")
 
@@ -426,7 +663,10 @@ def run_discovery(
             f"📊 Summary: succeeded={total_succeeded} skipped={total_skipped} failed={total_failed}"
         )
         if briefing_artifact:
-            logger.log(f"📰 Briefing: {briefing_artifact.path} ({briefing_artifact.item_count} items)")
+            logger.log(
+                f"📰 Briefing: {briefing_artifact.path} "
+                f"({briefing_artifact.item_count} items, status={briefing_artifact.status})"
+            )
         if total_failed:
             logger.log(f"⚠️  See log for failure details: {log_path}")
 

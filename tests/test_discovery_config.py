@@ -42,16 +42,36 @@ class DiscoveryConfigTests(unittest.TestCase):
         from research.discovery.config import REPO_ROOT
 
         with self._tempdir() as tmp:
-            config = _load_or_fail(Path(tmp), "sources: {}\nbriefing: {}\nlimits: {}\n")
+            config = _load_or_fail(
+                Path(tmp),
+                "sources: {}\nbriefing: {enabled: false}\nlimits: {}\n",
+            )
         self.assertEqual(config.output_root, REPO_ROOT / "output")
         self.assertEqual(config.log_dir, REPO_ROOT / ".state" / "discovery")
         self.assertTrue(config.sources.github.enabled)
         self.assertEqual(config.sources.github.repos, [])
         self.assertEqual(config.sources.papers.categories, [])
         self.assertFalse(config.sources.wechat.enabled)
-        self.assertEqual(config.briefing.mode, "reading-list")
+        self.assertFalse(config.sources.hackernews.enabled)
+        self.assertEqual(config.briefing.mode, "signals")
+        self.assertEqual(config.briefing.freshness_hours, 48)
+        self.assertEqual(config.briefing.max_items, 5)
+        self.assertEqual(config.briefing.news_items, 5)
+        self.assertEqual(config.briefing.wechat_min_items, 2)
+        self.assertEqual(config.briefing.github_items, 1)
+        self.assertEqual(config.briefing.paper_items, 1)
         self.assertEqual(config.briefing.since_days, 1)
         self.assertEqual(config.limits.max_github_search_calls, 5)
+
+    def test_legacy_mode_without_new_source_blocks_does_not_add_network_calls(self) -> None:
+        with self._tempdir() as tmp:
+            config = _load_or_fail(
+                Path(tmp),
+                "sources: {}\nbriefing:\n  mode: reading-list\nlimits: {}\n",
+            )
+        self.assertFalse(config.sources.hackernews.enabled)
+        self.assertFalse(config.sources.x.enabled)
+        self.assertEqual(config.briefing.sources, ["github", "papers", "wechat"])
 
     def test_load_full_config(self) -> None:
         from research.discovery.config import REPO_ROOT
@@ -147,7 +167,7 @@ briefing:
   mode: monthly
 """
         with self._tempdir() as tmp:
-            _expect_load_error(Path(tmp), yaml, "must be 'digest' or 'reading-list'")
+            _expect_load_error(Path(tmp), yaml, "must be 'signals', 'digest' or 'reading-list'")
 
     def test_load_rejects_missing_search_query(self) -> None:
         yaml = """
@@ -221,7 +241,16 @@ limits:
         with self._tempdir() as tmp:
             config = _load_or_fail(Path(tmp), text)
         self.assertIsInstance(config.sources, SourceConfig)
-        self.assertEqual(config.sources.wechat, WeChatSource(enabled=False, urls=[]))
+        self.assertTrue(config.sources.wechat.enabled)
+        self.assertEqual(config.sources.wechat.urls, [])
+        self.assertEqual(config.sources.wechat.accounts[0].name, "架构师")
+        self.assertTrue(config.sources.hackernews.enabled)
+        self.assertEqual(config.briefing.news_items, 5)
+        self.assertEqual(config.briefing.wechat_min_items, 2)
+        self.assertEqual(config.briefing.github_items, 1)
+        self.assertEqual(config.briefing.paper_items, 1)
+        self.assertFalse(config.sources.x.enabled)
+        self.assertEqual(config.briefing.mode, "signals")
         self.assertIn("log_dir: .state/discovery", text)
         self.assertNotIn(".ai/", text)
 

@@ -7,13 +7,16 @@
 The primary interface is the project Agent + `daily-discovery` Skill. Ask in natural language:
 
 - “今天 AI 圈有什么值得看？”
-- “现在跑一遍 GitHub 和 papers，然后给我五条重点。”
+- “现在跑一遍每日情报，给我 arXiv、GitHub 和 News 重点。”
 - “把每日搜索主题改成 agent memory。”
 - “昨天为什么失败？”
 
-The Agent operates the deterministic `research` runtime, reads the resulting local briefing, and
-returns the useful items in the conversation. Web is optional and reserved for visual Library /
-briefing browsing.
+The Agent operates the deterministic `research` runtime and returns a default composition of five
+verified fresh News items (including at least two deduplicated WeChat entries), one GitHub item, and
+one arXiv paper. GitHub repositories and arXiv papers retain their evidence role but may lead their
+own dedicated lanes; they never fill a missing News slot. Every result includes source and quota
+coverage, so a blocked source is not mistaken for a quiet day.
+Web remains an optional Library / briefing viewer.
 
 Core setup installs only the project and PyYAML:
 
@@ -21,7 +24,8 @@ Core setup installs only the project and PyYAML:
 uv sync --frozen
 ```
 
-WeChat is intentionally optional because its browser stack is much heavier:
+Direct WeChat article collection is optional because its browser stack is much heavier. Public-index
+watchlist discovery uses the core runtime and does not require a WeChat login:
 
 ```bash
 uv sync --extra wechat
@@ -29,11 +33,12 @@ uv sync --extra wechat
 
 ## Business Flow
 
-1. `collect` gathers raw material from GitHub, arXiv, or WeChat into `output/<source>/`
-2. `query` searches local `ResearchItem` sidecars without re-fetching remote data
-3. `briefing` generates digest or reading-list Markdown under `output/briefing/`
-4. `backfill` rebuilds sidecars from historical Markdown archives
-5. `web` optionally serves a local React viewer for dashboard, library browsing, and briefing generation
+1. `discover` gathers realtime signals from HN / WeChat / optional X and evidence from GitHub / arXiv
+2. `collect` keeps standalone GitHub, arXiv, and direct WeChat article archiving available
+3. `query` searches local `ResearchItem` sidecars without re-fetching remote data
+4. daily discovery generates coverage-aware signal Markdown; generic `briefing` keeps legacy digest / reading-list output
+5. `backfill` rebuilds sidecars from historical Markdown archives
+6. `web` optionally serves a local React viewer for dashboard, library browsing, and briefing generation
 
 ## Unified Runtime Surface
 
@@ -66,9 +71,9 @@ uv run research discover --dry-run         # validate config without network
 
 # Manual run (no surprise side-effects without --install)
 uv run research discover --dry-run                       # see what would happen, **no network** at all
-uv run research discover --source github,papers         # run two sources (comma form)
-uv run research discover --source papers --source wechat # same, repeated-flag form
-uv run research discover --no-briefing                   # collect only, skip the digest
+uv run research discover --source hackernews,wechat     # realtime sources (comma form)
+uv run research discover --source hackernews --source x # repeated-flag form; X needs a token
+uv run research discover --no-briefing                   # collect only, skip signal briefing
 
 # Read-only inspection (no rerun, no network)
 uv run research discover --status                       # last run summary
@@ -89,8 +94,10 @@ CI keeps lightweight core, optional WeChat, and Web validation in separate jobs 
 ```text
 output/
   ├─ github/
+  ├─ hackernews/
   ├─ papers/
   ├─ wechat/
+  ├─ x/
   └─ briefing/
 ```
 

@@ -840,19 +840,26 @@ def discover_status_payload(output_root: Path) -> dict:
         return {"has_run": False, "log_dir": str(log_dir)}
     info = read_log_summary(path)
     # Parse the human-readable ``briefing`` string (format:
-    # ``"<path> (<N> items)"`` or ``"(dry-run) (<N> items)"``) into a structured
+    # ``"<path> (<N> items[, status=<status>])"``) into a structured
     # payload so the web UI can render a clickable link instead of guessing.
+    briefing = _parse_briefing_marker(info["briefing"])
+    if briefing is not None and info.get("briefing_status") and "status" not in briefing:
+        briefing["status"] = info["briefing_status"]
     return {
         "has_run": True,
         "log_path": info["path"].as_posix(),
         "started_at": info["started_at"],
         "finished_at": info["finished_at"],
         "summary": info["summary"],
-        "briefing": _parse_briefing_marker(info["briefing"]),
+        "briefing_status": info.get("briefing_status"),
+        "briefing": briefing,
     }
 
 
-_BRIEFING_RE = __import__("re").compile(r"^(?P<path>\S+)\s*\((?P<count>\d+)\s+items?\)$")
+_BRIEFING_RE = __import__("re").compile(
+    r"^(?P<path>\S+)\s*\((?P<count>\d+)\s+items?"
+    r"(?:,\s*status=(?P<status>ready|partial|no_fresh_signals|coverage_incomplete|failed|dry_run|legacy))?\)$"
+)
 
 
 def _parse_briefing_marker(text: str | None) -> dict | None:
@@ -871,4 +878,10 @@ def _parse_briefing_marker(text: str | None) -> dict | None:
     path = raw_path
     if path.startswith("output/"):
         path = path[len("output/"):]
-    return {"path": path, "item_count": int(match.group("count"))}
+    result = {
+        "path": None if path == "None" else path,
+        "item_count": int(match.group("count")),
+    }
+    if match.group("status"):
+        result["status"] = match.group("status")
+    return result

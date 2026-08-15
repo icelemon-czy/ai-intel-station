@@ -37,16 +37,23 @@ class DiscoverCliTests(unittest.TestCase):
 
     def test_discover_dry_run_with_real_example_succeeds(self) -> None:
         """When the example config exists, dry-run with it succeeds (no network)."""
+        import research.cli as cli_module
+
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             buf = io.StringIO()
-            with redirect_stdout(buf):
-                exit_code = run_discover(
-                    DEFAULT_CONFIG_PATH,  # missing on purpose
-                    only=None,
-                    dry_run=True,
-                    output_root=tmp_path / "output",
-                )
+            original_default = cli_module.DEFAULT_CONFIG_PATH
+            cli_module.DEFAULT_CONFIG_PATH = tmp_path / "missing-default.yaml"
+            try:
+                with redirect_stdout(buf):
+                    exit_code = run_discover(
+                        cli_module.DEFAULT_CONFIG_PATH,
+                        only=None,
+                        dry_run=True,
+                        output_root=tmp_path / "output",
+                    )
+            finally:
+                cli_module.DEFAULT_CONFIG_PATH = original_default
             # 0 = clean run, or 1 = some sources reported skipped/failed but ran.
             self.assertIn(exit_code, (0, 1))
             output = buf.getvalue()

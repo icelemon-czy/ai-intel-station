@@ -8,13 +8,21 @@
 
 ### Requirement: Supported Sources
 
-collection SHALL 支持 GitHub repository/search、arXiv category 和 WeChat article URL 三类输入。
+collection SHALL 支持 standalone GitHub repository/search、arXiv category 和 WeChat article
+输入。Configured daily discovery SHALL 额外支持 WeChat watchlist、Hacker News feed 和 X recent
+search。需要 credential 的 source MUST 保持 optional，且不得把 core startup 绑定到 credential。
 
 #### Scenario: Choose a collection source
 
-- **WHEN** operator 从 CLI 或 Web Collect 选择一个受支持来源
-- **THEN**系统展示并接受该来源所需输入
-- **AND**结果写入对应 source archive
+- **WHEN** operator 从 `research collect` 选择 standalone source，或从 `research discover --source` 选择 discovery-only source
+- **THEN**系统校验并接受 source-specific input
+- **AND**结果连同 normalized sidecar 写入对应 source archive
+
+#### Scenario: Start core commands without social credentials
+
+- **WHEN** X 未启用或 credential 不存在
+- **THEN**non-X collect、query、briefing、status 与 help 仍可使用
+- **AND**无关 source 不读取或发送该 credential
 
 ### Requirement: Archive and Sidecar Persistence
 

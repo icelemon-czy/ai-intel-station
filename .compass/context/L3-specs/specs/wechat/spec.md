@@ -61,3 +61,32 @@ MUST NOT 输出未处理的 Python traceback。
 - **WHEN**operator 在 core-only environment 运行 WeChat collection
 - **THEN**command 返回 non-success status 与 `uv sync --extra wechat` guidance
 - **AND**GitHub、Papers、query、briefing 与 discovery control action 仍可使用
+
+### Requirement: Account Watchlist Discovery
+
+WeChat daily discovery SHALL 接受 configured public-account watchlist，并通过 declared
+public-index adapter 执行 best-effort discovery；该路径与完整 article URL collection 独立。
+
+#### Scenario: Discover a watchlist article
+
+- **WHEN** configured account index 返回带 title、link 与 publication timestamp 的 article
+- **THEN**系统保存 lightweight `source=wechat`、`signal_role=signal` ResearchItem
+- **AND**item 标识 account、discovery method 与 watchlist membership
+
+### Requirement: Honest WeChat Discovery Coverage
+
+Public-index CAPTCHA、access block、empty malformed page 或 missing publication metadata MUST
+报告为 incomplete coverage；系统 MUST NOT 声称完整 account history，或把 failure 静默解释为
+没有新 article。
+
+#### Scenario: Public index requires verification
+
+- **WHEN** WeChat watchlist adapter 检测到 CAPTCHA 或 abnormal-access response
+- **THEN**WeChat source 以可读原因报告 failure
+- **AND**其他 source collection 与 briefing 继续
+
+#### Scenario: Public index response is empty, malformed or lacks publication time
+
+- **WHEN** adapter 收到 nominally successful page，但没有 attributable result、无法 parse 或缺 publication time
+- **THEN**WeChat source 以 precise reason 报告 incomplete coverage
+- **AND**response 不保存为 verified fresh signal，也不计为 quiet account

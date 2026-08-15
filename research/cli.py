@@ -42,11 +42,11 @@ def collect_github_targets(targets: list[str], output_root: Path, search: bool =
                     "repos",
                     query,
                     "--sort",
-                    "stars",
+                    "updated",
                     "--limit",
                     "10",
                     "--json",
-                    "name,owner,description,url,stargazersCount",
+                    "name,owner,description,url,stargazersCount,createdAt,updatedAt",
                 ]
             )
         )
@@ -106,7 +106,7 @@ def list_briefings(output_root: Path) -> int:
         return 0
 
     found: list[Path] = []
-    for section in ("digests", "reading-lists"):
+    for section in ("signals", "digests", "reading-lists"):
         section_dir = briefing_root / section
         if section_dir.exists():
             found.extend(sorted(section_dir.glob("*.md"), reverse=True))
@@ -185,6 +185,8 @@ def run_discover_status(config_path: Path, *, last: int = 1) -> int:
             print(f"   {info['summary']}")
         if info["briefing"]:
             print(f"   📰 {info['briefing']}")
+        if info.get("briefing_status"):
+            print(f"   briefing_status: {info['briefing_status']}")
         return 0
 
     paths = recent_log_paths(log_dir, limit=last)
@@ -256,10 +258,11 @@ def run_discover(
         enable_briefing=enable_briefing,
     )
     print(f"📓 Log: {report.log_path}")
-    return 0 if not any(r.failed for r in report.sources.values()) else 1
+    briefing_failed = bool(report.briefing and report.briefing.status == "failed")
+    return 0 if not any(r.failed for r in report.sources.values()) and not briefing_failed else 1
 
 
-VALID_SOURCES = ("github", "papers", "wechat")
+VALID_SOURCES = ("github", "papers", "wechat", "hackernews", "x")
 
 
 def _parse_source_list(values: list[str] | None) -> list[str] | None:
@@ -387,7 +390,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     discover_parser = subparsers.add_parser(
         "discover",
-        help="Run the configured daily discovery sweep (GitHub + arXiv + WeChat + briefing)",
+        help="Run the configured daily signal sweep and briefing",
         epilog=(
             "First time? Run these in order:\n"
             "  uv run research init-config\n"
@@ -408,7 +411,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--source",
         action="append",
         dest="sources",
-        help="Limit the sweep to one or more sources (repeatable, or comma-separated)",
+        help=(
+            "Limit the sweep to github|papers|wechat|hackernews|x "
+            "(repeatable, or comma-separated)"
+        ),
     )
     discover_parser.add_argument(
         "--no-briefing",

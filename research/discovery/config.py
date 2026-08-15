@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import re
 from typing import Any
 
 import yaml
 
 from collect.papers import AI_CATEGORIES
 from collect.wechat import normalize_wechat_url
+from collect.hackernews import SUPPORTED_FEEDS
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -59,9 +61,33 @@ class PapersSource:
 
 
 @dataclass
+class WeChatAccount:
+    name: str
+    wechat_id: str
+
+
+@dataclass
 class WeChatSource:
     enabled: bool = False
     urls: list[str] = field(default_factory=list)
+    accounts: list[WeChatAccount] = field(default_factory=list)
+    index_limit: int = 10
+
+
+@dataclass
+class HackerNewsSource:
+    enabled: bool = True
+    feeds: list[str] = field(default_factory=lambda: ["newstories", "showstories"])
+    keywords: list[str] = field(default_factory=list)
+    limit: int = 20
+
+
+@dataclass
+class XSource:
+    enabled: bool = False
+    queries: list[str] = field(default_factory=list)
+    token_env: str = "X_BEARER_TOKEN"
+    limit: int = 10
 
 
 @dataclass
@@ -69,15 +95,28 @@ class SourceConfig:
     github: GitHubSource = field(default_factory=GitHubSource)
     papers: PapersSource = field(default_factory=PapersSource)
     wechat: WeChatSource = field(default_factory=WeChatSource)
+    hackernews: HackerNewsSource = field(default_factory=HackerNewsSource)
+    x: XSource = field(default_factory=XSource)
 
 
 @dataclass
 class BriefingConfig:
     enabled: bool = True
-    mode: str = "reading-list"
+    mode: str = "signals"
     keyword: str = "daily"
-    sources: list[str] = field(default_factory=lambda: ["github", "papers", "wechat"])
+    sources: list[str] = field(
+        default_factory=lambda: ["wechat", "hackernews", "x", "github", "papers"]
+    )
     since_days: int = 1
+    freshness_hours: int = 48
+    # ``max_items`` is retained for legacy signals YAML. New/default signals
+    # configs use the four explicit lane fields below.
+    max_items: int = 5
+    news_items: int = 5
+    wechat_min_items: int = 2
+    github_items: int = 1
+    paper_items: int = 1
+    quota_mode: bool = True
 
 
 @dataclass
@@ -342,7 +381,13 @@ def _parse_wechat(raw: Any, errors: _ErrorBag) -> WeChatSource:
     raw_urls = _as_list(data.get("urls"), where="sources.wechat.urls", errors=errors)
     cleaned: list[str] = []
     for index, raw_url in enumerate(raw_urls):
-        url = normalize_wechat_url(str(raw_url))
+        if not isinstance(raw_url, str):
+            errors.add(
+                f"sources.wechat.urls[{index}]",
+                f"must be a string, got {type(raw_url).__name__}",
+            )
+            continue
+        url = normalize_wechat_url(raw_url)
         if not url:
             continue
         if not url.startswith("https://mp.weixin.qq.com/"):
@@ -352,9 +397,138 @@ def _parse_wechat(raw: Any, errors: _ErrorBag) -> WeChatSource:
             )
             continue
         cleaned.append(url)
+    raw_accounts = _as_list(
+        data.get("accounts"), where="sources.wechat.accounts", errors=errors
+    )
+    accounts: list[WeChatAccount] = []
+    for index, raw_account in enumerate(raw_accounts):
+        if not isinstance(raw_account, dict):
+            errors.add(
+                f"sources.wechat.accounts[{index}]",
+                f"must be a mapping, got {type(raw_account).__name__}",
+            )
+            continue
+        name = str(raw_account.get("name") or "").strip()
+        wechat_id = str(raw_account.get("wechat_id") or "").strip()
+        if not name or not wechat_id:
+            errors.add(
+                f"sources.wechat.accounts[{index}]",
+                "requires non-empty name and wechat_id",
+            )
+            continue
+        accounts.append(WeChatAccount(name=name, wechat_id=wechat_id))
+    index_limit_raw = data.get("index_limit", 10)
+    try:
+        index_limit = int(index_limit_raw)
+    except (TypeError, ValueError):
+        index_limit = -1
+    if index_limit <= 0 or index_limit > 20:
+        errors.add(
+            "sources.wechat.index_limit",
+            f"must be between 1 and 20, got {index_limit_raw!r}",
+        )
+        index_limit = 10
     return WeChatSource(
         enabled=bool(data.get("enabled", False)),
         urls=cleaned,
+        accounts=accounts,
+        index_limit=index_limit,
+    )
+
+
+def _parse_hackernews(raw: Any, errors: _ErrorBag) -> HackerNewsSource:
+    # A missing block belongs to an existing pre-signal config. Keep it
+    # disabled so loading an old YAML never silently adds a new network call;
+    # newly initialized configs opt in explicitly through the checked-in
+    # example template.
+    if raw is None:
+        return HackerNewsSource(enabled=False)
+    data = _as_mapping(raw, where="sources.hackernews", errors=errors)
+    feeds: list[str] = []
+    for index, item in enumerate(
+        _as_list(data.get("feeds"), where="sources.hackernews.feeds", errors=errors)
+    ):
+        if not isinstance(item, str):
+            errors.add(
+                f"sources.hackernews.feeds[{index}]",
+                f"must be a string, got {type(item).__name__}",
+            )
+            continue
+        feed = item.strip()
+        if feed not in SUPPORTED_FEEDS:
+            errors.add(
+                "sources.hackernews.feeds",
+                f"contains unsupported value {feed!r} (supported: {', '.join(SUPPORTED_FEEDS)})",
+            )
+            continue
+        if feed not in feeds:
+            feeds.append(feed)
+    keywords: list[str] = []
+    for index, item in enumerate(
+        _as_list(data.get("keywords"), where="sources.hackernews.keywords", errors=errors)
+    ):
+        if not isinstance(item, str):
+            errors.add(
+                f"sources.hackernews.keywords[{index}]",
+                f"must be a string, got {type(item).__name__}",
+            )
+            continue
+        keyword = item.strip()
+        if keyword and keyword not in keywords:
+            keywords.append(keyword)
+    limit_raw = data.get("limit", 20)
+    try:
+        limit = int(limit_raw)
+    except (TypeError, ValueError):
+        limit = -1
+    if limit <= 0 or limit > 100:
+        errors.add(
+            "sources.hackernews.limit", f"must be between 1 and 100, got {limit_raw!r}"
+        )
+        limit = 20
+    return HackerNewsSource(
+        enabled=bool(data.get("enabled", True)),
+        feeds=feeds if data.get("feeds") is not None else ["newstories", "showstories"],
+        keywords=keywords,
+        limit=limit,
+    )
+
+
+def _parse_x(raw: Any, errors: _ErrorBag) -> XSource:
+    data = _as_mapping(raw, where="sources.x", errors=errors)
+    queries: list[str] = []
+    for index, item in enumerate(
+        _as_list(data.get("queries"), where="sources.x.queries", errors=errors)
+    ):
+        if not isinstance(item, str):
+            errors.add(
+                f"sources.x.queries[{index}]",
+                f"must be a string, got {type(item).__name__}",
+            )
+            continue
+        query = item.strip()
+        if query:
+            queries.append(query)
+    token_env = str(data.get("token_env") or "X_BEARER_TOKEN").strip()
+    if not re.fullmatch(r"[A-Z_][A-Z0-9_]*", token_env):
+        errors.add(
+            "sources.x.token_env",
+            f"must be an uppercase environment variable name, got {token_env!r}",
+        )
+        token_env = "X_BEARER_TOKEN"
+    limit_raw = data.get("limit", 10)
+    try:
+        limit = int(limit_raw)
+    except (TypeError, ValueError):
+        limit = -1
+    if limit < 10 or limit > 100:
+        errors.add("sources.x.limit", f"must be between 10 and 100, got {limit_raw!r}")
+        limit = 10
+    return XSource(
+        enabled=bool(data.get("enabled", False)),
+        queries=queries,
+        token_env=token_env,
+        limit=limit,
     )
 
 
@@ -362,14 +536,15 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
     line, _ = _loc(raw)
     data = _as_mapping(raw, where="briefing", errors=errors, line=line)
     mode_line, _ = _loc(data.get("mode"))
-    mode = str(data.get("mode", "reading-list")).strip()
-    if mode and mode not in ("digest", "reading-list"):
+    mode = str(data.get("mode", "signals")).strip()
+    if mode and mode not in ("signals", "digest", "reading-list"):
         errors.add(
             "briefing.mode",
-            f"must be 'digest' or 'reading-list', got {mode!r}",
+            f"must be 'signals', 'digest' or 'reading-list', got {mode!r}",
             line=mode_line,
         )
-        mode = "reading-list"
+        mode = "signals"
+    sources_provided = "sources" in data
     sources_line, _ = _loc(data.get("sources"))
     raw_sources = _as_list(data.get("sources"), where="briefing.sources", errors=errors, line=sources_line)
     sources: list[str] = []
@@ -385,10 +560,10 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
         s = source.strip()
         if not s:
             continue
-        if s not in ("github", "papers", "wechat"):
+        if s not in ("github", "papers", "wechat", "hackernews", "x"):
             errors.add(
                 "briefing.sources",
-                f"contains unsupported value: {s!r} (use github|papers|wechat)",
+                f"contains unsupported value: {s!r} (use github|papers|wechat|hackernews|x)",
                 line=sources_line,
             )
         elif s not in sources:
@@ -413,17 +588,102 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
         since_days = 1
     keyword_raw = data.get("keyword", "daily")
     keyword = str(keyword_raw or "daily").strip() or "daily"
+    freshness_raw = data.get("freshness_hours", 48)
+    try:
+        freshness_hours = int(freshness_raw)
+    except (TypeError, ValueError):
+        freshness_hours = -1
+    if freshness_hours <= 0 or freshness_hours > 72:
+        errors.add(
+            "briefing.freshness_hours",
+            f"must be between 1 and 72, got {freshness_raw!r}",
+        )
+        freshness_hours = 48
+    quota_fields = ("news_items", "wechat_min_items", "github_items", "paper_items")
+    has_legacy_max = "max_items" in data
+    has_quota_fields = any(field_name in data for field_name in quota_fields)
+
+    def _quota_int(field_name: str, default: int, minimum: int, maximum: int) -> int:
+        raw_value = data.get(field_name, default)
+        if type(raw_value) is not int:
+            errors.add(
+                f"briefing.{field_name}",
+                f"must be an integer between {minimum} and {maximum}, got {raw_value!r}",
+            )
+            return default
+        value = raw_value
+        if value < minimum or value > maximum:
+            errors.add(
+                f"briefing.{field_name}",
+                f"must be between {minimum} and {maximum}, got {raw_value!r}",
+            )
+            # Keep a parseable out-of-range value long enough to report
+            # cross-field problems (for example the total cap) in the same
+            # validation pass. The config is never returned while errors exist.
+            return value
+        return value
+
+    max_items = _quota_int("max_items", 5, 1, 10)
+    quota_mode = mode == "signals" and not has_legacy_max
+    if mode == "signals" and has_legacy_max and has_quota_fields:
+        errors.add(
+            "briefing.max_items",
+            "cannot be combined with news_items, wechat_min_items, github_items or paper_items",
+        )
+
+    if quota_mode:
+        news_items = _quota_int("news_items", 5, 1, 10)
+        wechat_min_items = _quota_int("wechat_min_items", 2, 0, 10)
+        github_items = _quota_int("github_items", 1, 0, 5)
+        paper_items = _quota_int("paper_items", 1, 0, 5)
+        if wechat_min_items > news_items:
+            errors.add(
+                "briefing.wechat_min_items",
+                f"must not exceed briefing.news_items ({news_items}), got {wechat_min_items}",
+            )
+        total_items = news_items + github_items + paper_items
+        if total_items > 20:
+            errors.add(
+                "briefing.total",
+                f"news_items + github_items + paper_items must not exceed 20, got {total_items}",
+            )
+    elif mode == "signals":
+        news_items = max_items
+        wechat_min_items = 0
+        github_items = 0
+        paper_items = 0
+    else:
+        # Explicit legacy briefing modes ignore signal quota composition.
+        news_items = 0
+        wechat_min_items = 0
+        github_items = 0
+        paper_items = 0
     return BriefingConfig(
         enabled=bool(data.get("enabled", True)),
-        mode=mode or "reading-list",
+        mode=mode or "signals",
         keyword=keyword,
         # Use a length check, not `sources or default`. An empty
         # list is falsy under `or`, which made a config with only
         # invalid source entries silently fall back to the default
         # 3-source list — turning a validation error into a
         # different-file result the operator never asked for.
-        sources=sources if sources else ["github", "papers", "wechat"],
+        sources=(
+            sources
+            if sources or sources_provided
+            else (
+                ["wechat", "hackernews", "x", "github", "papers"]
+                if mode == "signals"
+                else ["github", "papers", "wechat"]
+            )
+        ),
         since_days=since_days,
+        freshness_hours=freshness_hours,
+        max_items=max_items,
+        news_items=news_items,
+        wechat_min_items=wechat_min_items,
+        github_items=github_items,
+        paper_items=paper_items,
+        quota_mode=quota_mode,
     )
 
 
@@ -463,6 +723,64 @@ def _parse_limits(raw: Any, errors: _ErrorBag) -> LimitsConfig:
         skip_if_already_collected_hours=_non_negative_int("skip_if_already_collected_hours", 20),
         max_log_files=_non_negative_int("max_log_files", 30),
     )
+
+
+def _has_source_work(config: DiscoveryConfig, source_name: str) -> bool:
+    source = getattr(config.sources, source_name)
+    if not source.enabled:
+        return False
+    if source_name == "github":
+        return bool(source.repos or source.search)
+    if source_name == "papers":
+        return bool(source.categories)
+    if source_name == "wechat":
+        return bool(source.urls or source.accounts)
+    if source_name == "hackernews":
+        return bool(source.feeds)
+    if source_name == "x":
+        return bool(source.queries)
+    return False
+
+
+def _validate_signal_quota_sources(config: DiscoveryConfig, errors: _ErrorBag) -> None:
+    briefing = config.briefing
+    if not briefing.enabled or briefing.mode != "signals" or not briefing.quota_mode:
+        return
+
+    requirements = (
+        ("github", briefing.github_items, "briefing.github_items"),
+        ("papers", briefing.paper_items, "briefing.paper_items"),
+        ("wechat", briefing.wechat_min_items, "briefing.wechat_min_items"),
+    )
+    for source_name, minimum, field_name in requirements:
+        if minimum <= 0:
+            continue
+        if source_name not in briefing.sources:
+            errors.add(
+                field_name,
+                f"requires {source_name!r} in briefing.sources",
+            )
+            continue
+        source = getattr(config.sources, source_name)
+        if not source.enabled:
+            errors.add(field_name, f"requires sources.{source_name}.enabled: true")
+        elif not _has_source_work(config, source_name):
+            errors.add(
+                field_name,
+                f"requires at least one configured sources.{source_name} target",
+            )
+
+    if briefing.news_items > 0:
+        viable_news = [
+            source_name
+            for source_name in ("wechat", "hackernews", "x")
+            if source_name in briefing.sources and _has_source_work(config, source_name)
+        ]
+        if not viable_news:
+            errors.add(
+                "briefing.news_items",
+                "requires at least one enabled realtime source with configured work inside briefing.sources",
+            )
 
 
 def load_config(path: Path | str) -> DiscoveryConfig:
@@ -510,11 +828,14 @@ def load_config(path: Path | str) -> DiscoveryConfig:
             github=_parse_github(sources_mapping.get("github"), errors),
             papers=_parse_papers(sources_mapping.get("papers"), errors),
             wechat=_parse_wechat(sources_mapping.get("wechat"), errors),
+            hackernews=_parse_hackernews(sources_mapping.get("hackernews"), errors),
+            x=_parse_x(sources_mapping.get("x"), errors),
         ),
         briefing=_parse_briefing(raw.get("briefing"), errors),
         limits=_parse_limits(raw.get("limits"), errors),
     )
 
+    _validate_signal_quota_sources(config, errors)
     errors.raise_if_any()
     return config
 
@@ -544,15 +865,37 @@ sources:
     max_per_category: 10
 
   wechat:
-    enabled: false                   # OFF by default — WeChat fetch is slow and can be rate-limited
-    urls: []                         # paste mp.weixin.qq.com URLs here when enabled
+    enabled: true                    # required by the default 2-item WeChat minimum
+    urls: []                         # direct articles remain supported as signal inputs
+    accounts:                        # public-index watchlist; no WeChat login required
+      - name: 架构师
+        wechat_id: JiaGouX
+    index_limit: 10
+
+  hackernews:
+    enabled: true
+    feeds: [newstories, showstories]
+    keywords: [agent, llm, claude, openai]
+    limit: 20
+
+  x:
+    enabled: false                   # requires a developer bearer token
+    queries:
+      - "(agent OR llm) lang:en -is:retweet"
+    token_env: X_BEARER_TOKEN
+    limit: 10
 
 briefing:
   enabled: true
-  mode: reading-list                 # or 'digest'
-  keyword: daily                     # becomes output/briefing/{reading-lists,digests}/<keyword>-<date>.md
-  sources: [github, papers, wechat]
-  since_days: 1                      # only items published within the last N days
+  mode: signals                      # legacy 'digest' and 'reading-list' remain available
+  keyword: daily
+  sources: [wechat, hackernews, x, github, papers]
+  freshness_hours: 48                # verified publication time; maximum allowed is 72
+  news_items: 5
+  wechat_min_items: 2
+  github_items: 1
+  paper_items: 1
+  since_days: 1                      # legacy modes only
 
 limits:
   max_github_search_calls: 5

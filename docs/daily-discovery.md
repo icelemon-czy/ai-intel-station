@@ -8,13 +8,15 @@ deterministic CLI、读取 local briefing，并把重点直接返回 conversatio
 在 project-aware Agent 中直接说：
 
 - “今天有什么值得看？”
-- “现在跑 GitHub 和 papers，给我五条重点。”
+- “现在跑每日情报，给我 arXiv、GitHub 和 News 重点。”
 - “把每日搜索主题改成 agent memory。”
 - “每天早上九点自动跑。”
 - “昨天为什么失败？”
 
 Agent 会检查现有 status，避免重复执行今日成功 run；需要运行时创建或最小修改 ignored
-config，执行 dry-run validation，读取 briefing / log，并返回成功内容与 partial failure。
+config，执行 dry-run validation，读取 signal briefing / log，并默认返回 5 条 News（至少
+2 条去重后的 WeChat）+ 1 条 GitHub + 1 条 arXiv，以及 partial failure / quota shortfall。
+GitHub / Papers 保持 evidence role，只能进入各自 dedicated lane，不会挤占 News quota。
 只有明确要求 install schedule 时才修改本机 scheduler。
 
 ## Lightweight bootstrap
@@ -25,8 +27,9 @@ config，执行 dry-run validation，读取 briefing / log，并返回成功内�
 uv sync --frozen
 ```
 
-这条路径支持 GitHub、Papers、local query、briefing、discover、status 与 schedule control。
-WeChat browser stack 只有真正使用时才安装：
+这条路径支持 Hacker News、WeChat public-index watchlist、GitHub、Papers、local
+query、briefing、discover、status 与 schedule control。X 只需外部 bearer-token env；
+WeChat browser stack 只有直接抓全文时才安装：
 
 ```bash
 uv sync --extra wechat
@@ -57,11 +60,12 @@ uv run research schedule launchd
 
 ### `uv run research discover [--dry-run] [--source X] [-c path]`
 
-按 YAML 配置跑完整流水线：GitHub → arXiv → WeChat → briefing。
+按 YAML 配置跑完整流水线：realtime signal → evidence → freshness/dedupe/ranking
+→ coverage-aware briefing。
 
 - `-c / --config <path>`：YAML 路径（默认 `config/discovery.yaml`）。
 - `--dry-run`：列出每个 source 会跑什么，**不联网**。
-- `--source <name>`：仅跑某个 source（`github` / `papers` / `wechat`），可重复。
+- `--source <name>`：仅跑某个 source（`github|papers|wechat|hackernews|x`），可重复。
 - `-o / --output-root <path>`：覆盖 YAML 里的 `output_root`（仅本次）。
 
 退出码：`0` 全成功；`1` 有 source 部分失败；`2` 配置错误。
@@ -90,7 +94,7 @@ sources:
     enabled: true
     repos:                            # 直接指定 owner/repo 列表
       - anthropics/claude-code
-    search:                          # 关键词搜索（gh search repos，按 stars）
+    search:                          # 关键词搜索（gh search repos，按 updated）
       - query: "agent harness"
         limit: 10
 
@@ -100,15 +104,35 @@ sources:
     max_per_category: 10
 
   wechat:
-    enabled: false                   # OFF by default
-    urls: []                         # mp.weixin.qq.com 链接列表
+    enabled: true                    # default WeChat minimum 需要；public index 仍可能触发验证
+    urls: []                         # optional 直接全文链接
+    accounts:
+      - {name: 架构师, wechat_id: JiaGouX}
+    index_limit: 10
+
+  hackernews:
+    enabled: true
+    feeds: [newstories, showstories]
+    keywords: [agent, llm, claude, openai]
+    limit: 20
+
+  x:
+    enabled: false                   # 不在 config 写 token value
+    queries: ["(agent OR llm) lang:en -is:retweet"]
+    token_env: X_BEARER_TOKEN
+    limit: 10
 
 briefing:
   enabled: true
-  mode: reading-list                 # 或 digest
-  keyword: daily                     # 输出路径 = briefing/<mode>s/<keyword>-<date>.md
-  sources: [github, papers, wechat]
-  since_days: 1                      # 仅过去 N 天
+  mode: signals                      # explicit digest / reading-list 保留为 legacy mode
+  keyword: daily
+  sources: [wechat, hackernews, x, github, papers]
+  freshness_hours: 48                # inclusive lower boundary；上限 72
+  news_items: 5
+  wechat_min_items: 2
+  github_items: 1
+  paper_items: 1
+  since_days: 1                      # legacy mode only
 
 limits:
   max_github_search_calls: 5         # 防爆 GitHub quota
@@ -124,9 +148,10 @@ limits:
 ## 去重 & 限流
 
 - **GitHub repo**：`{owner}-{repo}` 目录在 `output/github/` 下存在，且 mtime < `skip_if_already_collected_hours`，跳过。
-- **GitHub search**：始终跑（搜索结果是时间敏感的）。
+- **GitHub search**：始终跑，按 recent update 取 evidence，不直接当 social trend。
 - **arXiv**：始终跑（按 `submittedDate desc` 拉新）。
-- **WeChat**：URL 已存在于 `output/wechat/*/research-item.json` 时跳过。
+- **WeChat**：直接 URL 可跳过近期已抓取项；account index CAPTCHA/空页/缺时间戳是 failure。
+- **Hacker News / X**：按 current feed/recent-search 更新 archive，保留同一 item 首次 `discovered_at`。
 - **搜索 / 分类上限**：见 `limits.*`，超出部分标记 `skipped` 但不报错。
 
 ## 调度
@@ -177,7 +202,8 @@ uv run research schedule cron
 ### `Camoufox` / WeChat 抓取失败
 
 先运行 `uv sync --extra wechat` 安装 optional browser stack。WeChat 有反爬，可能被风控；
-建议默认 `enabled: false`，只在需要时打开。
+default quota 需要 public-index watchlist 保持 enabled；如果不需要 WeChat，可把
+`wechat_min_items` 调成 0 后再关闭 source。直接全文抓取才需要 optional browser stack。
 
 ### `Failed to fetch arXiv: Tunnel connection failed`
 
@@ -196,7 +222,11 @@ uv run research schedule cron
 每次 `research discover` 会创建 `.state/discovery/<timestamp>.log`，包含：
 
 - 每个 source 的 section 标题 + 成功 / 跳过 / 失败计数
-- 最终 JSON 摘要（含 output_paths、briefing 路径）
+- 最终 JSON 摘要（含 output_paths、briefing 路径与 status）
+
+Signal status 是 `ready|partial|no_fresh_signals|coverage_incomplete`；生成崩溃是
+`failed`，dry-run 是 `dry_run`，显式 digest/reading-list 是 `legacy`。
+`coverage_incomplete` 不等于“今天没更新”。
 
 CLI 最后会打印一行 `📓 Log: <path>`。
 
@@ -224,5 +254,5 @@ uv run --extra wechat --extra dev python -m pytest -m wechat \
   tests/test_research_item.py tests/test_wechat_collect.py
 ```
 
-覆盖 YAML 校验、错误信息、dry-run、去重、单 source 过滤、partial category failure、
-briefing 写入与 optional runtime boundary。
+覆盖 YAML 校验、fixture collector、credential boundary、freshness/timezone、去重/佐证/排名、
+status/partial coverage、legacy compatibility 与 optional runtime boundary。

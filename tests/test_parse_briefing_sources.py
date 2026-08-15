@@ -26,11 +26,10 @@ class ParseBriefingSourcesTests(unittest.TestCase):
     def test_int_entry_produces_friendly_error(self) -> None:
         errors = _ErrorBag()
         b = _parse_briefing({"sources": [42]}, errors)
-        # The bad entry is dropped; the briefing falls back to the
-        # documented default (all 3 sources). Operators see the
-        # validation error in the load error message; the runtime
-        # briefing still runs.
-        self.assertEqual(b.sources, ["github", "papers", "wechat"])
+        # The bad entry is dropped, but an explicitly supplied list never
+        # expands into unrequested default sources. load_config rejects the
+        # accumulated error before the runtime can execute.
+        self.assertEqual(b.sources, [])
         self.assertEqual(len(errors.errors), 1)
         self.assertIn("non-string", errors.errors[0].message)
         self.assertIn("int", errors.errors[0].message)
@@ -41,14 +40,14 @@ class ParseBriefingSourcesTests(unittest.TestCase):
         # the membership check with a confusing message.
         errors = _ErrorBag()
         b = _parse_briefing({"sources": [True]}, errors)
-        self.assertEqual(b.sources, ["github", "papers", "wechat"])
+        self.assertEqual(b.sources, [])
         self.assertIn("non-string", errors.errors[0].message)
         self.assertIn("bool", errors.errors[0].message)
 
     def test_dict_entry_produces_friendly_error(self) -> None:
         errors = _ErrorBag()
         b = _parse_briefing({"sources": [{"name": "github"}]}, errors)
-        self.assertEqual(b.sources, ["github", "papers", "wechat"])
+        self.assertEqual(b.sources, [])
         self.assertIn("non-string", errors.errors[0].message)
         self.assertIn("dict", errors.errors[0].message)
 

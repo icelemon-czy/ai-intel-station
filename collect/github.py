@@ -119,7 +119,7 @@ def repo_to_markdown(data: dict, owner: str, repo: str) -> str:
     return "\n".join(lines)
 
 
-def save_repo(owner: str, repo: str, output_dir: Path) -> None:
+def save_repo(owner: str, repo: str, output_dir: Path) -> Path:
     print(f"📦 Fetching {owner}/{repo}...")
     data = fetch_repo(owner, repo)
     repo_dir = output_dir / f"{owner}-{repo}"
@@ -129,9 +129,10 @@ def save_repo(owner: str, repo: str, output_dir: Path) -> None:
     markdown_path.write_text(repo_to_markdown(data, owner, repo), encoding="utf-8")
     write_research_item(build_github_repo_item(owner, repo, data, markdown_path), repo_dir / "research-item.json")
     print(f"✅ Saved: {markdown_path}")
+    return markdown_path
 
 
-def save_search_results(query: str, output_dir: Path, repos: list[dict]) -> None:
+def save_search_results(query: str, output_dir: Path, repos: list[dict]) -> Path:
     result_dir = output_dir / query.replace(" ", "-")
     result_dir.mkdir(parents=True, exist_ok=True)
 
@@ -140,6 +141,8 @@ def save_search_results(query: str, output_dir: Path, repos: list[dict]) -> None
         lines.append(f"## [{repo['name']}]({repo['url']})")
         lines.append(f"- ⭐ {repo.get('stargazersCount', 0)} stars")
         lines.append(f"- {repo.get('description', 'No description')}")
+        lines.append(f"- 📅 Created: {repo.get('createdAt', '')}")
+        lines.append(f"- 🔄 Updated: {repo.get('updatedAt', '')}")
         lines.append("")
 
     markdown_path = result_dir / "search.md"
@@ -149,6 +152,7 @@ def save_search_results(query: str, output_dir: Path, repos: list[dict]) -> None
         result_dir / "research-items.jsonl",
     )
     print(f"✅ Saved search results: {markdown_path}")
+    return markdown_path
 
 
 def main() -> None:
@@ -169,11 +173,11 @@ def main() -> None:
                     "repos",
                     query,
                     "--sort",
-                    "stars",
+                    "updated",
                     "--limit",
                     "10",
                     "--json",
-                    "name,owner,description,url,stargazersCount",
+                    "name,owner,description,url,stargazersCount,createdAt,updatedAt",
                 ]
             )
         )

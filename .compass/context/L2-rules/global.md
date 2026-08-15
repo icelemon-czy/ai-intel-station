@@ -8,7 +8,7 @@
 - **运行形态**: 本地 CLI 工作区，不是常驻服务
 - **包管理器**: `uv`
 - **测试**: 根级 `pytest`
-- **外部依赖**: optional Camoufox（`wechat` extra）、`gh` CLI、arXiv public API
+- **外部依赖**: Hacker News / WeChat public index / optional X API、optional Camoufox（`wechat` extra）、`gh` CLI、arXiv public API
 
 ## 编码规范
 
@@ -46,11 +46,13 @@
 ### 依赖方向
 
 - ✅ `research/cli.py` → `collect/` / `library/` / `briefing/` → `output/`
+- ✅ `research/discovery/runner.py` → independently collect sources → local sidecars → `briefing/signals.py`
 - ✅ 抓取脚本 → 外部依赖 → Markdown 组装 → `output/<source>/`
 - ✅ `.compass/context` 文档 → 只读引用脚本、README、SKILL、output 样例
 - ❌ 历史来源目录承担真实业务入口；统一 operator surface 在 `research/cli.py`
 - ❌ 一个抓取脚本直接 import 另一个抓取脚本的内部函数
 - ❌ 通过手改 `output/` 来“修复”生成问题；根因必须回到生成器
+- ❌ 让 GitHub/Papers evidence 填充 News quota，或让无对应 source time 的 item 进入任一 daily lane
 
 ### 错误处理模式
 
@@ -74,6 +76,7 @@ for cat in categories:
 - GitHub: `gh` 失败视为硬失败
 - Papers: 单类别失败允许继续其他类别，但必须打印具体类别
 - WeChat live 测试: 缺少 `WECHAT_E2E_URLS` 时应跳过，不应强跑
+- Realtime discovery: 单 source failure 必须写 coverage 并继续其他 source；不能转换为空成功
 
 ### 数据验证规则
 
@@ -81,6 +84,11 @@ for cat in categories:
 - GitHub repo 模式只接受 `owner/repo` 形式；不合法输入直接跳过并提示
 - Papers 只接受 `AI_CATEGORIES` 白名单中的类别
 - 输出路径作为参数开放时，默认仍应指向当前来源的 `output/<source>/`
+- News/Paper item 必须有 freshness window 内可解析的 `published_at`；GitHub item 使用
+  `updated_at` fallback `published_at`；`discovered_at` 只表示首次观测
+- New signals quota config 使用 integer `news_items` / `wechat_min_items` / `github_items` /
+  `paper_items`，positive quota 必须在 network 前验证 source membership、enabled 与 target
+- X credential value 只从 configured environment variable 读取，不写入 YAML、log 或 artifact
 
 ## 反模式清单
 
@@ -112,11 +120,14 @@ uv sync --extra wechat
 uv run research collect wechat "<wechat-url>"
 uv run research query agent --source github
 uv run research briefing digest agent --source github --source papers
+uv run research discover --dry-run
+uv run research discover --source hackernews --source wechat
+uv run research discover --status
 uv run research backfill output
 ```
 
 ## 测试要求
 
 - WeChat 的纯转换逻辑优先补 `pytest`，不要只做手工点跑
-- GitHub / papers 目前仍缺系统化自动化测试；只要逻辑复杂度继续增长，就应该补根级 `tests/`
+- Realtime source、GitHub evidence metadata 与 Papers role 必须使用根级 fixture / contract test，不依赖 live network 才能验证
 - 新建脚本或重要分支时，至少提供一个可复现的命令级 smoke 验证

@@ -6,18 +6,19 @@
 [`.compass/context/L5-validation/traceability/`](../.compass/context/L5-validation/traceability/)；
 本页只保留 operator-facing overview，避免复制每条 Requirement。
 
-| Capability | Main evidence surface | 2026-07-29 status |
+| Capability | Main evidence surface | 2026-08-13 status |
 |:-----------|:----------------------|:------------------|
 | system | CLI、archive round-trip、partial failure tests | verified |
-| collection | source list、archive/sidecar、failure isolation tests | verified |
-| github | repo/search/issues/sidecar/CLI failure tests | verified |
-| papers | category/list/fetch/persist/mixed-result tests | verified |
-| wechat | URL/content/image/sidecar/failure tests | verified |
-| library | ResearchItem/backfill/query/resilient loading tests | verified |
-| briefing | local input/modes/output/source-gap/preview tests | verified |
-| research-operations | CLI help/dispatch/query/status + lightweight core + real optional install + escalated socket tests | verified |
+| collection | standalone + discovery-only source、archive/sidecar、credential/failure isolation tests | verified |
+| signal-discovery | HN/X/WeChat fixtures、role/freshness、dedupe/corroboration、deterministic ranking tests | verified |
+| github | repo/search/issues/sidecar/recency metadata/evidence role/CLI failure tests | verified |
+| papers | category/list/fetch/persist/mixed-result/evidence role tests | verified |
+| wechat | URL/content/image/sidecar + public-index attribution/coverage-failure tests | verified |
+| library | ResearchItem/backfill/query/resilient loading + first-observation/role tests | verified |
+| briefing | local modes + daily confidence/why-now/honest-empty/source-coverage tests | verified |
+| research-operations | CLI help/dispatch/query/status + discovery-only HN/X + lightweight core tests | verified |
 | web-workspace | service direct tests + Node render/controller tests | verified |
-| daily-discovery | config/runner/log/schedule/Web migration + Today/Preference Agent forward tests | verified |
+| daily-discovery | config/runner/log/schedule + Agent signal contract + backend/UI outcome tests | verified |
 
 ## Commands
 

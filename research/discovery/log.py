@@ -4,6 +4,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
+def _stable_log_paths(log_dir: Path) -> list[Path]:
+    """List logs newest-first while tolerating concurrent rotation."""
+    candidates: list[tuple[float, Path]] = []
+    for path in Path(log_dir).glob("*.log"):
+        try:
+            candidates.append((path.stat().st_mtime, path))
+        except FileNotFoundError:
+            # Another discovery process may rotate the file between glob()
+            # and stat(). A vanished log is simply no longer a candidate.
+            continue
+    candidates.sort(key=lambda entry: entry[0], reverse=True)
+    return [path for _, path in candidates]
+
+
 class DiscoveryLogger:
     """Dual stdout + file logger that survives crashes mid-run.
 
@@ -29,11 +43,7 @@ class DiscoveryLogger:
         """Delete oldest ``*.log`` files so the directory has at most
         ``max_log_files - 1`` entries (the current run will become the Nth).
         """
-        existing = sorted(
-            self.log_dir.glob("*.log"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
+        existing = _stable_log_paths(self.log_dir)
         # Keep the newest max_log_files-1; the new run will become the Nth.
         keep = max(0, self.max_log_files - 1)
         for stale in existing[keep:]:
@@ -102,8 +112,7 @@ def recent_log_paths(log_dir: Path, limit: int = 5) -> list[Path]:
     log_dir = Path(log_dir)
     if not log_dir.exists():
         return []
-    candidates = sorted(log_dir.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
-    return candidates[: max(0, limit)]
+    return _stable_log_paths(log_dir)[: max(0, limit)]
 
 
 def latest_log_path(log_dir: Path) -> Path | None:
@@ -112,7 +121,7 @@ def latest_log_path(log_dir: Path) -> Path | None:
     log_dir = Path(log_dir)
     if not log_dir.exists():
         return None
-    candidates = sorted(log_dir.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
+    candidates = _stable_log_paths(log_dir)
     return candidates[0] if candidates else None
 
 
@@ -125,7 +134,15 @@ def read_log_summary(path: Path) -> dict:
     """
     path = Path(path)
     if not path.is_file():
-        return {"path": path, "exists": False, "summary": None, "briefing": None, "started_at": None, "finished_at": None}
+        return {
+            "path": path,
+            "exists": False,
+            "summary": None,
+            "briefing": None,
+            "briefing_status": None,
+            "started_at": None,
+            "finished_at": None,
+        }
 
     text = path.read_text(encoding="utf-8", errors="replace")
     summary: dict = {
@@ -133,6 +150,7 @@ def read_log_summary(path: Path) -> dict:
         "exists": True,
         "summary": None,
         "briefing": None,
+        "briefing_status": None,
         "started_at": None,
         "finished_at": None,
     }
@@ -147,5 +165,7 @@ def read_log_summary(path: Path) -> dict:
             summary["started_at"] = line.split(":", 1)[1].strip().rstrip(",").strip('"')
         elif line.startswith('"finished_at":'):
             summary["finished_at"] = line.split(":", 1)[1].strip().rstrip(",").strip('"')
+        elif line.startswith('"status":'):
+            summary["briefing_status"] = line.split(":", 1)[1].strip().rstrip(",").strip('"')
 
     return summary

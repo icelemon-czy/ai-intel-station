@@ -10,15 +10,17 @@ AI Intel Station（AI 情报站）— 本地优先的 AI 研究工作区。负�
 
 ```text
 ai-intel-station/
-├── research/        # 统一 operator surface（collect / query / briefing / backfill）
-├── collect/         # 按来源收集原始资料
+├── research/        # 统一 operator surface（collect / query / briefing / discover / status / schedule）
+├── collect/         # standalone archive + realtime discovery adapters
 ├── library/         # 统一 ResearchItem、sidecar、查询
-├── briefing/        # digest / reading list 生成
+├── briefing/        # daily signals + legacy digest / reading list
 ├── publish/         # Obsidian 友好的输出路径与写文件
 ├── output/
 │   ├── github/      # GitHub 原始归档
+│   ├── hackernews/  # Hacker News signal 归档
 │   ├── papers/      # arXiv 原始归档
 │   ├── wechat/      # WeChat 原始归档
+│   ├── x/           # optional X signal 归档
 │   └── briefing/    # 派生阅读产物
 ├── tests/           # 根级测试，围绕业务层和 operator surface
 └── .agents/skills/ # Codex 项目级 Skill（Compass + 业务 Skill）
@@ -82,11 +84,24 @@ uv run research briefing digest agent --source github --source papers
 uv run research backfill output
 ```
 
+### Daily signal discovery
+
+```bash
+uv run research discover --dry-run
+uv run research discover --source hackernews --source wechat
+uv run research discover --status
+```
+
+Daily Top item 必须由带可信 publication time 的 realtime `signal` 发起；GitHub repository/search
+与 Papers 默认只作 `evidence`。零 item 必须通过 briefing status 区分完整覆盖下的
+`no_fresh_signals` 与 source failure 导致的 `coverage_incomplete`。
+
 ## Tech Stack
 
 - Python 3.10+ with `uv` for dependency management
 - Optional `wechat` extra: Camoufox + BeautifulSoup + markdownify + httpx
-- arXiv public API for paper fetching
+- Public Hacker News API、WeChat public index、optional X recent-search API
+- `gh` CLI and arXiv public API for supporting evidence
 
 <!-- compass:start -->
 ## Language Style
