@@ -110,11 +110,12 @@ class BriefingConfig:
     since_days: int = 1
     freshness_hours: int = 48
     # ``max_items`` is retained for legacy signals YAML. New/default signals
-    # configs use the four explicit lane fields below.
+    # configs use the explicit lane/composition fields below.
     max_items: int = 5
     news_items: int = 5
     wechat_min_items: int = 0
     wechat_max_items: int = 2
+    github_news_max_items: int | None = 1
     github_items: int = 1
     paper_items: int = 1
     quota_mode: bool = True
@@ -604,6 +605,7 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
         "news_items",
         "wechat_min_items",
         "wechat_max_items",
+        "github_news_max_items",
         "github_items",
         "paper_items",
     )
@@ -635,7 +637,7 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
     if mode == "signals" and has_legacy_max and has_quota_fields:
         errors.add(
             "briefing.max_items",
-            "cannot be combined with news_items, wechat_min_items, wechat_max_items, github_items or paper_items",
+            "cannot be combined with news_items, wechat_min_items, wechat_max_items, github_news_max_items, github_items or paper_items",
         )
 
     if quota_mode:
@@ -649,6 +651,7 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
             wechat_max_items = news_items
         else:
             wechat_max_items = 2
+        github_news_max_items = _quota_int("github_news_max_items", 1, 0, 10)
         github_items = _quota_int("github_items", 1, 0, 5)
         paper_items = _quota_int("paper_items", 1, 0, 5)
         if wechat_max_items > news_items:
@@ -661,6 +664,11 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
                 "briefing.wechat_min_items",
                 f"must not exceed briefing.wechat_max_items ({wechat_max_items}), got {wechat_min_items}",
             )
+        if github_news_max_items > news_items:
+            errors.add(
+                "briefing.github_news_max_items",
+                f"must not exceed briefing.news_items ({news_items}), got {github_news_max_items}",
+            )
         total_items = news_items + github_items + paper_items
         if total_items > 20:
             errors.add(
@@ -671,6 +679,7 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
         news_items = max_items
         wechat_min_items = 0
         wechat_max_items = news_items
+        github_news_max_items = None
         github_items = 0
         paper_items = 0
     else:
@@ -678,6 +687,7 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
         news_items = 0
         wechat_min_items = 0
         wechat_max_items = 0
+        github_news_max_items = None
         github_items = 0
         paper_items = 0
     return BriefingConfig(
@@ -704,6 +714,7 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
         news_items=news_items,
         wechat_min_items=wechat_min_items,
         wechat_max_items=wechat_max_items,
+        github_news_max_items=github_news_max_items,
         github_items=github_items,
         paper_items=paper_items,
         quota_mode=quota_mode,
@@ -917,6 +928,7 @@ briefing:
   news_items: 5
   wechat_min_items: 0                # optional: missing WeChat is not a quota shortfall
   wechat_max_items: 2                # at most 2 deduped WeChat entries inside News
+  github_news_max_items: 1           # at most 1 News entry whose destination is github.com
   github_items: 1
   paper_items: 1
   since_days: 1                      # legacy modes only

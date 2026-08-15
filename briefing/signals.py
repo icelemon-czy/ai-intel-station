@@ -60,6 +60,8 @@ class DailyBriefingSelection:
     expected_news: int = 5
     expected_wechat: int = 0
     max_wechat: int = 2
+    max_github_news: int = 1
+    excluded_github_news: int = 0
     expected_github: int = 1
     expected_papers: int = 1
     quota_mode: bool = True
@@ -75,6 +77,10 @@ class DailyBriefingSelection:
             for entry in self.news
             if any(signal.source == "wechat" for signal in entry.signals)
         )
+
+    @property
+    def actual_github_news(self) -> int:
+        return sum(1 for entry in self.news if _is_github_destination(entry.canonical_url))
 
     @property
     def missing(self) -> dict[str, int]:
@@ -121,6 +127,18 @@ def normalize_signal_url(value: str | None) -> str:
             "",
         )
     )
+
+
+def _is_github_destination(value: str | None) -> bool:
+    """Classify GitHub-owned News destinations without matching lookalike hosts."""
+    normalized = normalize_signal_url(value)
+    if not normalized:
+        return False
+    try:
+        hostname = (urlsplit(normalized).hostname or "").lower().rstrip(".")
+    except ValueError:
+        return False
+    return hostname == "github.com" or hostname.endswith(".github.com")
 
 
 def normalize_signal_title(value: str) -> str:
@@ -470,6 +488,7 @@ def select_daily_briefing(
     news_items: int = 5,
     wechat_min_items: int = 0,
     wechat_max_items: int | None = None,
+    github_news_max_items: int | None = 1,
     github_items: int = 1,
     paper_items: int = 1,
     quota_mode: bool = True,
@@ -486,8 +505,13 @@ def select_daily_briefing(
     if min(wechat_min_items, github_items, paper_items) < 0:
         raise ValueError("lane quotas must be non-negative")
     resolved_wechat_max = news_items if wechat_max_items is None else wechat_max_items
+    resolved_github_news_max = (
+        news_items if github_news_max_items is None else github_news_max_items
+    )
     if resolved_wechat_max < 0 or resolved_wechat_max > news_items:
         raise ValueError("wechat_max_items must be between zero and news_items")
+    if resolved_github_news_max < 0 or resolved_github_news_max > news_items:
+        raise ValueError("github_news_max_items must be between zero and news_items")
     if wechat_min_items > resolved_wechat_max:
         raise ValueError("wechat_min_items must not exceed wechat_max_items")
 
@@ -565,24 +589,50 @@ def select_daily_briefing(
     available_news = [
         entry for entry in news_pool if not (_entry_keys(entry) & dedicated_keys)
     ]
-    reserved_wechat = [
-        entry
-        for entry in available_news
-        if any(signal.source == "wechat" for signal in entry.signals)
-    ][:wechat_min_items]
-    chosen_ids = {id(entry) for entry in reserved_wechat}
-    chosen_wechat = len(reserved_wechat)
+    chosen_ids: set[int] = set()
+    rejected_ids: set[int] = set()
+    chosen_wechat = 0
+    chosen_github_news = 0
+    excluded_github_news = 0
+
+    def choose_if_eligible(entry: SelectedSignal) -> bool:
+        nonlocal chosen_wechat, chosen_github_news, excluded_github_news
+        entry_id = id(entry)
+        if entry_id in chosen_ids:
+            return True
+        if entry_id in rejected_ids:
+            return False
+        entry_has_wechat = any(signal.source == "wechat" for signal in entry.signals)
+        entry_has_github_destination = _is_github_destination(entry.canonical_url)
+        blocked_by_wechat = entry_has_wechat and chosen_wechat >= resolved_wechat_max
+        blocked_by_github = (
+            entry_has_github_destination
+            and chosen_github_news >= resolved_github_news_max
+        )
+        if blocked_by_wechat or blocked_by_github:
+            rejected_ids.add(entry_id)
+            if blocked_by_github and not blocked_by_wechat:
+                excluded_github_news += 1
+            return False
+        chosen_ids.add(entry_id)
+        if entry_has_wechat:
+            chosen_wechat += 1
+        if entry_has_github_destination:
+            chosen_github_news += 1
+        return True
+
+    # Give the configured WeChat minimum first access to the lane, while still
+    # enforcing the GitHub destination cap on mixed WeChat/GitHub entries.
+    for entry in available_news:
+        if chosen_wechat >= wechat_min_items:
+            break
+        if any(signal.source == "wechat" for signal in entry.signals):
+            choose_if_eligible(entry)
+
     for entry in available_news:
         if len(chosen_ids) >= news_items:
             break
-        if id(entry) in chosen_ids:
-            continue
-        entry_has_wechat = any(signal.source == "wechat" for signal in entry.signals)
-        if entry_has_wechat and chosen_wechat >= resolved_wechat_max:
-            continue
-        chosen_ids.add(id(entry))
-        if entry_has_wechat:
-            chosen_wechat += 1
+        choose_if_eligible(entry)
     news = [entry for entry in available_news if id(entry) in chosen_ids][:news_items]
     for entry in news:
         entry.lane = "news"
@@ -595,6 +645,8 @@ def select_daily_briefing(
         expected_news=news_items,
         expected_wechat=wechat_min_items,
         max_wechat=resolved_wechat_max,
+        max_github_news=resolved_github_news_max,
+        excluded_github_news=excluded_github_news,
         expected_github=github_items,
         expected_papers=paper_items,
         quota_mode=quota_mode,
@@ -677,7 +729,12 @@ def _entry_markdown(entry: SelectedSignal, index: int) -> list[str]:
     ]
     if entry.signals:
         for signal in entry.signals:
-            link = f"[{signal.source}]({signal.canonical_url})" if signal.canonical_url else signal.source
+            attribution_url = signal.canonical_url
+            if signal.source == "hackernews":
+                discussion_url = signal.metadata.get("discussion_url")
+                if isinstance(discussion_url, str) and discussion_url.strip():
+                    attribution_url = discussion_url.strip()
+            link = f"[{signal.source}]({attribution_url})" if attribution_url else signal.source
             lines.append(f"  - {link} — {_single_line(signal.title)}")
     else:
         lines.append("  - none")
@@ -756,6 +813,15 @@ def render_daily_signal_markdown(
             [
                 "",
                 f"WeChat optional maximum: {selection.actual_wechat}/{selection.max_wechat}",
+                (
+                    "GitHub destinations in News: "
+                    f"{selection.actual_github_news}/{selection.max_github_news} "
+                    f"(excluded by cap: {selection.excluded_github_news})"
+                ),
+                (
+                    f"{selection.excluded_github_news} fresh News candidate(s) excluded "
+                    "by GitHub destination cap."
+                ),
                 "",
             ]
         )

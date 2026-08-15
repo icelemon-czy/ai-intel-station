@@ -101,6 +101,7 @@ limits: {}
     assert config.briefing.news_items == 5
     assert config.briefing.wechat_min_items == 0
     assert config.briefing.wechat_max_items == 2
+    assert config.briefing.github_news_max_items == 1
     assert config.briefing.github_items == 1
     assert config.briefing.paper_items == 1
 
@@ -132,6 +133,7 @@ limits: {}
     assert legacy.news_items == 5
     assert legacy.wechat_min_items == 0
     assert legacy.wechat_max_items == 5
+    assert legacy.github_news_max_items is None
     assert legacy.github_items == 0
     assert legacy.paper_items == 0
 
@@ -155,12 +157,24 @@ limits: {}
     with pytest.raises(DiscoveryConfigError, match="max_items"):
         load_config(max_conflict_path)
 
+    github_news_conflict = tmp_path / "github-news-conflict.yaml"
+    github_news_conflict.write_text(
+        legacy_path.read_text(encoding="utf-8").replace(
+            "  max_items: 5", "  max_items: 5\n  github_news_max_items: 1"
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(DiscoveryConfigError, match="max_items"):
+        load_config(github_news_conflict)
+
 
 @pytest.mark.parametrize(
     ("briefing", "needle"),
     [
         ("news_items: 0", "news_items"),
         ("news_items: 2\n  wechat_max_items: 3", "wechat_max_items"),
+        ("news_items: 2\n  github_news_max_items: 3", "github_news_max_items"),
+        ("news_items: 5\n  github_news_max_items: true", "github_news_max_items"),
         (
             "news_items: 5\n  wechat_min_items: 3\n  wechat_max_items: 2",
             "wechat_min_items",
@@ -195,6 +209,51 @@ limits: {{}}
 
     with pytest.raises(DiscoveryConfigError, match=needle):
         load_config(config_path)
+
+
+def test_github_news_maximum_does_not_require_github_source_and_generic_mode_ignores_it(
+    tmp_path: Path,
+) -> None:
+    from research.discovery import load_config
+
+    quota_path = tmp_path / "quota.yaml"
+    quota_path.write_text(
+        """
+sources:
+  github: {enabled: false}
+  papers: {enabled: false}
+  wechat: {enabled: false}
+  hackernews: {enabled: true, feeds: [newstories]}
+  x: {enabled: false}
+briefing:
+  mode: signals
+  sources: [hackernews]
+  news_items: 5
+  github_news_max_items: 1
+  github_items: 0
+  paper_items: 0
+limits: {}
+""",
+        encoding="utf-8",
+    )
+    quota = load_config(quota_path).briefing
+    assert quota.quota_mode is True
+    assert quota.github_news_max_items == 1
+
+    generic_path = tmp_path / "generic.yaml"
+    generic_path.write_text(
+        """
+sources: {}
+briefing:
+  mode: reading-list
+  github_news_max_items: not-an-integer
+limits: {}
+""",
+        encoding="utf-8",
+    )
+    generic = load_config(generic_path).briefing
+    assert generic.mode == "reading-list"
+    assert generic.github_news_max_items is None
 
 
 def test_signal_config_preserves_explicit_legacy_wechat_minimum_without_maximum(
@@ -903,6 +962,332 @@ def test_optional_wechat_cap_can_leave_news_quota_short() -> None:
     assert "WeChat optional maximum: 2/2" in rendered.markdown
 
 
+def test_github_news_cap_uses_replacements_and_reports_exact_exclusions() -> None:
+    from briefing.signals import render_daily_signal_markdown, select_daily_briefing
+    from research.discovery.runner import SourceReport
+
+    now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
+    candidates = [
+        _signal(
+            "GitHub high",
+            url="https://github.com/example/high",
+            published_at="2026-08-13T00:50:00Z",
+            engagement=100,
+        ),
+        _signal(
+            "GitHub skipped one",
+            url="https://github.com/example/skipped-one",
+            published_at="2026-08-13T00:49:00Z",
+            engagement=90,
+        ),
+        _signal(
+            "GitHub skipped two",
+            url="https://github.com/example/skipped-two",
+            published_at="2026-08-13T00:48:00Z",
+            engagement=80,
+        ),
+        *[
+            _signal(
+                f"Article {index}",
+                url=f"https://news.example.com/article-{index}",
+                published_at=f"2026-08-13T00:{40 - index:02d}:00Z",
+                engagement=70 - index,
+            )
+            for index in range(4)
+        ],
+        _signal(
+            "GitHub below cutoff",
+            url="https://github.com/example/below-cutoff",
+            published_at="2026-08-13T00:10:00Z",
+            engagement=1,
+        ),
+    ]
+
+    selection = select_daily_briefing(
+        candidates,
+        now=now,
+        news_items=5,
+        wechat_min_items=0,
+        wechat_max_items=0,
+        github_news_max_items=1,
+        github_items=0,
+        paper_items=0,
+    )
+    rendered = render_daily_signal_markdown(
+        "daily",
+        selection,
+        {"hackernews": SourceReport(name="hackernews", enabled=True, succeeded=1)},
+        now=now,
+        coverage_sources=["hackernews"],
+        viable_news_sources=["hackernews"],
+    )
+
+    assert [entry.title for entry in selection.news] == [
+        "GitHub high",
+        "Article 0",
+        "Article 1",
+        "Article 2",
+        "Article 3",
+    ]
+    assert selection.actual_github_news == 1
+    assert selection.excluded_github_news == 2
+    assert selection.missing == {}
+    assert rendered.status == "ready"
+    assert "GitHub destinations in News: 1/1 (excluded by cap: 2)" in rendered.markdown
+
+
+def test_github_news_cap_shortfall_does_not_bypass_maximum() -> None:
+    from briefing.signals import render_daily_signal_markdown, select_daily_briefing
+    from research.discovery.runner import SourceReport
+
+    now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
+    selection = select_daily_briefing(
+        [
+            _signal(
+                f"Repo {index}",
+                url=f"https://github.com/example/repo-{index}",
+                published_at=f"2026-08-13T00:{50 - index:02d}:00Z",
+                engagement=10 - index,
+            )
+            for index in range(3)
+        ],
+        now=now,
+        news_items=5,
+        wechat_min_items=0,
+        wechat_max_items=0,
+        github_news_max_items=1,
+        github_items=0,
+        paper_items=0,
+    )
+    rendered = render_daily_signal_markdown(
+        "daily",
+        selection,
+        {"hackernews": SourceReport(name="hackernews", enabled=True, succeeded=1)},
+        now=now,
+        coverage_sources=["hackernews"],
+        viable_news_sources=["hackernews"],
+    )
+
+    assert len(selection.news) == 1
+    assert selection.actual_github_news == 1
+    assert selection.excluded_github_news == 2
+    assert selection.missing == {"news": 4}
+    assert rendered.status == "partial"
+
+
+def test_cross_lane_duplicate_does_not_consume_github_news_slot() -> None:
+    from briefing.signals import select_daily_briefing
+
+    now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
+    shared_url = "https://github.com/example/dedicated"
+    selection = select_daily_briefing(
+        [
+            _evidence(
+                "Dedicated repo",
+                source="github",
+                url=shared_url,
+                published_at="2026-08-12T23:00:00Z",
+                updated_at="2026-08-13T00:55:00Z",
+            ),
+            _signal(
+                "Dedicated repo",
+                url=shared_url,
+                published_at="2026-08-13T00:50:00Z",
+                engagement=10,
+            ),
+            _signal(
+                "Distinct repo signal",
+                url="https://github.com/example/distinct",
+                published_at="2026-08-13T00:40:00Z",
+                engagement=5,
+            ),
+        ],
+        now=now,
+        news_items=1,
+        github_news_max_items=1,
+        github_items=1,
+        paper_items=0,
+    )
+
+    assert [entry.title for entry in selection.github] == ["Dedicated repo"]
+    assert [entry.title for entry in selection.news] == ["Distinct repo signal"]
+    assert selection.actual_github_news == 1
+    assert selection.excluded_github_news == 0
+    assert [item.source for item in selection.github[0].signals] == ["hackernews"]
+
+
+def test_github_destination_host_boundary_is_exact_after_normalization() -> None:
+    from briefing.signals import select_daily_briefing
+
+    now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
+    urls = {
+        "github exact": "https://GitHub.Com/example/repo",
+        "github subdomain": "https://gist.github.com/example/abc",
+        "github io": "https://github.io/project",
+        "user github io": "https://user.github.io/project",
+        "lookalike": "https://notgithub.com/project",
+        "evil suffix": "https://github.com.evil.example/project",
+    }
+    selection = select_daily_briefing(
+        [
+            _signal(
+                title,
+                url=url,
+                published_at=f"2026-08-13T00:{50 - index:02d}:00Z",
+                engagement=20 - index,
+            )
+            for index, (title, url) in enumerate(urls.items())
+        ],
+        now=now,
+        news_items=6,
+        wechat_max_items=0,
+        github_news_max_items=0,
+        github_items=0,
+        paper_items=0,
+    )
+
+    assert {entry.title for entry in selection.news} == {
+        "github io",
+        "user github io",
+        "lookalike",
+        "evil suffix",
+    }
+    assert selection.actual_github_news == 0
+    assert selection.excluded_github_news == 2
+
+
+def test_mixed_wechat_github_entries_obey_both_caps_with_replacement() -> None:
+    from briefing.signals import select_daily_briefing
+
+    now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
+    mixed = [
+        _signal(
+            f"Mixed {index}",
+            source="wechat",
+            url=f"https://github.com/example/mixed-{index}",
+            published_at=f"2026-08-13T00:{50 - index:02d}:00Z",
+            watchlist=True,
+        )
+        for index in range(2)
+    ]
+    replacement = _signal(
+        "HN replacement",
+        url="https://news.example.com/replacement",
+        published_at="2026-08-13T00:30:00Z",
+    )
+
+    with_replacement = select_daily_briefing(
+        [*mixed, replacement],
+        now=now,
+        news_items=2,
+        wechat_min_items=2,
+        wechat_max_items=2,
+        github_news_max_items=1,
+        github_items=0,
+        paper_items=0,
+    )
+    without_replacement = select_daily_briefing(
+        mixed,
+        now=now,
+        news_items=2,
+        wechat_min_items=2,
+        wechat_max_items=2,
+        github_news_max_items=1,
+        github_items=0,
+        paper_items=0,
+    )
+
+    assert len(with_replacement.news) == 2
+    assert with_replacement.actual_wechat == 1
+    assert with_replacement.actual_github_news == 1
+    assert with_replacement.missing == {"wechat": 1}
+    assert with_replacement.excluded_github_news == 1
+    assert len(without_replacement.news) == 1
+    assert without_replacement.missing == {"news": 1, "wechat": 1}
+    assert without_replacement.excluded_github_news == 1
+
+
+def test_zero_github_news_cap_has_honest_empty_and_nonempty_statuses() -> None:
+    from briefing.signals import render_daily_signal_markdown, select_daily_briefing
+    from research.discovery.runner import SourceReport
+
+    now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
+    repo_signal = _signal(
+        "Repo signal",
+        url="https://github.com/example/repo",
+        published_at="2026-08-13T00:50:00Z",
+    )
+    reports = {"hackernews": SourceReport(name="hackernews", enabled=True, succeeded=1)}
+    empty_selection = select_daily_briefing(
+        [repo_signal],
+        now=now,
+        news_items=1,
+        github_news_max_items=0,
+        github_items=0,
+        paper_items=0,
+    )
+    empty_rendered = render_daily_signal_markdown(
+        "daily-empty",
+        empty_selection,
+        reports,
+        now=now,
+        coverage_sources=["hackernews"],
+        viable_news_sources=["hackernews"],
+    )
+    nonempty_selection = select_daily_briefing(
+        [
+            repo_signal,
+            _evidence(
+                "Paper",
+                source="papers",
+                published_at="2026-08-13T00:40:00Z",
+            ),
+        ],
+        now=now,
+        news_items=1,
+        github_news_max_items=0,
+        github_items=0,
+        paper_items=1,
+    )
+    nonempty_rendered = render_daily_signal_markdown(
+        "daily-nonempty",
+        nonempty_selection,
+        reports,
+        now=now,
+        coverage_sources=["hackernews"],
+        viable_news_sources=["hackernews"],
+    )
+
+    assert empty_selection.entries == []
+    assert empty_selection.excluded_github_news == 1
+    assert empty_rendered.status == "no_fresh_signals"
+    assert "1 fresh News candidate(s) excluded by GitHub destination cap" in empty_rendered.markdown
+    assert len(nonempty_selection.entries) == 1
+    assert nonempty_selection.missing == {"news": 1}
+    assert nonempty_rendered.status == "partial"
+    assert "1 fresh News candidate(s) excluded by GitHub destination cap" in nonempty_rendered.markdown
+
+
+def test_legacy_signal_selector_keeps_multiple_github_destinations() -> None:
+    from briefing.signals import select_daily_signals
+
+    now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
+    selected = select_daily_signals(
+        [
+            _signal(
+                f"Legacy repo {index}",
+                url=f"https://github.com/example/legacy-{index}",
+                published_at=f"2026-08-13T00:{50 - index:02d}:00Z",
+            )
+            for index in range(2)
+        ],
+        now=now,
+        max_items=2,
+    )
+
+    assert len(selected) == 2
+
+
 def test_wechat_minimum_counts_deduped_news_entries_and_reports_shortfall() -> None:
     from briefing.signals import select_daily_briefing
 
@@ -1329,6 +1714,79 @@ def test_dedupe_normalization_ranking_and_confidence_are_deterministic() -> None
     assert "engagement_percentile=0.50" in selected[0].why_now
     assert selected[1].confidence == "high"
     assert selected[1].signal_source_count == 2
+
+
+def test_renderer_separates_hn_target_from_discussion_and_preserves_other_sources() -> None:
+    from briefing.signals import render_daily_signal_markdown, select_daily_briefing
+    from research.discovery.runner import SourceReport
+
+    now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
+    hn = _signal(
+        "GitHub launch",
+        url="https://github.com/example/launch",
+        published_at="2026-08-13T00:50:00Z",
+    )
+    hn.metadata["discussion_url"] = "https://news.ycombinator.com/item?id=123"
+    x_signal = _signal(
+        "X signal",
+        source="x",
+        url="https://x.com/example/status/1",
+        published_at="2026-08-13T00:40:00Z",
+    )
+    wechat = _signal(
+        "WeChat signal",
+        source="wechat",
+        url="https://mp.weixin.qq.com/s/example",
+        published_at="2026-08-13T00:30:00Z",
+    )
+    selection = select_daily_briefing(
+        [hn, x_signal, wechat],
+        now=now,
+        news_items=3,
+        wechat_max_items=2,
+        github_news_max_items=1,
+        github_items=0,
+        paper_items=0,
+    )
+    reports = {
+        source: SourceReport(name=source, enabled=True, succeeded=1)
+        for source in ("hackernews", "x", "wechat")
+    }
+    rendered = render_daily_signal_markdown(
+        "daily",
+        selection,
+        reports,
+        now=now,
+        coverage_sources=list(reports),
+        viable_news_sources=list(reports),
+    )
+
+    assert "[GitHub launch](https://github.com/example/launch)" in rendered.markdown
+    assert "[hackernews](https://news.ycombinator.com/item?id=123)" in rendered.markdown
+    assert "[x](https://x.com/example/status/1)" in rendered.markdown
+    assert "[wechat](https://mp.weixin.qq.com/s/example)" in rendered.markdown
+
+    historical = _signal(
+        "Historical HN",
+        url="https://github.com/example/historical",
+        published_at="2026-08-13T00:20:00Z",
+    )
+    historical_rendered = render_daily_signal_markdown(
+        "historical",
+        select_daily_briefing(
+            [historical],
+            now=now,
+            news_items=1,
+            github_news_max_items=1,
+            github_items=0,
+            paper_items=0,
+        ),
+        {"hackernews": reports["hackernews"]},
+        now=now,
+        coverage_sources=["hackernews"],
+        viable_news_sources=["hackernews"],
+    )
+    assert "[hackernews](https://github.com/example/historical)" in historical_rendered.markdown
 
 
 def test_render_daily_signal_briefing_ready_partial_and_empty_statuses() -> None:
@@ -1788,6 +2246,117 @@ def test_generate_signal_briefing_filters_to_configured_sources(
     markdown = artifact.path.read_text(encoding="utf-8")
     assert "Allowed HN" in markdown
     assert "Excluded WeChat" not in markdown
+
+
+def test_quota_dry_run_reports_github_news_maximum_without_fake_actuals(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from research.discovery import BriefingConfig, DiscoveryConfig, DiscoveryLogger
+    from research.discovery.runner import generate_briefing
+
+    config = DiscoveryConfig(
+        output_root=tmp_path,
+        log_dir=tmp_path / "logs",
+        briefing=BriefingConfig(
+            mode="signals",
+            news_items=5,
+            wechat_min_items=0,
+            wechat_max_items=2,
+            github_news_max_items=1,
+            github_items=1,
+            paper_items=1,
+            quota_mode=True,
+        ),
+    )
+
+    with DiscoveryLogger(config.log_dir) as logger:
+        artifact = generate_briefing(config, report_log=logger, dry_run=True)
+
+    output = capsys.readouterr().out
+    assert artifact is not None and artifact.status == "dry_run"
+    assert "GitHub destinations maximum=1" in output
+    assert "actual/excluded=unavailable" in output
+    assert "GitHub destinations actual=0" not in output
+
+
+def test_nondefault_github_news_maximum_flows_from_yaml_through_runner(
+    tmp_path: Path,
+) -> None:
+    from research.discovery import SourceReport, load_config
+    from research.discovery.runner import generate_briefing
+
+    now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
+    for index, item in enumerate(
+        [
+            _signal(
+                "Repo launch one",
+                url="https://github.com/example/one",
+                published_at="2026-08-13T00:50:00Z",
+                engagement=30,
+            ),
+            _signal(
+                "Repo launch two",
+                url="https://gist.github.com/example/two",
+                published_at="2026-08-13T00:40:00Z",
+                engagement=20,
+            ),
+            _signal(
+                "External analysis",
+                url="https://news.example.com/analysis",
+                published_at="2026-08-13T00:30:00Z",
+                engagement=10,
+            ),
+        ]
+    ):
+        write_research_item(
+            item,
+            tmp_path / "hackernews" / str(index) / "research-item.json",
+        )
+    config_path = tmp_path / "discovery.yaml"
+    config_path.write_text(
+        f"""
+output_root: {tmp_path.as_posix()}
+log_dir: {(tmp_path / 'logs').as_posix()}
+sources:
+  github: {{enabled: false}}
+  papers: {{enabled: false}}
+  wechat: {{enabled: false}}
+  hackernews: {{enabled: true, feeds: [newstories]}}
+  x: {{enabled: false}}
+briefing:
+  mode: signals
+  sources: [hackernews]
+  news_items: 1
+  wechat_max_items: 0
+  github_news_max_items: 0
+  github_items: 0
+  paper_items: 0
+limits: {{}}
+""",
+        encoding="utf-8",
+    )
+
+    config = load_config(config_path)
+    artifact = generate_briefing(
+        config,
+        now=now,
+        source_reports={
+            "hackernews": SourceReport(
+                name="hackernews",
+                enabled=True,
+                succeeded=1,
+            )
+        },
+    )
+
+    assert config.briefing.github_news_max_items == 0
+    assert artifact is not None and artifact.status == "ready"
+    markdown = artifact.path.read_text(encoding="utf-8")
+    assert "### 1. [External analysis](https://news.example.com/analysis)" in markdown
+    assert "GitHub destinations in News: 0/0 (excluded by cap: 2)" in markdown
+    assert "Repo launch one" not in markdown
+    assert "Repo launch two" not in markdown
 
 
 def test_generate_quota_briefing_runs_real_production_path_with_seven_items(

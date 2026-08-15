@@ -87,8 +87,9 @@ for cat in categories:
 - News/Paper item 必须有 freshness window 内可解析的 `published_at`；GitHub item 使用
   `updated_at` fallback `published_at`；`discovered_at` 只表示首次观测
 - New signals quota config 使用 integer `news_items` / `wechat_min_items` /
-  `wechat_max_items` / `github_items` / `paper_items`，并验证
-  `0 <= wechat_min_items <= wechat_max_items <= news_items`；positive required quota 必须在
+  `wechat_max_items` / `github_news_max_items` / `github_items` / `paper_items`，并验证
+  `0 <= wechat_min_items <= wechat_max_items <= news_items` 与
+  `0 <= github_news_max_items <= news_items`；positive required quota 必须在
   network 前验证 source membership、enabled 与 target。default WeChat 是 optional maximum，
   不是 required minimum
 - X credential value 只从 configured environment variable 读取，不写入 YAML、log 或 artifact

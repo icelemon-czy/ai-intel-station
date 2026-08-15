@@ -447,7 +447,9 @@ def generate_briefing(
             composition = (
                 f"composition={briefing.news_items} News "
                 f"(WeChat optional maximum={briefing.wechat_max_items}, "
-                f"minimum={briefing.wechat_min_items}) + "
+                f"minimum={briefing.wechat_min_items}; "
+                f"GitHub destinations maximum={briefing.github_news_max_items}, "
+                "actual/excluded=unavailable) + "
                 f"{briefing.github_items} GitHub + {briefing.paper_items} arXiv"
                 if briefing.mode == "signals" and briefing.quota_mode
                 else f"max_items={briefing.max_items}"
@@ -476,6 +478,7 @@ def generate_briefing(
                 news_items=briefing.news_items,
                 wechat_min_items=briefing.wechat_min_items,
                 wechat_max_items=briefing.wechat_max_items,
+                github_news_max_items=briefing.github_news_max_items,
                 github_items=briefing.github_items,
                 paper_items=briefing.paper_items,
                 quota_mode=True,

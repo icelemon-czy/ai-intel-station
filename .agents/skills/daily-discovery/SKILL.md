@@ -56,7 +56,7 @@ description: "Operate AI Intel Station as an Agent-first daily intelligence loop
 
    bundled default 启用 WeChat public-index + Hacker News + GitHub + Papers；X 保持
    optional。默认 composition 是 5 条 News（其中 optional、最多 2 条 WeChat）+
-   1 条 GitHub + 1 条 arXiv。不要让用户自己打开
+   1 条 GitHub + 1 条 arXiv；News 中 GitHub-owned destination 默认最多 1 条。不要让用户自己打开
    `$EDITOR` 才能继续。
 4. config invalid 时读取完整 validation error。用户 intent 足够明确时直接最小修正；
    会改变来源、主题或 schedule 的歧义只问一个关键问题。
@@ -92,7 +92,8 @@ description: "Operate AI Intel Station as an Agent-first daily intelligence loop
    artifact，按 arXiv / GitHub / News 分组返回最多 7 条 item；每条说明“是什么”、
    “为什么现在值得看”、confidence 和 signal/evidence 来源。
    同时报告各 required lane expected / actual / missing；WeChat 按去重后的 News entry
-   报告 actual / optional maximum，缺少时不形成 required shortfall。
+   报告 actual / optional maximum，缺少时不形成 required shortfall；GitHub destination
+   报告 actual / maximum / excluded，避免把 repository launch 伪装成多条独立 news。
 6. partial failure 或 quota shortfall 不丢弃成功结果。先返回可用 briefing，再单独说明
    failed source 与缺少的 lane/WeChat 数量。
 

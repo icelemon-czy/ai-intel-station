@@ -38,7 +38,7 @@ research discover
 
 - briefing 是派生阅读层，不允许覆盖 `output/github` / `output/papers` / `output/wechat`
 - 第一阶段至少支持 `digest` 和 `reading-list` 两类产物
-- daily default 是 5 条 News（WeChat optional、最多 2 条）+ 1 GitHub + 1 arXiv；
+- daily default 是 5 条 News（WeChat optional、最多 2 条；GitHub destination 最多 1 条）+ 1 GitHub + 1 arXiv；
   GitHub/Papers 保持 evidence role，只 MAY 在 dedicated lane 成为 primary item
 - `ready|partial|no_fresh_signals|coverage_incomplete` 是可消费的 daily outcome；`failed|dry_run|legacy` 不得伪装成今日结果
 - 若只收集到部分来源，仍要生成 Markdown，并明确写出 `Missing sources: ...`

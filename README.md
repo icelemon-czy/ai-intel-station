@@ -13,7 +13,8 @@ The primary interface is the project Agent + `daily-discovery` Skill. Ask in nat
 
 The Agent operates the deterministic `research` runtime and returns a default composition of five
 verified fresh News items (with up to two deduplicated WeChat entries), one GitHub item, and one
-arXiv paper. WeChat is optional inside the News lane, so its absence is not a required quota
+arXiv paper. By default, at most one News entry may point to a GitHub-owned destination; later
+non-GitHub candidates replace excess repository links. WeChat is optional inside the News lane, so its absence is not a required quota
 shortfall. GitHub repositories and arXiv papers retain their evidence role but may lead their own
 dedicated lanes; they never fill a missing News slot. Every result includes source and quota
 coverage, so a blocked source is not mistaken for a quiet day.

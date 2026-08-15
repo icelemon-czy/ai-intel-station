@@ -9,9 +9,9 @@ evidence 组成 dedicated lane。不把 lifetime popularity 或无 source time �
 HN / WeChat watchlist / optional X
   → ResearchItem(signal)
   → publication-time gate (default 48h, max 72h)
-  → News rank + apply deduped WeChat optional cap
   → papers > github > news exact dedupe + corroboration
-  → 5 News (up to 2 WeChat) + 1 GitHub + 1 arXiv
+  → News rank + apply deduped WeChat/GitHub-destination caps
+  → 5 News (up to 2 WeChat, up to 1 GitHub destination) + 1 GitHub + 1 arXiv
   → output/briefing/signals/ + source coverage status
 
 GitHub / Papers → ResearchItem(evidence) → lane-specific source-time gate ─┘
@@ -32,6 +32,11 @@ GitHub / Papers → ResearchItem(evidence) → lane-specific source-time gate �
 - GitHub repository/search 和 Papers 保持 `evidence`；不能填充 News，但 fresh item 可进入 dedicated lane。
 - WeChat default minimum 是 0、maximum 是 2，均按 deduped rendered News entry 计数；超过
   maximum 的 WeChat candidate 由 HN/X candidate 补位，补不到时只形成 News shortfall。
+- GitHub destination default maximum 是 1，按 cross-lane dedupe 后的 normalized hostname
+  计数；`github.com` 与 subdomain 计入，`*.github.io` / lookalike 不计入。超过 maximum
+  时用后续 non-GitHub News 补位，补不到时形成 News shortfall。
+- HN entry 标题链接 saved canonical target，Signals attribution 优先链接保存的
+  `discussion_url`；缺少 metadata 时 fallback canonical target。
 - optional WeChat failure 始终展示；只有另一个 viable News source 已完成时才不单独降低
   outcome。若 WeChat 是唯一尝试的 News provider，failure 仍产生 `partial` 或
   `coverage_incomplete`。

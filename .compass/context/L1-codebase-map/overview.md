@@ -25,7 +25,7 @@
 | --- | --- | --- | --- |
 | 统一研究入口 | 通过一个命令表面组织 collect / query / briefing / backfill | → `features/research-operations/` | `research/cli.py` |
 | Agent-first 每日情报 | Agent 读取 quota/coverage-aware briefing，默认返回 5 News + 1 GitHub + 1 arXiv | → `features/signal-discovery/` | `.agents/skills/daily-discovery/SKILL.md` |
-| Realtime signal discovery | HN / WeChat / optional X 填 News；fresh GitHub / Papers evidence 进入 dedicated lane | → `features/signal-discovery/` | `briefing/signals.py` |
+| Realtime signal discovery | HN / WeChat / optional X 填 News；News 中 GitHub destination 默认最多 1 条；fresh GitHub / Papers evidence 进入 dedicated lane | → `features/signal-discovery/` | `briefing/signals.py` |
 | 微信文章抓取 | 抓取 mp.weixin.qq.com 文章并转成本地 Markdown + images | → `features/wechat-ingestion/` | `collect/wechat.py` |
 | GitHub 仓库研究 | 用 `gh` CLI 拉取仓库元数据、议题和搜索结果并落盘 | → `features/github-research/` | `collect/github.py` |
 | arXiv 论文抓取 | 按类别拉取最新论文并逐篇保存 Markdown 摘要 | → `features/papers-ingestion/` | `collect/papers.py` |

@@ -59,6 +59,7 @@ class DiscoveryConfigTests(unittest.TestCase):
         self.assertEqual(config.briefing.news_items, 5)
         self.assertEqual(config.briefing.wechat_min_items, 0)
         self.assertEqual(config.briefing.wechat_max_items, 2)
+        self.assertEqual(config.briefing.github_news_max_items, 1)
         self.assertEqual(config.briefing.github_items, 1)
         self.assertEqual(config.briefing.paper_items, 1)
         self.assertEqual(config.briefing.since_days, 1)
@@ -249,11 +250,13 @@ limits:
         self.assertEqual(config.briefing.news_items, 5)
         self.assertEqual(config.briefing.wechat_min_items, 0)
         self.assertEqual(config.briefing.wechat_max_items, 2)
+        self.assertEqual(config.briefing.github_news_max_items, 1)
         self.assertEqual(config.briefing.github_items, 1)
         self.assertEqual(config.briefing.paper_items, 1)
         self.assertFalse(config.sources.x.enabled)
         self.assertEqual(config.briefing.mode, "signals")
         self.assertIn("log_dir: .state/discovery", text)
+        self.assertIn("github_news_max_items: 1", text)
         self.assertNotIn(".ai/", text)
 
     def _tempdir(self) -> "tempfile.TemporaryDirectory[str]":

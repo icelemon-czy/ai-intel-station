@@ -51,6 +51,7 @@ briefing:
   news_items: 5
   wechat_min_items: 0                # optional: missing WeChat is not a quota shortfall
   wechat_max_items: 2                # at most 2 deduped WeChat entries inside News
+  github_news_max_items: 1           # at most 1 News entry whose destination is github.com
   github_items: 1
   paper_items: 1
   since_days: 1                      # legacy modes only

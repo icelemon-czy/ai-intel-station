@@ -172,6 +172,7 @@ research/discovery/runner.py
 | `briefing.news_items` | discovery YAML | verified fresh News quota | `5` |
 | `briefing.wechat_min_items` | discovery YAML | deduped News 中 required WeChat minimum | `0` |
 | `briefing.wechat_max_items` | discovery YAML | deduped News 中 optional WeChat maximum | `2` |
+| `briefing.github_news_max_items` | discovery YAML | deduped News 中 GitHub-owned destination maximum | `1` |
 | `briefing.github_items` | discovery YAML | dedicated GitHub quota | `1` |
 | `briefing.paper_items` | discovery YAML | dedicated arXiv quota | `1` |
 | `briefing.max_items` | legacy discovery YAML | legacy News cap（不能与新 quota 混用） | existing config only |
