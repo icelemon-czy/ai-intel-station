@@ -127,8 +127,9 @@ research briefing <mode> <keyword>
 1. **参数预处理**：URL、feed、query、credential env、类别、owner/repo 与 briefing mode
 2. **外部依赖边界**：HN / X / WeChat index、Camoufox、`gh`、arXiv API；只允许出现在 `collect/`
 3. **资料边界**：`library/storage.py` 只消费 sidecar，不直接重新抓远端数据
-4. **lane 边界**：News item 必须由 verified fresh `signal` 发起；fresh GitHub/Paper evidence
-   只 MAY 进入各自 dedicated lane，不能填充 News quota
+4. **source 边界**：realtime item 必须由 verified fresh `signal` 发起并进入其 collect source
+   section；fresh GitHub/Paper evidence 只 MAY 进入各自 dedicated section，不能填充
+   Hacker News / WeChat / X quota
 5. **输出边界**：source archive 写 `output/<source>`，派生阅读产物只写 `output/briefing`
 
 ## 错误传播路径
@@ -169,10 +170,10 @@ research/discovery/runner.py
 | `IMAGE_CONCURRENCY` | `collect/wechat.py` 常量 | 图片下载并发度 | `5` |
 | `WECHAT_E2E_URLS` | 环境变量 | 是否运行微信 live e2e | 空值时跳过 |
 | `briefing.freshness_hours` | discovery YAML | verified publication age window | `48`，最大 `72` |
-| `briefing.news_items` | discovery YAML | verified fresh News quota | `5` |
-| `briefing.wechat_min_items` | discovery YAML | deduped News 中 required WeChat minimum | `0` |
-| `briefing.wechat_max_items` | discovery YAML | deduped News 中 optional WeChat maximum | `2` |
-| `briefing.github_news_max_items` | discovery YAML | deduped News 中 GitHub-owned destination maximum | `1` |
+| `briefing.hackernews_items` | discovery YAML | verified fresh Hacker News quota | `3` |
+| `briefing.wechat_min_items` | discovery YAML | WeChat required minimum | `0` |
+| `briefing.wechat_max_items` | discovery YAML | optional WeChat maximum | `2` |
+| `briefing.x_items` | discovery YAML | X quota；default 0 because source disabled | `0` |
 | `briefing.github_items` | discovery YAML | dedicated GitHub quota | `1` |
 | `briefing.paper_items` | discovery YAML | dedicated arXiv quota | `1` |
 | `briefing.max_items` | legacy discovery YAML | legacy News cap（不能与新 quota 混用） | existing config only |

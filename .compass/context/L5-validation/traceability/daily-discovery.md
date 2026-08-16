@@ -1,11 +1,11 @@
 # Daily Discovery 追溯矩阵
 
 > 对应 Spec: `.compass/context/L3-specs/specs/daily-discovery/spec.md`
-> 验证日期: 2026-08-15
+> 验证日期: 2026-08-16
 
 | Requirement | Scenario | Implementation | Test evidence | Status |
 |:------------|:---------|:---------------|:--------------|:-------|
-| Config Initialization and Validation | Initialize viable 5 News/optional max 2 WeChat/1 GitHub/1 Paper config | `research/cli.py::run_init_config`, `research/discovery/config.py` | `tests/test_discovery_cli.py`, `tests/test_discovery_config.py`, `tests/test_realtime_signals.py`; personal network-free dry-run | ✅ verified |
+| Config Initialization and Validation | Initialize viable 3 Hacker News/optional max 2 WeChat/1 GitHub/1 Paper config | `research/cli.py::run_init_config`, `research/discovery/config.py` | `tests/test_discovery_cli.py`, `tests/test_discovery_config.py`, `tests/test_realtime_signals.py`; personal network-free dry-run | ✅ verified |
 | Config Initialization and Validation | Reject positive required quota but allow optional maximum without WeChat source | `research/discovery/config.py::_validate_signal_quota_sources` | `tests/test_realtime_signals.py` absent/disabled/no-target/explicit-empty aggregate + optional-source assertion | ✅ verified |
 | Network-Free Dry Run | Preview a configured sweep | `research/discovery/runner.py` | `tests/test_discovery_runner.py`, `tests/test_cli_e2e.py` | ✅ verified |
 | Selective and Fault-Isolated Sweep | Run selected realtime sources | `research/discovery/runner.py` | `tests/test_realtime_signals.py`, `tests/test_discovery_runner.py` | ✅ verified |
@@ -16,10 +16,11 @@
 | Agent-Operated Daily Intelligence | Return grouped default composition and partial quota | `.agents/skills/daily-discovery/SKILL.md` | `tests/test_agent_first_runtime.py`, `tests/test_realtime_signals.py` grouped artifact/shortfall assertions | ✅ verified |
 | Agent-Operated Daily Intelligence | Set up a first daily sweep | `.agents/skills/daily-discovery/SKILL.md` | `tests/test_agent_first_runtime.py`; 2026-07-27 isolated fresh-context forward test（真实修改 ignored config + dry-run + parsed YAML comparison） | ✅ verified |
 | Agent-Operated Daily Intelligence | Accept honest empty / preserve partial / reject dry-run-stale-legacy | `.agents/skills/daily-discovery/SKILL.md`, `research/discovery/log.py` | `tests/test_agent_first_runtime.py`, `tests/test_realtime_signals.py`, `tests/test_briefing_marker.py` | ✅ verified |
-| Agent-Operated Daily Intelligence | Existing Codex automation uses max-7 grouped optional-WeChat contract | `/Users/zhiyongchen/.codex/automations/ai/automation.toml` | 2026-08-15 automation tool update + direct read-back in validation report | ✅ verified |
+| Agent-Operated Daily Intelligence | Existing Codex automation uses max-7 grouped optional-WeChat contract | `/Users/zhiyongchen/.codex/automations/ai/automation.toml` | 2026-08-15 automation tool update + direct read-back in validation report | ⚠️ partial |
 | Web-Triggered Discovery Run | Display structured daily outcome | `workspace_web/service.py`, `web/src/DailyDiscoveryCard.jsx` | `tests/test_briefing_marker.py`, `web/test/discoveryCard.ssr.test.mjs` | ✅ verified |
 
 ## Reverse traceability
 
 未发现 core Daily Discovery behavior 缺少主 Spec。Preference write 的 fresh-context test
 只改变 GitHub search，未涉及的 source、repo、briefing、limits 与 private WeChat URL 均保持一致。
+Codex 本机 automation prompt 可能仍写 “5 News”；该文件不在本仓库，本次未重新 read-back。

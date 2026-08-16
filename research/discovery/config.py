@@ -110,12 +110,12 @@ class BriefingConfig:
     since_days: int = 1
     freshness_hours: int = 48
     # ``max_items`` is retained for legacy signals YAML. New/default signals
-    # configs use the explicit lane/composition fields below.
+    # configs use the explicit source quota fields below.
     max_items: int = 5
-    news_items: int = 5
+    hackernews_items: int = 3
     wechat_min_items: int = 0
     wechat_max_items: int = 2
-    github_news_max_items: int | None = 1
+    x_items: int = 0
     github_items: int = 1
     paper_items: int = 1
     quota_mode: bool = True
@@ -603,9 +603,10 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
         freshness_hours = 48
     quota_fields = (
         "news_items",
+        "hackernews_items",
         "wechat_min_items",
         "wechat_max_items",
-        "github_news_max_items",
+        "x_items",
         "github_items",
         "paper_items",
     )
@@ -637,57 +638,51 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
     if mode == "signals" and has_legacy_max and has_quota_fields:
         errors.add(
             "briefing.max_items",
-            "cannot be combined with news_items, wechat_min_items, wechat_max_items, github_news_max_items, github_items or paper_items",
+            "cannot be combined with news_items, hackernews_items, wechat_min_items, wechat_max_items, x_items, github_items or paper_items",
         )
 
+    hackernews_items = 0
+    wechat_min_items = 0
+    wechat_max_items = 0
+    x_items = 0
+    github_items = 0
+    paper_items = 0
     if quota_mode:
-        news_items = _quota_int("news_items", 5, 1, 10)
         wechat_min_items = _quota_int("wechat_min_items", 0, 0, 10)
         if "wechat_max_items" in data:
             wechat_max_items = _quota_int("wechat_max_items", 2, 0, 10)
         elif "wechat_min_items" in data and wechat_min_items > 0:
-            # Configs created before the maximum field used only a required
-            # minimum and otherwise allowed WeChat to occupy the News lane.
-            wechat_max_items = news_items
+            wechat_max_items = _quota_int("news_items", 5, 0, 10) if "news_items" in data else 10
         else:
             wechat_max_items = 2
-        github_news_max_items = _quota_int("github_news_max_items", 1, 0, 10)
+        if "hackernews_items" in data:
+            hackernews_items = _quota_int("hackernews_items", 3, 0, 10)
+        elif "news_items" in data:
+            hackernews_items = _quota_int("news_items", 5, 1, 10)
+        else:
+            hackernews_items = 3
+        x_items = _quota_int("x_items", 0, 0, 10)
         github_items = _quota_int("github_items", 1, 0, 5)
         paper_items = _quota_int("paper_items", 1, 0, 5)
-        if wechat_max_items > news_items:
-            errors.add(
-                "briefing.wechat_max_items",
-                f"must not exceed briefing.news_items ({news_items}), got {wechat_max_items}",
-            )
         if wechat_min_items > wechat_max_items:
             errors.add(
                 "briefing.wechat_min_items",
                 f"must not exceed briefing.wechat_max_items ({wechat_max_items}), got {wechat_min_items}",
             )
-        if github_news_max_items > news_items:
-            errors.add(
-                "briefing.github_news_max_items",
-                f"must not exceed briefing.news_items ({news_items}), got {github_news_max_items}",
-            )
-        total_items = news_items + github_items + paper_items
+        total_items = (
+            hackernews_items + wechat_max_items + x_items + github_items + paper_items
+        )
         if total_items > 20:
             errors.add(
                 "briefing.total",
-                f"news_items + github_items + paper_items must not exceed 20, got {total_items}",
+                "hackernews_items + wechat_max_items + x_items + github_items + paper_items "
+                f"must not exceed 20, got {total_items}",
             )
     elif mode == "signals":
-        news_items = max_items
+        hackernews_items = max_items
         wechat_min_items = 0
-        wechat_max_items = news_items
-        github_news_max_items = None
-        github_items = 0
-        paper_items = 0
-    else:
-        # Explicit legacy briefing modes ignore signal quota composition.
-        news_items = 0
-        wechat_min_items = 0
-        wechat_max_items = 0
-        github_news_max_items = None
+        wechat_max_items = max_items
+        x_items = 0
         github_items = 0
         paper_items = 0
     return BriefingConfig(
@@ -711,10 +706,10 @@ def _parse_briefing(raw: Any, errors: _ErrorBag) -> BriefingConfig:
         since_days=since_days,
         freshness_hours=freshness_hours,
         max_items=max_items,
-        news_items=news_items,
+        hackernews_items=hackernews_items,
         wechat_min_items=wechat_min_items,
         wechat_max_items=wechat_max_items,
-        github_news_max_items=github_news_max_items,
+        x_items=x_items,
         github_items=github_items,
         paper_items=paper_items,
         quota_mode=quota_mode,
@@ -785,6 +780,8 @@ def _validate_signal_quota_sources(config: DiscoveryConfig, errors: _ErrorBag) -
         ("github", briefing.github_items, "briefing.github_items"),
         ("papers", briefing.paper_items, "briefing.paper_items"),
         ("wechat", briefing.wechat_min_items, "briefing.wechat_min_items"),
+        ("hackernews", briefing.hackernews_items, "briefing.hackernews_items"),
+        ("x", briefing.x_items, "briefing.x_items"),
     )
     for source_name, minimum, field_name in requirements:
         if minimum <= 0:
@@ -802,18 +799,6 @@ def _validate_signal_quota_sources(config: DiscoveryConfig, errors: _ErrorBag) -
             errors.add(
                 field_name,
                 f"requires at least one configured sources.{source_name} target",
-            )
-
-    if briefing.news_items > 0:
-        viable_news = [
-            source_name
-            for source_name in ("wechat", "hackernews", "x")
-            if source_name in briefing.sources and _has_source_work(config, source_name)
-        ]
-        if not viable_news:
-            errors.add(
-                "briefing.news_items",
-                "requires at least one enabled realtime source with configured work inside briefing.sources",
             )
 
 
@@ -899,7 +884,7 @@ sources:
     max_per_category: 10
 
   wechat:
-    enabled: true                    # optional News source; failures do not block a completed HN/X sweep
+    enabled: true                    # optional WeChat source; failures do not block a completed HN sweep
     urls: []                         # direct articles remain supported as signal inputs
     accounts:                        # public-index watchlist; no WeChat login required
       - name: 架构师
@@ -925,10 +910,10 @@ briefing:
   keyword: daily
   sources: [wechat, hackernews, x, github, papers]
   freshness_hours: 48                # verified publication time; maximum allowed is 72
-  news_items: 5
+  hackernews_items: 3
   wechat_min_items: 0                # optional: missing WeChat is not a quota shortfall
-  wechat_max_items: 2                # at most 2 deduped WeChat entries inside News
-  github_news_max_items: 1           # at most 1 News entry whose destination is github.com
+  wechat_max_items: 2                # at most 2 deduped WeChat entries
+  x_items: 0                         # disabled by default with sources.x.enabled
   github_items: 1
   paper_items: 1
   since_days: 1                      # legacy modes only

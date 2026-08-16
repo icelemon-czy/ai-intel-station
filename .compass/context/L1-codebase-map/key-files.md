@@ -53,8 +53,8 @@
 ```text
 步骤：
 1. 查询层只能消费本地 sidecar，不要回 collect 层重新抓远端数据。
-2. daily News item 必须来自 verified fresh `signal`；GitHub / Papers 保持 evidence role，
-   只 MAY 进入各自 dedicated lane 或 corroborate，不能填 News。
+2. daily Hacker News / WeChat / X item 必须来自 verified fresh `signal`；GitHub / Papers
+   保持 evidence role，只 MAY 进入各自 dedicated section 或 corroborate，不能填 realtime source quota。
 3. briefing 只能写 `output/briefing/`，不要覆盖原始归档。
 4. 部分成功必须继续保留，并显式写出缺失来源；零 item 时区分 `no_fresh_signals` 与 `coverage_incomplete`。
 

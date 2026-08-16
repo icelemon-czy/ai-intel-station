@@ -52,7 +52,7 @@
 - ❌ 历史来源目录承担真实业务入口；统一 operator surface 在 `research/cli.py`
 - ❌ 一个抓取脚本直接 import 另一个抓取脚本的内部函数
 - ❌ 通过手改 `output/` 来“修复”生成问题；根因必须回到生成器
-- ❌ 让 GitHub/Papers evidence 填充 News quota，或让无对应 source time 的 item 进入任一 daily lane
+- ❌ 让 GitHub/Papers evidence 填充 Hacker News / WeChat / X quota，或让无对应 source time 的 item 进入任一 daily source section
 
 ### 错误处理模式
 
@@ -86,12 +86,11 @@ for cat in categories:
 - 输出路径作为参数开放时，默认仍应指向当前来源的 `output/<source>/`
 - News/Paper item 必须有 freshness window 内可解析的 `published_at`；GitHub item 使用
   `updated_at` fallback `published_at`；`discovered_at` 只表示首次观测
-- New signals quota config 使用 integer `news_items` / `wechat_min_items` /
-  `wechat_max_items` / `github_news_max_items` / `github_items` / `paper_items`，并验证
-  `0 <= wechat_min_items <= wechat_max_items <= news_items` 与
-  `0 <= github_news_max_items <= news_items`；positive required quota 必须在
+- New signals quota config 使用 integer `hackernews_items` / `wechat_min_items` /
+  `wechat_max_items` / `x_items` / `github_items` / `paper_items`，并验证
+  `0 <= wechat_min_items <= wechat_max_items`；positive required quota 必须在
   network 前验证 source membership、enabled 与 target。default WeChat 是 optional maximum，
-  不是 required minimum
+  不是 required minimum。HN story 的 destination host 不得单独改变 source 归属。
 - X credential value 只从 configured environment variable 读取，不写入 YAML、log 或 artifact
 
 ## 反模式清单

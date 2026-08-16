@@ -445,11 +445,10 @@ def generate_briefing(
     if dry_run:
         if report_log:
             composition = (
-                f"composition={briefing.news_items} News "
-                f"(WeChat optional maximum={briefing.wechat_max_items}, "
-                f"minimum={briefing.wechat_min_items}; "
-                f"GitHub destinations maximum={briefing.github_news_max_items}, "
-                "actual/excluded=unavailable) + "
+                f"composition={briefing.hackernews_items} Hacker News + "
+                f"WeChat optional maximum={briefing.wechat_max_items} "
+                f"(minimum={briefing.wechat_min_items}) + "
+                f"{briefing.x_items} X + "
                 f"{briefing.github_items} GitHub + {briefing.paper_items} arXiv"
                 if briefing.mode == "signals" and briefing.quota_mode
                 else f"max_items={briefing.max_items}"
@@ -475,10 +474,10 @@ def generate_briefing(
                 items,
                 now=now,
                 freshness_hours=briefing.freshness_hours,
-                news_items=briefing.news_items,
+                hackernews_items=briefing.hackernews_items,
                 wechat_min_items=briefing.wechat_min_items,
                 wechat_max_items=briefing.wechat_max_items,
-                github_news_max_items=briefing.github_news_max_items,
+                x_items=briefing.x_items,
                 github_items=briefing.github_items,
                 paper_items=briefing.paper_items,
                 quota_mode=True,
@@ -489,6 +488,8 @@ def generate_briefing(
                     ("github", briefing.github_items),
                     ("papers", briefing.paper_items),
                     ("wechat", briefing.wechat_min_items),
+                    ("hackernews", briefing.hackernews_items),
+                    ("x", briefing.x_items),
                 )
                 if minimum > 0
             ]

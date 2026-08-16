@@ -56,31 +56,24 @@ class RenderedSignalBriefing:
 class DailyBriefingSelection:
     papers: list[SelectedSignal] = field(default_factory=list)
     github: list[SelectedSignal] = field(default_factory=list)
-    news: list[SelectedSignal] = field(default_factory=list)
-    expected_news: int = 5
+    hackernews: list[SelectedSignal] = field(default_factory=list)
+    wechat: list[SelectedSignal] = field(default_factory=list)
+    x: list[SelectedSignal] = field(default_factory=list)
+    expected_hackernews: int = 3
     expected_wechat: int = 0
     max_wechat: int = 2
-    max_github_news: int = 1
-    excluded_github_news: int = 0
+    expected_x: int = 0
     expected_github: int = 1
     expected_papers: int = 1
     quota_mode: bool = True
 
     @property
     def entries(self) -> list[SelectedSignal]:
-        return [*self.papers, *self.github, *self.news]
+        return [*self.papers, *self.github, *self.hackernews, *self.wechat, *self.x]
 
     @property
     def actual_wechat(self) -> int:
-        return sum(
-            1
-            for entry in self.news
-            if any(signal.source == "wechat" for signal in entry.signals)
-        )
-
-    @property
-    def actual_github_news(self) -> int:
-        return sum(1 for entry in self.news if _is_github_destination(entry.canonical_url))
+        return len(self.wechat)
 
     @property
     def missing(self) -> dict[str, int]:
@@ -90,8 +83,9 @@ class DailyBriefingSelection:
         values = (
             ("papers", self.expected_papers, len(self.papers)),
             ("github", self.expected_github, len(self.github)),
-            ("news", self.expected_news, len(self.news)),
+            ("hackernews", self.expected_hackernews, len(self.hackernews)),
             ("wechat", self.expected_wechat, self.actual_wechat),
+            ("x", self.expected_x, len(self.x)),
         )
         for name, expected, actual in values:
             if actual < expected:
@@ -127,18 +121,6 @@ def normalize_signal_url(value: str | None) -> str:
             "",
         )
     )
-
-
-def _is_github_destination(value: str | None) -> bool:
-    """Classify GitHub-owned News destinations without matching lookalike hosts."""
-    normalized = normalize_signal_url(value)
-    if not normalized:
-        return False
-    try:
-        hostname = (urlsplit(normalized).hostname or "").lower().rstrip(".")
-    except ValueError:
-        return False
-    return hostname == "github.com" or hostname.endswith(".github.com")
 
 
 def normalize_signal_title(value: str) -> str:
@@ -459,7 +441,7 @@ def _dedicated_entry(
     )
     age_band = "24h" if age_hours <= 24 else f"{freshness_hours}h"
     why_now = (
-        f"lane={lane}; timestamp_field={candidate.timestamp_field}; age_band={age_band}; "
+        f"source={lane}; timestamp_field={candidate.timestamp_field}; age_band={age_band}; "
         f"signal_sources={source_count}; watchlist={'yes' if watchlist else 'no'}"
     )
     item = candidate.item
@@ -480,38 +462,56 @@ def _dedicated_entry(
     )
 
 
+def _primary_realtime_source(entry: SelectedSignal) -> str | None:
+    for source in ("hackernews", "wechat", "x"):
+        if any(signal.source == source for signal in entry.signals):
+            return source
+    return None
+
+
+def _take_source_entries(
+    available: Sequence[SelectedSignal],
+    *,
+    source: str,
+    limit: int,
+) -> list[SelectedSignal]:
+    if limit <= 0:
+        return []
+    chosen: list[SelectedSignal] = []
+    for entry in available:
+        if _primary_realtime_source(entry) != source:
+            continue
+        chosen.append(entry)
+        if len(chosen) >= limit:
+            break
+    return chosen
+
+
 def select_daily_briefing(
     items: Sequence[ResearchItem],
     *,
     now: datetime | None = None,
     freshness_hours: int = 48,
-    news_items: int = 5,
+    hackernews_items: int = 3,
     wechat_min_items: int = 0,
     wechat_max_items: int | None = None,
-    github_news_max_items: int | None = 1,
+    x_items: int = 0,
     github_items: int = 1,
     paper_items: int = 1,
     quota_mode: bool = True,
 ) -> DailyBriefingSelection:
-    """Compose deterministic News, GitHub and arXiv lanes.
+    """Compose deterministic source sections.
 
-    Stored item roles stay unchanged: realtime sources are selected into News,
-    while fresh evidence can only seed its dedicated lane.
+    Stored item roles stay unchanged: realtime sources fill their own
+    sections, while fresh evidence can only seed github/papers.
     """
     if freshness_hours <= 0 or freshness_hours > 72:
         raise ValueError("freshness_hours must be between 1 and 72")
-    if news_items <= 0:
-        raise ValueError("news_items must be positive")
-    if min(wechat_min_items, github_items, paper_items) < 0:
-        raise ValueError("lane quotas must be non-negative")
-    resolved_wechat_max = news_items if wechat_max_items is None else wechat_max_items
-    resolved_github_news_max = (
-        news_items if github_news_max_items is None else github_news_max_items
-    )
-    if resolved_wechat_max < 0 or resolved_wechat_max > news_items:
-        raise ValueError("wechat_max_items must be between zero and news_items")
-    if resolved_github_news_max < 0 or resolved_github_news_max > news_items:
-        raise ValueError("github_news_max_items must be between zero and news_items")
+    if min(hackernews_items, wechat_min_items, x_items, github_items, paper_items) < 0:
+        raise ValueError("source quotas must be non-negative")
+    resolved_wechat_max = 2 if wechat_max_items is None else wechat_max_items
+    if resolved_wechat_max < 0:
+        raise ValueError("wechat_max_items must be non-negative")
     if wechat_min_items > resolved_wechat_max:
         raise ValueError("wechat_min_items must not exceed wechat_max_items")
 
@@ -522,9 +522,9 @@ def select_daily_briefing(
     lower_bound = evaluation_time - timedelta(hours=freshness_hours)
     future_limit = evaluation_time + timedelta(minutes=5)
 
-    # Build the complete ranked News pool first so matching realtime signals
-    # can corroborate a dedicated entry even when that News duplicate is not
-    # rendered separately.
+    # Build the complete ranked realtime pool first so matching signals
+    # can corroborate a dedicated entry even when that duplicate is not
+    # rendered in its own source section.
     news_pool = select_daily_signals(
         items,
         now=evaluation_time,
@@ -589,64 +589,38 @@ def select_daily_briefing(
     available_news = [
         entry for entry in news_pool if not (_entry_keys(entry) & dedicated_keys)
     ]
-    chosen_ids: set[int] = set()
-    rejected_ids: set[int] = set()
-    chosen_wechat = 0
-    chosen_github_news = 0
-    excluded_github_news = 0
+    hackernews = _take_source_entries(
+        available_news, source="hackernews", limit=hackernews_items
+    )
+    owned_keys = set(dedicated_keys)
+    for entry in hackernews:
+        owned_keys.update(_entry_keys(entry))
+    remaining = [entry for entry in available_news if not (_entry_keys(entry) & owned_keys)]
+    wechat = _take_source_entries(remaining, source="wechat", limit=resolved_wechat_max)
+    for entry in wechat:
+        owned_keys.update(_entry_keys(entry))
+    remaining = [entry for entry in available_news if not (_entry_keys(entry) & owned_keys)]
+    x_entries = _take_source_entries(remaining, source="x", limit=x_items)
 
-    def choose_if_eligible(entry: SelectedSignal) -> bool:
-        nonlocal chosen_wechat, chosen_github_news, excluded_github_news
-        entry_id = id(entry)
-        if entry_id in chosen_ids:
-            return True
-        if entry_id in rejected_ids:
-            return False
-        entry_has_wechat = any(signal.source == "wechat" for signal in entry.signals)
-        entry_has_github_destination = _is_github_destination(entry.canonical_url)
-        blocked_by_wechat = entry_has_wechat and chosen_wechat >= resolved_wechat_max
-        blocked_by_github = (
-            entry_has_github_destination
-            and chosen_github_news >= resolved_github_news_max
-        )
-        if blocked_by_wechat or blocked_by_github:
-            rejected_ids.add(entry_id)
-            if blocked_by_github and not blocked_by_wechat:
-                excluded_github_news += 1
-            return False
-        chosen_ids.add(entry_id)
-        if entry_has_wechat:
-            chosen_wechat += 1
-        if entry_has_github_destination:
-            chosen_github_news += 1
-        return True
-
-    # Give the configured WeChat minimum first access to the lane, while still
-    # enforcing the GitHub destination cap on mixed WeChat/GitHub entries.
-    for entry in available_news:
-        if chosen_wechat >= wechat_min_items:
-            break
-        if any(signal.source == "wechat" for signal in entry.signals):
-            choose_if_eligible(entry)
-
-    for entry in available_news:
-        if len(chosen_ids) >= news_items:
-            break
-        choose_if_eligible(entry)
-    news = [entry for entry in available_news if id(entry) in chosen_ids][:news_items]
-    for entry in news:
-        entry.lane = "news"
-        entry.timestamp_field = "published_at"
+    for lane, bucket in (
+        ("hackernews", hackernews),
+        ("wechat", wechat),
+        ("x", x_entries),
+    ):
+        for entry in bucket:
+            entry.lane = lane
+            entry.timestamp_field = "published_at"
 
     return DailyBriefingSelection(
         papers=papers,
         github=github,
-        news=news,
-        expected_news=news_items,
+        hackernews=hackernews,
+        wechat=wechat,
+        x=x_entries,
+        expected_hackernews=hackernews_items,
         expected_wechat=wechat_min_items,
         max_wechat=resolved_wechat_max,
-        max_github_news=resolved_github_news_max,
-        excluded_github_news=excluded_github_news,
+        expected_x=x_items,
         expected_github=github_items,
         expected_papers=paper_items,
         quota_mode=quota_mode,
@@ -793,38 +767,32 @@ def render_daily_signal_markdown(
         quota_rows = [
             ("arXiv", selection.expected_papers, len(selection.papers)),
             ("GitHub", selection.expected_github, len(selection.github)),
-            ("News", selection.expected_news, len(selection.news)),
+            ("Hacker News", selection.expected_hackernews, len(selection.hackernews)),
         ]
         if selection.expected_wechat > 0:
             quota_rows.append(
                 ("WeChat minimum", selection.expected_wechat, selection.actual_wechat)
             )
+        if selection.expected_x > 0:
+            quota_rows.append(("X", selection.expected_x, len(selection.x)))
         lines.extend(
             [
                 "## Quota Coverage",
                 "",
-                "| Lane | Expected | Actual | Missing |",
+                "| Source | Expected | Actual | Missing |",
                 "|---|---:|---:|---:|",
             ]
         )
-        for lane, expected, actual in quota_rows:
-            lines.append(f"| {lane} | {expected} | {actual} | {max(0, expected - actual)} |")
-        lines.extend(
-            [
-                "",
-                f"WeChat optional maximum: {selection.actual_wechat}/{selection.max_wechat}",
-                (
-                    "GitHub destinations in News: "
-                    f"{selection.actual_github_news}/{selection.max_github_news} "
-                    f"(excluded by cap: {selection.excluded_github_news})"
-                ),
-                (
-                    f"{selection.excluded_github_news} fresh News candidate(s) excluded "
-                    "by GitHub destination cap."
-                ),
-                "",
-            ]
-        )
+        for source_name, expected, actual in quota_rows:
+            lines.append(
+                f"| {source_name} | {expected} | {actual} | {max(0, expected - actual)} |"
+            )
+        lines.append("")
+        if selection.max_wechat > 0 or selection.expected_wechat > 0:
+            lines.append(
+                f"WeChat optional maximum: {selection.actual_wechat}/{selection.max_wechat}"
+            )
+            lines.append("")
     if not rendered_entries:
         if status == "coverage_incomplete":
             lines.extend(
@@ -845,14 +813,23 @@ def render_daily_signal_markdown(
             lines.extend(_entry_markdown(entry, index))
     else:
         next_index = 1
-        for heading, lane_entries in (
-            ("arXiv", selection.papers),
-            ("GitHub", selection.github),
-            ("News", selection.news),
-        ):
+        source_sections = [
+            ("arXiv", selection.papers, selection.expected_papers > 0),
+            ("GitHub", selection.github, selection.expected_github > 0),
+            ("Hacker News", selection.hackernews, selection.expected_hackernews > 0),
+            (
+                "WeChat",
+                selection.wechat,
+                selection.max_wechat > 0 or selection.expected_wechat > 0,
+            ),
+            ("X", selection.x, selection.expected_x > 0),
+        ]
+        for heading, lane_entries, include in source_sections:
+            if not include and not lane_entries:
+                continue
             lines.extend([f"## {heading}", ""])
             if not lane_entries:
-                lines.extend(["No verified fresh item for this lane.", ""])
+                lines.extend(["No verified fresh item for this source.", ""])
                 continue
             for entry in lane_entries:
                 lines.extend(_entry_markdown(entry, next_index))

@@ -24,8 +24,8 @@
 | 功能 | 一句话描述 | 详情 | 入口文件 |
 | --- | --- | --- | --- |
 | 统一研究入口 | 通过一个命令表面组织 collect / query / briefing / backfill | → `features/research-operations/` | `research/cli.py` |
-| Agent-first 每日情报 | Agent 读取 quota/coverage-aware briefing，默认返回 5 News + 1 GitHub + 1 arXiv | → `features/signal-discovery/` | `.agents/skills/daily-discovery/SKILL.md` |
-| Realtime signal discovery | HN / WeChat / optional X 填 News；News 中 GitHub destination 默认最多 1 条；fresh GitHub / Papers evidence 进入 dedicated lane | → `features/signal-discovery/` | `briefing/signals.py` |
+| Agent-first 每日情报 | Agent 读取 quota/coverage-aware briefing，默认返回 3 Hacker News + optional 2 WeChat + 1 GitHub + 1 arXiv | → `features/signal-discovery/` | `.agents/skills/daily-discovery/SKILL.md` |
+| Realtime signal discovery | HN / WeChat / optional X 各自成组；fresh GitHub / Papers evidence 进入 dedicated source section | → `features/signal-discovery/` | `briefing/signals.py` |
 | 微信文章抓取 | 抓取 mp.weixin.qq.com 文章并转成本地 Markdown + images | → `features/wechat-ingestion/` | `collect/wechat.py` |
 | GitHub 仓库研究 | 用 `gh` CLI 拉取仓库元数据、议题和搜索结果并落盘 | → `features/github-research/` | `collect/github.py` |
 | arXiv 论文抓取 | 按类别拉取最新论文并逐篇保存 Markdown 摘要 | → `features/papers-ingestion/` | `collect/papers.py` |
@@ -81,7 +81,7 @@
 | `gh` | GitHub CLI，是 `github-tools` 的真实数据源 | 不是 GitHub REST SDK，也不是本仓库自带模块 |
 | Camoufox（`wechat` extra） | 为 WeChat 抓取提供反检测浏览器运行时 | 只按需影响 WeChat，不进入 default core |
 | `WECHAT_E2E_URLS` | 触发微信 live e2e 的逗号分隔 URL 环境变量 | 不设置时 e2e 测试应跳过，不算失败 |
-| `signal` / `evidence` | signal 只填 News；fresh GitHub/Paper evidence 可填 dedicated lane | evidence 仍不得填 News quota |
+| `signal` / `evidence` | signal 填其 collect source section；fresh GitHub/Paper evidence 可填 dedicated section | evidence 仍不得填 Hacker News / WeChat / X quota |
 | `coverage_incomplete` | 零 entry 且 attempted failure 或 required coverage 未尝试 | 不能解读为“今天没有新内容” |
 
 ## 雷区

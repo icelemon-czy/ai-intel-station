@@ -38,8 +38,8 @@ research discover
 
 - briefing 是派生阅读层，不允许覆盖 `output/github` / `output/papers` / `output/wechat`
 - 第一阶段至少支持 `digest` 和 `reading-list` 两类产物
-- daily default 是 5 条 News（WeChat optional、最多 2 条；GitHub destination 最多 1 条）+ 1 GitHub + 1 arXiv；
-  GitHub/Papers 保持 evidence role，只 MAY 在 dedicated lane 成为 primary item
+- daily default 是 3 Hacker News（WeChat optional、最多 2 条）+ 1 GitHub + 1 arXiv；
+  GitHub/Papers 保持 evidence role，只 MAY 在 dedicated source section 成为 primary item
 - `ready|partial|no_fresh_signals|coverage_incomplete` 是可消费的 daily outcome；`failed|dry_run|legacy` 不得伪装成今日结果
 - 若只收集到部分来源，仍要生成 Markdown，并明确写出 `Missing sources: ...`
 - 标题 slug 变化会影响 Obsidian 链接和历史文件路径，改前先检查输出兼容性
@@ -65,6 +65,6 @@ uv run --extra dev python -m pytest -q tests/test_realtime_signals.py tests/test
 ## 已知边界
 
 - WeChat account discovery 依赖 best-effort public index；failure 始终展示。若其他 viable
-  News source 已完成，optional WeChat failure 不单独降低 outcome；若它是唯一尝试的 News
-  provider，则仍降低为 `partial` 或 `coverage_incomplete`
+  realtime source 已完成，optional WeChat failure 不单独降低 outcome；若它是唯一尝试的
+  realtime provider，则仍降低为 `partial` 或 `coverage_incomplete`
 - fuzzy semantic dedupe 不在 deterministic layer；当前只合并 normalized URL 或 exact normalized title

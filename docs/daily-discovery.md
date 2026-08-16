@@ -8,15 +8,15 @@ deterministic CLI、读取 local briefing，并把重点直接返回 conversatio
 在 project-aware Agent 中直接说：
 
 - “今天有什么值得看？”
-- “现在跑每日情报，给我 arXiv、GitHub 和 News 重点。”
+- “现在跑每日情报，给我 arXiv、GitHub 和 Hacker News 重点。”
 - “把每日搜索主题改成 agent memory。”
 - “每天早上九点自动跑。”
 - “昨天为什么失败？”
 
 Agent 会检查现有 status，避免重复执行今日成功 run；需要运行时创建或最小修改 ignored
-config，执行 dry-run validation，读取 signal briefing / log，并默认返回 5 条 News（其中
-WeChat optional、最多 2 条，GitHub destination 最多 1 条）+ 1 条 GitHub + 1 条 arXiv，以及 partial failure / quota shortfall。
-GitHub / Papers 保持 evidence role，只能进入各自 dedicated lane，不会挤占 News quota。
+config，执行 dry-run validation，读取 signal briefing / log，并默认返回 3 条 Hacker News +
+optional、最多 2 条 WeChat + 1 条 GitHub + 1 条 arXiv，以及 partial failure / quota shortfall。
+GitHub / Papers 保持 evidence role，只能进入各自 source section，不会挤占 Hacker News 或 WeChat quota。
 只有明确要求 install schedule 时才修改本机 scheduler。
 
 ## Lightweight bootstrap
@@ -128,10 +128,10 @@ briefing:
   keyword: daily
   sources: [wechat, hackernews, x, github, papers]
   freshness_hours: 48                # inclusive lower boundary；上限 72
-  news_items: 5
+  hackernews_items: 3
   wechat_min_items: 0                # optional，不足不形成 required shortfall
-  wechat_max_items: 2                # 在 deduped News 中最多占 2 条
-  github_news_max_items: 1           # 指向 github.com/subdomain 的 News 最多 1 条
+  wechat_max_items: 2                # 独立 WeChat source 最多 2 条
+  x_items: 0
   github_items: 1
   paper_items: 1
   since_days: 1                      # legacy mode only
@@ -154,7 +154,7 @@ limits:
 - **arXiv**：始终跑（按 `submittedDate desc` 拉新）。
 - **WeChat**：直接 URL 可跳过近期已抓取项；account index CAPTCHA/空页/缺时间戳是 failure。
 - **Hacker News / X**：按 current feed/recent-search 更新 archive，保留同一 item 首次 `discovered_at`。
-- **News destination mix**：dedupe 后最多保留 `github_news_max_items` 条 GitHub destination；HN attribution 仍链接讨论页，标题链接原文。
+- **Source mix**：按 Hacker News / WeChat / X / GitHub / arXiv 独立定额；HN 指向 github.com 仍归 Hacker News。HN attribution 仍链接讨论页，标题链接原文。
 - **搜索 / 分类上限**：见 `limits.*`，超出部分标记 `skipped` 但不报错。
 
 ## 调度

@@ -190,7 +190,11 @@ raise SystemExit(
         self.assertIn("最多 7 条", text)
         self.assertIn("optional、最多 2 条 WeChat", text)
         self.assertIn("expected / actual / missing", text)
-        self.assertIn("arXiv / GitHub / News", text)
+        self.assertIn("arXiv / GitHub / Hacker News / WeChat", text)
+        self.assertIn("不得改报成 GitHub news", text)
+        self.assertNotIn("destination excluded", text)
+        self.assertNotIn("5 News", text)
+        self.assertNotIn("github_news_max_items", text)
 
         for platform_root in (".claude", ".github"):
             wrapper = (

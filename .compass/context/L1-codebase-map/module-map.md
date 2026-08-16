@@ -122,5 +122,5 @@ collect/ + briefing/ + publish/ ───────→ output/
 | 历史 backfill | `research/cli.py` + `library/items.py` | 优先复用既有 Markdown，不要为了查询层重新抓一遍 |
 | 本地查询 | `library/storage.py` / `library/query.py` | 输入必须是 sidecar，而不是远端 API |
 | 派生阅读产物 | `briefing/` + `publish/` | 只写 `output/briefing/`，不覆盖原始归档 |
-| daily signal contract | `briefing/signals.py` + `research/discovery/runner.py` | `signal` 填 News；GitHub destination 默认 cap 1；fresh GitHub/Papers evidence 填 dedicated lane；quota/status 区分 shortfall、完整空结果与 coverage failure |
+| daily signal contract | `briefing/signals.py` + `research/discovery/runner.py` | 按 `source` 分组定额；GitHub destination 不再单独 cap；fresh GitHub/Papers evidence 填 dedicated section；quota/status 区分 shortfall、完整空结果与 coverage failure |
 | wechat 自动化测试 | `tests/test_wechat_collect.py` / `tests/test_wechat_e2e_live.py` | 现已迁入根级测试面，和统一入口保持一致 |

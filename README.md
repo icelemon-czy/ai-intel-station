@@ -7,17 +7,17 @@
 The primary interface is the project Agent + `daily-discovery` Skill. Ask in natural language:
 
 - “今天 AI 圈有什么值得看？”
-- “现在跑一遍每日情报，给我 arXiv、GitHub 和 News 重点。”
+- “现在跑一遍每日情报，给我 arXiv、GitHub 和 Hacker News 重点。”
 - “把每日搜索主题改成 agent memory。”
 - “昨天为什么失败？”
 
-The Agent operates the deterministic `research` runtime and returns a default composition of five
-verified fresh News items (with up to two deduplicated WeChat entries), one GitHub item, and one
-arXiv paper. By default, at most one News entry may point to a GitHub-owned destination; later
-non-GitHub candidates replace excess repository links. WeChat is optional inside the News lane, so its absence is not a required quota
-shortfall. GitHub repositories and arXiv papers retain their evidence role but may lead their own
-dedicated lanes; they never fill a missing News slot. Every result includes source and quota
-coverage, so a blocked source is not mistaken for a quiet day.
+The Agent operates the deterministic `research` runtime and returns a default composition of three
+verified fresh Hacker News items, up to two optional WeChat items, one GitHub item, and one
+arXiv paper. HN stories that point at GitHub stay in Hacker News; GitHub collector evidence stays
+in the GitHub section. WeChat is optional, so its absence is not a required quota shortfall.
+GitHub repositories and arXiv papers retain their evidence role and never fill a missing Hacker News
+or WeChat slot. Every result includes source and quota coverage, so a blocked source is not mistaken
+for a quiet day.
 Web remains an optional Library / briefing viewer.
 
 Core setup installs only the project and PyYAML:
