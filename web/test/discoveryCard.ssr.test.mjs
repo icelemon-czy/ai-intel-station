@@ -1,8 +1,8 @@
 // Server-side render tests for DailyDiscoveryCard.
 //
 // Why SSR (not JSDOM)?
-//   - JSDOM is explicitly avoided by the project's L3 spec (see
-//     `.compass/context/L3-specs/changes/fix-frontend-render-tests-jsdom/proposal.md`).
+//   - The project validates first-paint behavior with lightweight SSR instead
+//     of adding JSDOM to the Web test runtime.
 //   - The component uses ``useEffect`` for status fetching + polling, which
 //     does NOT run during SSR. So SSR is purely a "what does the first paint
 //     look like?" test — exactly the user-facing question we need to answer.

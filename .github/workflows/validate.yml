@@ -62,7 +62,7 @@ jobs:
           )"
           if [ -n "$leftover" ]; then
             echo "$leftover"
-            echo "Use /fix-bug in active workflow docs."
+            echo "Remove the retired /spec-fix command from active workflow docs."
             exit 1
           fi
 
@@ -86,8 +86,7 @@ jobs:
             -m "not wechat" \
             --ignore=tests/test_discovery_runner.py \
             --ignore=tests/test_wechat_collect.py \
-            --ignore=tests/test_wechat_e2e_live.py \
-            --deselect=tests/test_web_workspace.py::test_npm_test_in_web_runs_node_test_suite
+            --ignore=tests/test_wechat_e2e_live.py
 
       - name: Run discovery runner through its unittest adapter
         run: |

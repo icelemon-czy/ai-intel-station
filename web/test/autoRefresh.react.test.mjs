@@ -216,7 +216,7 @@ test("renderToString does not throw when fetcher resolves to null", () => {
 //
 // This scenario is a "wiring" assertion: we can't run `npm test` from
 // inside `node --test`, so the test itself just confirms the test file is
-// discoverable. The Python test in `test_web_workspace.py` actually runs
+// discoverable. The canonical Node suite runs
 // `npm test --prefix web` end-to-end.
 //
 // Here we just sanity-check the file is wired up by asserting this test

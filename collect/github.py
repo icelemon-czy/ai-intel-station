@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import argparse
 import json
 import subprocess
 from pathlib import Path
 
+from library.archive_paths import github_repo_leaf, github_search_leaf
 from library.items import (
     build_github_repo_item,
     build_github_search_items,
+    utc_now_iso,
     write_research_item,
     write_research_items_jsonl,
 )
@@ -120,9 +121,15 @@ def repo_to_markdown(data: dict, owner: str, repo: str) -> str:
 
 
 def save_repo(owner: str, repo: str, output_dir: Path) -> Path:
+    """Persist one repository under ``output/github/<owner>/<repo>/``.
+
+    ``output_dir`` is the GitHub source root (``output/github``); the stable
+    ``owner/repo`` identity forms the leaf so a repo never moves when its
+    topics, stars or collection date change.
+    """
     print(f"📦 Fetching {owner}/{repo}...")
     data = fetch_repo(owner, repo)
-    repo_dir = output_dir / f"{owner}-{repo}"
+    repo_dir = Path(output_dir) / github_repo_leaf(owner, repo)
     repo_dir.mkdir(parents=True, exist_ok=True)
 
     markdown_path = repo_dir / "README.md"
@@ -131,9 +138,14 @@ def save_repo(owner: str, repo: str, output_dir: Path) -> Path:
     print(f"✅ Saved: {markdown_path}")
     return markdown_path
 
+def save_search_results(query: str, output_dir: Path, repos: list[dict], *, collected_at: str | None = None) -> Path:
+    """Persist a search snapshot under ``output/github/_search/<query>-<timestamp>/``.
 
-def save_search_results(query: str, output_dir: Path, repos: list[dict]) -> Path:
-    result_dir = output_dir / query.replace(" ", "-")
+    The snapshot is keyed by normalized query + collection time so repeated
+    searches never overwrite an earlier snapshot, while each result keeps its own
+    repository identity inside the batch sidecar.
+    """
+    result_dir = Path(output_dir) / github_search_leaf(query, collected_at or utc_now_iso())
     result_dir.mkdir(parents=True, exist_ok=True)
 
     lines = [f"# Search: {query}", "", f"Found {len(repos)} repositories", ""]
@@ -153,44 +165,3 @@ def save_search_results(query: str, output_dir: Path, repos: list[dict]) -> Path
     )
     print(f"✅ Saved search results: {markdown_path}")
     return markdown_path
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Save GitHub repo info as Markdown")
-    parser.add_argument("targets", nargs="+", help="owner/repo or search query")
-    parser.add_argument("--issues", action="store_true", help="Also fetch issues")
-    parser.add_argument("--search", action="store_true", help="Treat first arg as search query")
-    parser.add_argument("-o", "--output", type=Path, default=OUTPUT_DIR)
-    args = parser.parse_args()
-
-    if args.search:
-        query = " ".join(args.targets)
-        print(f"🔍 Searching: {query}")
-        repos = json.loads(
-            run_gh(
-                [
-                    "search",
-                    "repos",
-                    query,
-                    "--sort",
-                    "updated",
-                    "--limit",
-                    "10",
-                    "--json",
-                    "name,owner,description,url,stargazersCount,createdAt,updatedAt",
-                ]
-            )
-        )
-        save_search_results(query, args.output, repos)
-        return
-
-    for target in args.targets:
-        if "/" not in target:
-            print(f"⚠️  Skipping '{target}' - expected format: owner/repo")
-            continue
-        owner, repo = target.split("/", 1)
-        save_repo(owner, repo, args.output)
-
-
-if __name__ == "__main__":
-    main()

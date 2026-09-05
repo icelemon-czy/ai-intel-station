@@ -42,7 +42,7 @@ class LoadConfigIOTests(unittest.TestCase):
             path = Path(tmp) / "discovery.yaml"
             path.write_text(
                 "output_root: output\n"
-                "log_dir: .ai/L4-session/discovery\n"
+                "log_dir: .state/discovery\n"
                 "sources: {}\n"
                 "briefing: {enabled: false}\n"
                 "limits: {}\n",

@@ -7,7 +7,7 @@ from .items import ResearchItem
 from .storage import load_research_items
 
 
-def _parse_datetime(value: str | None) -> datetime | None:
+def parse_datetime(value: str | None) -> datetime | None:
     """Return a datetime for ``value`` or None when the input is empty.
 
     Raises ``ValueError`` when the input is non-empty but does not parse.
@@ -52,7 +52,7 @@ def _matches_sources(item: ResearchItem, sources: list[str] | None) -> bool:
     return item.source.lower() in source_set
 
 
-def _item_datetime(item: ResearchItem) -> datetime | None:
+def item_datetime(item: ResearchItem) -> datetime | None:
     """Return the first valid item-side timestamp without failing the query.
 
     Item metadata comes from historical archives and external sources, so
@@ -61,7 +61,7 @@ def _item_datetime(item: ResearchItem) -> datetime | None:
     """
     for value in (item.published_at, item.updated_at):
         try:
-            parsed = _parse_datetime(value)
+            parsed = parse_datetime(value)
         except ValueError:
             continue
         if parsed is not None:
@@ -75,14 +75,14 @@ def _matches_time_window(item: ResearchItem, since: str | None, until: str | Non
 
     # Item-side dates are pulled from real-world data, so they may be
     # anything. If we can't parse them, the safe fallback is "include
-    # the item" — _parse_datetime here will only raise for malformed
+    # the item" — parse_datetime here will only raise for malformed
     # USER input (since/until), which the caller surfaces upstream.
-    item_time = _item_datetime(item)
+    item_time = item_datetime(item)
     if item_time is None:
         return False
 
-    since_dt = _parse_datetime(since)
-    until_dt = _parse_datetime(until)
+    since_dt = parse_datetime(since)
+    until_dt = parse_datetime(until)
     if since_dt and item_time < since_dt:
         return False
     if until_dt and item_time > until_dt:
@@ -103,9 +103,9 @@ def query_research_items(
     # silently return "no matches" in that case — the user typed
     # nonsense and got an empty result with no signal.
     if since:
-        _parse_datetime(since)  # raises ValueError on garbage
+        parse_datetime(since)  # raises ValueError on garbage
     if until:
-        _parse_datetime(until)
+        parse_datetime(until)
 
     items = load_research_items(output_root)
     matches = [
@@ -118,7 +118,7 @@ def query_research_items(
     return sorted(
         matches,
         key=lambda item: (
-            _item_datetime(item) or datetime.min,
+            item_datetime(item) or datetime.min,
             item.title.lower(),
         ),
         reverse=True,

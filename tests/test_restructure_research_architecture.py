@@ -158,21 +158,29 @@ def test_library_query_supports_cross_source_and_optional_time_filters(tmp_path:
 
 
 def test_briefing_reports_generate_obsidian_friendly_markdown(tmp_path: Path) -> None:
-    from briefing.reports import write_digest_report, write_reading_list_report
+    from briefing.service import build_generic_briefing_from_items, save_generic_briefing
     from library.query import query_research_items
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
     items = query_research_items(output_root, keyword="agent")
 
-    digest_path = write_digest_report(output_root, title="AI Agents", items=items)
+    digest_path = save_generic_briefing(
+        build_generic_briefing_from_items(mode="digest", title="AI Agents", items=items),
+        output_root,
+    ).path
+    assert digest_path is not None
     digest = digest_path.read_text(encoding="utf-8")
     assert digest_path == output_root / "briefing" / "digests" / "ai-agents.md"
     assert "# Digest: AI Agents" in digest
     assert "## github" in digest
     assert "[Claude Code](https://github.com/anthropic/claude-code)" in digest
 
-    reading_list_path = write_reading_list_report(output_root, title="AI Agents", items=items)
+    reading_list_path = save_generic_briefing(
+        build_generic_briefing_from_items(mode="reading-list", title="AI Agents", items=items),
+        output_root,
+    ).path
+    assert reading_list_path is not None
     reading_list = reading_list_path.read_text(encoding="utf-8")
     assert reading_list_path == output_root / "briefing" / "reading-lists" / "ai-agents.md"
     assert "# Reading List: AI Agents" in reading_list
@@ -180,19 +188,23 @@ def test_briefing_reports_generate_obsidian_friendly_markdown(tmp_path: Path) ->
 
 
 def test_briefing_reports_allow_partial_success_with_explicit_source_gap(tmp_path: Path) -> None:
-    from briefing.reports import write_digest_report
+    from briefing.service import build_generic_briefing_from_items, save_generic_briefing
     from library.query import query_research_items
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
     items = query_research_items(output_root, sources=["github", "papers"])
 
-    digest_path = write_digest_report(
+    digest_path = save_generic_briefing(
+        build_generic_briefing_from_items(
+            mode="digest",
+            title="Weekly AI Brief",
+            items=items,
+            requested_sources=["github", "papers", "wechat"],
+        ),
         output_root,
-        title="Weekly AI Brief",
-        items=items,
-        requested_sources=["github", "papers", "wechat"],
-    )
+    ).path
+    assert digest_path is not None
 
     digest = digest_path.read_text(encoding="utf-8")
     assert digest_path.exists()
@@ -246,16 +258,6 @@ def test_workspace_operator_surface_supports_query_briefing_and_backfill(tmp_pat
     digest_path = output_root / "briefing" / "digests" / "agent.md"
     assert digest_path.exists()
 
-    repo_sample = REPO_ROOT / "output" / "github" / "anthropics-claude-code" / "README.md"
-    paper_sample = REPO_ROOT / "output" / "papers" / "arXiv-cs.AI" / "01-Personalized Worked Example Generation from Studen.md"
-    wechat_sample = (
-        REPO_ROOT
-        / "output"
-        / "wechat"
-        / "Agent Harness 综述：同一个模型，为什么做出来的 Agent 差这么远"
-        / "Agent Harness 综述：同一个模型，为什么做出来的 Agent 差这么远.md"
-    )
-
     raw_output_root = tmp_path / "raw-output"
     github_dir = raw_output_root / "github" / "anthropics-claude-code"
     papers_dir = raw_output_root / "papers" / "arXiv-cs.AI"
@@ -263,9 +265,18 @@ def test_workspace_operator_surface_supports_query_briefing_and_backfill(tmp_pat
     github_dir.mkdir(parents=True)
     papers_dir.mkdir(parents=True)
     wechat_dir.mkdir(parents=True)
-    github_dir.joinpath("README.md").write_text(repo_sample.read_text(encoding="utf-8"), encoding="utf-8")
-    papers_dir.joinpath("01-sample.md").write_text(paper_sample.read_text(encoding="utf-8"), encoding="utf-8")
-    wechat_dir.joinpath("agent-harness.md").write_text(wechat_sample.read_text(encoding="utf-8"), encoding="utf-8")
+    github_dir.joinpath("README.md").write_text(
+        "# claude-code\n\n- 🌐 URL: https://github.com/anthropics/claude-code\n",
+        encoding="utf-8",
+    )
+    papers_dir.joinpath("01-sample.md").write_text(
+        "# Agent Paper\n\n- 🔗 arXiv: https://arxiv.org/abs/2605.00001\n",
+        encoding="utf-8",
+    )
+    wechat_dir.joinpath("agent-harness.md").write_text(
+        "# Agent Harness\n\n> 公众号: 架构师\n\n---\n\nFixture body.\n",
+        encoding="utf-8",
+    )
 
     assert main(["backfill", str(raw_output_root)]) == 0
     assert (github_dir / "research-item.json").exists()
@@ -305,25 +316,30 @@ def test_workspace_operator_surface_continues_with_partial_briefing_results(tmp_
     assert "Missing sources: twitter" in digest
 
 
-def test_legacy_entrypoint_runtime_files_are_removed() -> None:
-    assert not (REPO_ROOT / "github-tools" / "fetch_github.py").exists()
-    assert not (REPO_ROOT / "papers-tools" / "fetch_papers.py").exists()
-    assert not (REPO_ROOT / "wechat-article-to-markdown" / "wechat_article_to_markdown.py").exists()
-    assert not (REPO_ROOT / "research_item.py").exists()
-
-
-def test_legacy_source_tool_directories_are_moved_out_of_repo_root() -> None:
-    assert not (REPO_ROOT / "github-tools").exists()
-    assert not (REPO_ROOT / "papers-tools").exists()
-    assert not (REPO_ROOT / "wechat-article-to-markdown").exists()
-    assert not (REPO_ROOT / "twitter-tools").exists()
+def test_current_entrypoint_and_root_boundaries() -> None:
+    assert (REPO_ROOT / "research" / "cli.py").is_file()
+    assert (REPO_ROOT / "research" / "commands.py").is_file()
+    for retired in (
+        "github",
+        "github-tools",
+        "papers-tools",
+        "wechat-article-to-markdown",
+        "twitter-tools",
+        "docs",
+    ):
+        assert not (REPO_ROOT / retired).exists()
+    for retired_file in (
+        REPO_ROOT / "briefing" / "main.py",
+        REPO_ROOT / "publish" / "cli.py",
+        REPO_ROOT / "workspace_web" / "archive.py",
+    ):
+        assert not retired_file.exists()
 
     tools_dir = REPO_ROOT / "tools"
-    assert tools_dir.exists()
-    assert (tools_dir / "github" / "README.md").exists()
-    assert (tools_dir / "github" / "SKILL.md").exists()
-    assert (tools_dir / "papers" / "README.md").exists()
-    assert (tools_dir / "papers" / "SKILL.md").exists()
-    assert (tools_dir / "twitter" / "README.md").exists()
-    assert (tools_dir / "wechat" / "README.md").exists()
-    assert (tools_dir / "wechat" / "SKILL.md").exists()
+    assert {path.name for path in tools_dir.iterdir() if path.is_dir()} == {
+        "github",
+        "papers",
+        "wechat",
+    }
+    for source in ("github", "papers", "wechat"):
+        assert {path.name for path in (tools_dir / source).iterdir()} == {"SKILL.md"}

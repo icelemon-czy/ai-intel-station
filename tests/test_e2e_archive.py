@@ -5,9 +5,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from library.backfill import backfill_output_tree
 from library.items import (
     ResearchItem,
-    backfill_output_tree,
     build_github_repo_item,
     build_paper_item,
     write_research_item,
@@ -68,7 +68,7 @@ class RealArchiveRoundTripTests(unittest.TestCase):
 
     def test_paper_sidecar_loads_and_renders_in_briefing(self) -> None:
         """A real paper sidecar should appear in a generated briefing."""
-        from briefing.reports import write_digest_report
+        from briefing.service import build_generic_briefing_from_items, save_generic_briefing
         from library.query import query_research_items
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -105,7 +105,12 @@ class RealArchiveRoundTripTests(unittest.TestCase):
             items = query_research_items(output_root, sources=["papers"])
             self.assertEqual(len(items), 1)
 
-            digest_path = write_digest_report(output_root, "daily", items, requested_sources=["papers"])
+            briefing = build_generic_briefing_from_items(
+                mode="digest", title="daily", items=items, requested_sources=["papers"]
+            )
+            digest_path = save_generic_briefing(briefing, output_root).path
+            self.assertIsNotNone(digest_path)
+            assert digest_path is not None
             content = digest_path.read_text(encoding="utf-8")
             self.assertIn("# Digest: daily", content)
             self.assertIn("Sample Paper on Round-Trip Testing", content)
@@ -176,7 +181,7 @@ if __name__ == "__main__":
     unittest.main()
 
 # ---------------------------------------------------------------------------
-# L3 Requirement: Source-Segregated Archive
+# Contract Requirement: Source-Segregated Archive
 # "All generated artifacts SHALL be written to source-specific subdirectories
 #  under output/."
 # We walk the resulting tree and assert no file leaked outside the
@@ -185,7 +190,7 @@ if __name__ == "__main__":
 # ---------------------------------------------------------------------------
 
 
-class L3SourceSegregatedArchiveTests(unittest.TestCase):
+class ContractSourceSegregatedArchiveTests(unittest.TestCase):
     """For each source, build a real artifact and walk the resulting tree
     to assert no file leaked outside the source-specific subdirectory."""
 
@@ -258,7 +263,7 @@ class L3SourceSegregatedArchiveTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# L3 Requirement: Traceable Markdown Artifacts
+# Contract Requirement: Traceable Markdown Artifacts
 # "Every generated Markdown artifact SHALL preserve enough metadata to
 #  identify the original source."
 # Real e2e: build the item via the real builder and assert the sidecar
@@ -266,7 +271,7 @@ class L3SourceSegregatedArchiveTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class L3TraceableArtifactsTests(unittest.TestCase):
+class ContractTraceableArtifactsTests(unittest.TestCase):
     def test_github_repo_markdown_preserves_canonical_url(self):
         from library.items import build_github_repo_item
 

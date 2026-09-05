@@ -30,6 +30,7 @@ research = "research.cli:console_main"
 include = ["research*", "collect*", "library*", "briefing*", "publish*", "workspace_web*"]
 
 [tool.setuptools.package-data]
+"research.discovery" = ["discovery.yaml.example"]
 workspace_web = [
   "static/index.html",
   "static/assets/*.css",

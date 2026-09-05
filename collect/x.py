@@ -9,7 +9,8 @@ from typing import Callable
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from library.items import build_x_item, write_research_items_jsonl
+from library.archive_paths import x_leaf
+from library.items import build_x_item, write_research_item, x_post_markdown
 
 
 RECENT_SEARCH_URL = "https://api.x.com/2/tweets/search/recent"
@@ -103,30 +104,17 @@ def collect_recent_search(
     ):
         raise XFetchError(f"X recent search returned malformed payload for {query!r}")
 
-    safe_query = re.sub(r"[^\w\-一-鿿]+", "-", query.lower()).strip("-")[:80] or "query"
-    query_dir = Path(output_dir) / safe_query
-    query_dir.mkdir(parents=True, exist_ok=True)
-    markdown_path = query_dir / "signals.md"
-    items = [
-        build_x_item(
-            post,
-            markdown_path,
-            query=query,
-            discovered_at=discovered_at,
-        )
-        for post in payload.get("data", [])
-        if isinstance(post, dict) and post.get("id") and post.get("created_at")
-    ]
-    lines = [f"# X recent search: {query}", "", f"Found {len(items)} signal(s)", ""]
-    for item in items:
-        lines.extend(
-            [
-                f"## [{item.title}]({item.canonical_url})",
-                f"- Published: {item.published_at}",
-                f"- Engagement: {item.metadata.get('engagement_count', 0)}",
-                "",
-            ]
-        )
-    markdown_path.write_text("\n".join(lines), encoding="utf-8")
-    write_research_items_jsonl(items, query_dir / "research-items.jsonl")
-    return markdown_path
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    posts = [post for post in payload.get("data", []) if isinstance(post, dict) and post.get("id")]
+    written: list[Path] = []
+    for rank, post in enumerate(posts, start=1):
+        # One primary unit per stable post id; query / rank / discovered date stay
+        # in the sidecar as provenance instead of duplicating the post per query.
+        markdown_path = output_dir / x_leaf(post.get("id"))
+        item = build_x_item(post, markdown_path, query=query, discovered_at=discovered_at)
+        item.metadata["rank"] = rank
+        markdown_path.write_text(x_post_markdown(item), encoding="utf-8")
+        write_research_item(item, output_dir / x_leaf(post.get("id"), suffix=".research-item.json"))
+        written.append(markdown_path)
+    return written[0] if written else output_dir

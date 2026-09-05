@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from research.discovery import EXAMPLE_CONFIG_PATH
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYTHON = str(REPO_ROOT / ".venv" / "bin" / "python")
 MODULE = REPO_ROOT  # so `python -m research.cli` works
@@ -86,7 +88,7 @@ class CliEndToEndTests(unittest.TestCase):
 
     def test_discover_dry_run_with_example_succeeds(self) -> None:
         """The bundled example config drives a real discovery dry-run end-to-end."""
-        config = REPO_ROOT / "config" / "discovery.yaml.example"
+        config = EXAMPLE_CONFIG_PATH
         with tempfile.TemporaryDirectory() as tmp:
             result = _run_cli(
                 "discover",
@@ -108,7 +110,7 @@ class CliEndToEndTests(unittest.TestCase):
 
     def test_discover_status_reads_latest_log(self) -> None:
         """After a dry-run, --status should report it back."""
-        config = REPO_ROOT / "config" / "discovery.yaml.example"
+        config = EXAMPLE_CONFIG_PATH
         with tempfile.TemporaryDirectory() as tmp:
             _run_cli("discover", "--dry-run", "-c", str(config), "-o", tmp)
             status = _run_cli("discover", "--status", "-c", str(config), "-o", tmp)
@@ -118,7 +120,7 @@ class CliEndToEndTests(unittest.TestCase):
     def test_discover_log_list_shows_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             config = Path(tmp) / "discovery.yaml"
-            example = (REPO_ROOT / "config" / "discovery.yaml.example").read_text(
+            example = EXAMPLE_CONFIG_PATH.read_text(
                 encoding="utf-8"
             )
             config.write_text(
@@ -134,7 +136,7 @@ class CliEndToEndTests(unittest.TestCase):
         self.assertIn("Last 1 runs", listed.stdout)
 
     def test_discover_invalid_source_exits_2(self) -> None:
-        config = REPO_ROOT / "config" / "discovery.yaml.example"
+        config = EXAMPLE_CONFIG_PATH
         result = _run_cli("discover", "--dry-run", "--source", "notreal", "-c", str(config))
         self.assertEqual(result.returncode, 2)
         self.assertIn("invalid source", result.stdout)

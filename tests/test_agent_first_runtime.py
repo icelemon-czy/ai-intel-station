@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from research.discovery import EXAMPLE_CONFIG_PATH
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -104,7 +106,7 @@ class AgentFirstRuntimeContractTests(unittest.TestCase):
             self.assertIn(package, rendered.lower())
 
     def test_core_dry_run_does_not_import_optional_packages(self) -> None:
-        example = REPO_ROOT / "config" / "discovery.yaml.example"
+        example = EXAMPLE_CONFIG_PATH
         with tempfile.TemporaryDirectory() as temp_root:
             config = Path(temp_root) / "discovery.yaml"
             config.write_text(

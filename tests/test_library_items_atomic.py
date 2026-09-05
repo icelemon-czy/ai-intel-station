@@ -84,14 +84,14 @@ class ParseGithubSearchMarkdownEmptyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / "search.md"
             p.write_text("", encoding="utf-8")
-            from library.items import parse_github_search_markdown
+            from library.backfill import parse_github_search_markdown
             self.assertEqual(parse_github_search_markdown(p), [])
 
     def test_blank_lines_only_returns_empty_list(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / "search.md"
             p.write_text("\n\n", encoding="utf-8")
-            from library.items import parse_github_search_markdown
+            from library.backfill import parse_github_search_markdown
             # 3 lines of whitespace after splitlines: the first line
             # is the literal "" so the title scan lands on the next
             # non-empty line.  The remaining index 0 would still

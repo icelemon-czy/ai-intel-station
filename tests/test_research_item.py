@@ -9,28 +9,61 @@ from types import ModuleType
 
 import pytest
 
-from library.items import (
+from library.backfill import (
     backfill_output_tree,
-    build_github_repo_item,
-    build_wechat_item,
     parse_github_repo_markdown,
     parse_github_search_markdown,
     parse_paper_markdown,
     parse_wechat_markdown,
 )
+from library.items import build_github_repo_item, build_wechat_item
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-GITHUB_REPO_SAMPLE = REPO_ROOT / "output" / "github" / "anthropics-claude-code" / "README.md"
-GITHUB_SEARCH_SAMPLE = REPO_ROOT / "output" / "github" / "claude-code-agent" / "search.md"
-PAPER_SAMPLE = REPO_ROOT / "output" / "papers" / "arXiv-cs.AI" / "01-Personalized Worked Example Generation from Studen.md"
-WECHAT_SAMPLE = (
-    REPO_ROOT
-    / "output"
-    / "wechat"
-    / "Agent Harness 综述：同一个模型，为什么做出来的 Agent 差这么远"
-    / "Agent Harness 综述：同一个模型，为什么做出来的 Agent 差这么远.md"
-)
+def _write_parser_samples(root: Path) -> tuple[Path, Path, Path, Path]:
+    root.mkdir(parents=True, exist_ok=True)
+    repo = root / "repo.md"
+    repo.write_text(
+        "# claude-code\n\n"
+        "> Agentic coding assistant\n\n"
+        "- ⭐ Stars: 10\n"
+        "- 🏷️ Language: Python\n"
+        "- 🌐 URL: https://github.com/anthropics/claude-code\n"
+        "- 📅 Created: 2025-02-22T00:00:00Z\n"
+        "- 🔄 Updated: 2026-04-22T00:00:00Z\n\n"
+        "## Topics\n\n- `agent`\n",
+        encoding="utf-8",
+    )
+    search = root / "search.md"
+    search.write_text(
+        "# Search: agent harness\n\n"
+        "## [alpha](https://github.com/example/alpha)\n"
+        "- ⭐ 10 stars\n- Agent framework\n"
+        "- 📅 Created: 2026-01-01T00:00:00Z\n\n"
+        "## [beta](https://github.com/example/beta)\n"
+        "- ⭐ 5 stars\n- Evaluation toolkit\n",
+        encoding="utf-8",
+    )
+    paper = root / "paper.md"
+    paper.write_text(
+        "# Fixture Paper\n\n"
+        "> **Authors:** Ada Lovelace, Grace Hopper et al. (3 authors total)\n\n"
+        "- 📅 Published: 2026-04-27\n"
+        "- 🏷️ Categories: cs.AI, cs.LG\n"
+        "- 🔗 arXiv: https://arxiv.org/abs/2604.00001v1\n"
+        "- 📄 PDF: https://arxiv.org/pdf/2604.00001v1\n\n"
+        "## Abstract\n\nFixture abstract for parser coverage.\n",
+        encoding="utf-8",
+    )
+    wechat = root / "wechat.md"
+    wechat.write_text(
+        "# Fixture WeChat Article\n\n"
+        "> 公众号: 架构师\n"
+        "> 发布时间: 2026-04-19 22:26\n"
+        "> 原文链接: https://mp.weixin.qq.com/s/fixture\n\n"
+        "---\n\nFixture WeChat summary paragraph.\n",
+        encoding="utf-8",
+    )
+    return repo, search, paper, wechat
 
 
 def test_build_github_repo_item_normalizes_repository_metadata() -> None:
@@ -97,64 +130,68 @@ def test_build_wechat_item_allows_missing_optional_fields() -> None:
     assert payload["tags"] == []
 
 
-def test_parse_existing_output_samples_into_research_items() -> None:
-    repo_item = parse_github_repo_markdown(GITHUB_REPO_SAMPLE)
-    search_items = parse_github_search_markdown(GITHUB_SEARCH_SAMPLE)
-    paper_item = parse_paper_markdown(PAPER_SAMPLE)
-    wechat_item = parse_wechat_markdown(WECHAT_SAMPLE)
+def test_parse_archive_fixtures_into_research_items(tmp_path: Path) -> None:
+    repo, search, paper, wechat = _write_parser_samples(tmp_path)
+    repo_item = parse_github_repo_markdown(repo)
+    search_items = parse_github_search_markdown(search)
+    paper_item = parse_paper_markdown(paper)
+    wechat_item = parse_wechat_markdown(wechat)
 
     assert repo_item.source == "github"
     assert repo_item.item_type == "repository"
     assert repo_item.canonical_url == "https://github.com/anthropics/claude-code"
 
-    assert len(search_items) == 10
+    assert len(search_items) == 2
     assert search_items[0].source == "github"
     assert search_items[0].item_type == "search-result"
     assert search_items[0].canonical_url.startswith("https://github.com/")
 
     assert paper_item.source == "papers"
     assert paper_item.item_type == "paper"
-    assert paper_item.title == "Personalized Worked Example Generation from Student Code Submissions using Pattern-based Knowledge Components"
-    assert paper_item.canonical_url == "https://arxiv.org/abs/2604.24758v1"
-    assert paper_item.summary.startswith("Adaptive programming practice often relies on fixed libraries")
-    assert paper_item.authors == ["Griffin Pitts", "Muntasir Hoq", "Peter Brusilovsky", "Narges Norouzi", "Arto Hellas"]
+    assert paper_item.title == "Fixture Paper"
+    assert paper_item.canonical_url == "https://arxiv.org/abs/2604.00001v1"
+    assert paper_item.summary == "Fixture abstract for parser coverage."
+    assert paper_item.authors == ["Ada Lovelace", "Grace Hopper"]
     assert paper_item.published_at == "2026-04-27"
-    assert paper_item.tags == ["cs.HC", "cs.AI", "cs.CY"]
-    assert paper_item.metadata["authors_total"] == 7
+    assert paper_item.tags == ["cs.AI", "cs.LG"]
+    assert paper_item.metadata["authors_total"] == 3
 
     assert wechat_item.source == "wechat"
     assert wechat_item.item_type == "article"
-    assert wechat_item.title == "Agent Harness 综述：同一个模型，为什么做出来的 Agent 差这么远"
-    assert wechat_item.canonical_url == "https://mp.weixin.qq.com/s/h49UiGERvz8BMkMW0_4Gwg"
+    assert wechat_item.title == "Fixture WeChat Article"
+    assert wechat_item.canonical_url == "https://mp.weixin.qq.com/s/fixture"
     assert wechat_item.authors == ["架构师"]
     assert wechat_item.published_at == "2026-04-19 22:26"
-    assert wechat_item.summary.startswith("架构师（JiaGouX）")
+    assert wechat_item.summary == "Fixture WeChat summary paragraph."
     assert wechat_item.metadata["publisher"] == "架构师"
 
 
 def test_backfill_output_tree_writes_expected_sidecars(tmp_path: Path) -> None:
     output_root = tmp_path / "output"
+    repo_sample, search_sample, paper_sample, wechat_sample = _write_parser_samples(
+        tmp_path / "fixtures"
+    )
 
     repo_dir = output_root / "github" / "anthropics-claude-code"
     repo_dir.mkdir(parents=True)
-    shutil.copy2(GITHUB_REPO_SAMPLE, repo_dir / "README.md")
+    shutil.copy2(repo_sample, repo_dir / "README.md")
     repo_markdown_before = repo_dir.joinpath("README.md").read_text(encoding="utf-8")
 
     search_dir = output_root / "github" / "claude-code-agent"
     search_dir.mkdir(parents=True)
-    shutil.copy2(GITHUB_SEARCH_SAMPLE, search_dir / "search.md")
+    shutil.copy2(search_sample, search_dir / "search.md")
     search_markdown_before = search_dir.joinpath("search.md").read_text(encoding="utf-8")
 
     paper_dir = output_root / "papers" / "arXiv-cs.AI"
     paper_dir.mkdir(parents=True)
     paper_md = paper_dir / "01-sample.md"
-    shutil.copy2(PAPER_SAMPLE, paper_md)
+    shutil.copy2(paper_sample, paper_md)
     paper_markdown_before = paper_md.read_text(encoding="utf-8")
 
     wechat_dir = output_root / "wechat" / "sample-article"
     wechat_dir.mkdir(parents=True)
     wechat_md = wechat_dir / "sample-article.md"
-    shutil.copy2(WECHAT_SAMPLE, wechat_md)
+    shutil.copy2(wechat_sample, wechat_md)
     wechat_markdown_before = wechat_md.read_text(encoding="utf-8")
 
     written = backfill_output_tree(output_root)
@@ -174,7 +211,7 @@ def test_backfill_output_tree_writes_expected_sidecars(tmp_path: Path) -> None:
     assert repo_payload["item_type"] == "repository"
 
     search_lines = [line for line in search_sidecar.read_text(encoding="utf-8").splitlines() if line.strip()]
-    assert len(search_lines) == 10
+    assert len(search_lines) == 2
     assert json.loads(search_lines[0])["item_type"] == "search-result"
 
     paper_payload = json.loads(paper_sidecar.read_text(encoding="utf-8"))
@@ -190,7 +227,7 @@ def test_backfill_output_tree_writes_expected_sidecars(tmp_path: Path) -> None:
 
 
 def test_save_repo_writes_markdown_and_research_item_sidecar(tmp_path: Path, monkeypatch) -> None:
-    from collect import github
+    import collect.github as github
 
     def fake_fetch_repo(owner: str, repo: str) -> dict:
         assert (owner, repo) == ("anthropic", "claude-code")
@@ -217,7 +254,7 @@ def test_save_repo_writes_markdown_and_research_item_sidecar(tmp_path: Path, mon
 
     github.save_repo("anthropic", "claude-code", tmp_path)
 
-    repo_dir = tmp_path / "anthropic-claude-code"
+    repo_dir = tmp_path / "anthropic" / "claude-code"
     markdown_path = repo_dir / "README.md"
     sidecar_path = repo_dir / "research-item.json"
 
@@ -240,7 +277,7 @@ def test_save_repo_writes_markdown_and_research_item_sidecar(tmp_path: Path, mon
     assert payload["metadata"]["stargazer_count"] == 10
     assert payload["metadata"]["primary_language"] == "Shell"
     assert payload["metadata"]["issue_count"] == 1
-    assert payload["output_path"].endswith("anthropic-claude-code/README.md")
+    assert payload["output_path"].endswith("anthropic/claude-code/README.md")
 
 
 def test_save_search_results_writes_markdown_and_jsonl_sidecar(tmp_path: Path) -> None:
@@ -267,7 +304,9 @@ def test_save_search_results_writes_markdown_and_jsonl_sidecar(tmp_path: Path) -
         ],
     )
 
-    result_dir = tmp_path / "agent-harness"
+    search_roots = list((tmp_path / "_search").glob("agent-harness-*"))
+    assert len(search_roots) == 1
+    result_dir = search_roots[0]
     markdown_path = result_dir / "search.md"
     sidecar_path = result_dir / "research-items.jsonl"
 
@@ -311,9 +350,8 @@ def test_save_papers_writes_markdown_and_research_item_sidecar(tmp_path: Path) -
 
     save_papers([paper], "cs.AI", tmp_path)
 
-    category_dir = tmp_path / "arXiv-cs.AI"
-    markdown_path = category_dir / "01-Agent Harness Study.md"
-    sidecar_path = category_dir / "01-Agent Harness Study.research-item.json"
+    markdown_path = tmp_path / "2605.00001.md"
+    sidecar_path = tmp_path / "2605.00001.research-item.json"
 
     assert markdown_path.exists()
     assert sidecar_path.exists()
@@ -335,7 +373,8 @@ def test_save_papers_writes_markdown_and_research_item_sidecar(tmp_path: Path) -
     assert payload["discovery_method"] == "arxiv-category"
     assert payload["tags"] == ["cs.AI", "cs.CL"]
     assert payload["metadata"]["pdf_url"] == "https://arxiv.org/pdf/2605.00001"
-    assert payload["output_path"].endswith("arXiv-cs.AI/01-Agent Harness Study.md")
+    assert payload["metadata"]["arxiv_id"] == "2605.00001"
+    assert payload["output_path"].endswith("2605.00001.md")
 
 
 @pytest.mark.wechat
@@ -412,7 +451,11 @@ def test_fetch_article_writes_markdown_images_and_research_item_sidecar(
 
     asyncio.run(wechat.fetch_article(url, output_dir=tmp_path))
 
-    article_dir = tmp_path / "Harness"
+    # Target layout: <date>-<slug>-<hash>; the article Markdown, sidecar and
+    # images/ ride together as one unit.
+    candidates = list(tmp_path.glob("2023-11-15-Harness-*"))
+    assert len(candidates) == 1
+    article_dir = candidates[0]
     markdown_path = article_dir / "Harness.md"
     sidecar_path = article_dir / "research-item.json"
 

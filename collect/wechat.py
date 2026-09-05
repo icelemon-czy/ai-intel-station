@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import argparse
 import asyncio
 import html as html_mod
 import os
 import re
-import sys
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
+from library.archive_paths import wechat_leaf, wechat_markdown_leaf
 from library.items import build_wechat_item, write_research_item
 
 
@@ -341,61 +340,22 @@ async def fetch_article(url: str, output_dir: Path | None = None) -> Path:
 
     md = convert_to_markdown(content_html, code_blocks)
 
-    raw_safe = re.sub(r'[/\\?%*:|"<>]', "_", meta["title"])[:80]
-    safe_title = raw_safe.strip("_") or "untitled"
-    article_dir = output_dir / safe_title
+    # Stable source-identity unit dir: <date>-<readable slug>-<short hash of the
+    # canonical URL>. The article Markdown, sidecar and images/ live together so
+    # the whole unit can move as one and relative image links keep resolving.
+    article_dir = output_dir / wechat_leaf(meta["title"], meta.get("source_url"), meta.get("publish_time"))
+    article_dir.mkdir(parents=True, exist_ok=True)
     img_dir = article_dir / "images"
-    # If the article directory already exists, suffix a counter so a
-    # follow-up collect with the same title does not silently overwrite
-    # the previous archive copy.
-    counter = 1
-    while article_dir.exists():
-        article_dir = output_dir / f"{safe_title}-{counter}"
-        img_dir = article_dir / "images"
-        counter += 1
     img_dir.mkdir(parents=True, exist_ok=True)
 
     url_map = await download_all_images(img_urls, img_dir)
     md = replace_image_urls(md, url_map)
 
     result = build_markdown(meta, md)
-    md_path = article_dir / f"{safe_title}.md"
+    md_path = article_dir / wechat_markdown_leaf(meta["title"])
     md_path.write_text(result, encoding="utf-8")
     write_research_item(build_wechat_item(meta, md_path, body_markdown=md), article_dir / "research-item.json")
 
     print(f"✅ 已保存: {md_path}")
     print(f"📊 Markdown 约 {len(md)} 字符")
     return md_path
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="微信公众号文章抓取 & Markdown 转换工具")
-    parser.add_argument("url", help="微信公众号文章 URL")
-    parser.add_argument(
-        "-o",
-        "--output",
-        type=Path,
-        default=DEFAULT_OUTPUT_DIR,
-        help=f"输出目录 (默认: {DEFAULT_OUTPUT_DIR})",
-    )
-    args = parser.parse_args()
-
-    raw_url = args.url
-    url = normalize_wechat_url(raw_url)
-    if url != raw_url:
-        print("ℹ️  已自动清理 URL 中的转义字符 / HTML 实体。")
-
-    if not url.startswith("https://mp.weixin.qq.com/"):
-        print("❌ 请输入有效的微信文章 URL (mp.weixin.qq.com)")
-        print("提示：请用引号包住完整 URL；若粘贴后出现反斜杠转义，脚本会自动清理。")
-        sys.exit(1)
-
-    try:
-        asyncio.run(fetch_article(url, output_dir=args.output))
-    except Exception as exc:
-        print(f"❌ 抓取失败: {exc}")
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()

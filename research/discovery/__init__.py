@@ -18,16 +18,14 @@ from .config import (
     render_example_config,
 )
 from .log import DiscoveryLogger, latest_log_path, read_log_summary, recent_log_paths
-from .runner import (
-    DiscoveryReport,
-    SourceReport,
+from .models import DiscoveryReport, SourceReport
+from .runner import generate_briefing, run_discovery
+from .sources import (
     collect_github,
     collect_hackernews,
     collect_papers,
     collect_wechat,
     collect_x,
-    generate_briefing,
-    run_discovery,
 )
 from .scripts import install_cron, install_launchd, render_install_instructions
 

@@ -1,1 +1,1 @@
-from . import github, papers, wechat
+"""Source collection package; import the owning source module explicitly."""

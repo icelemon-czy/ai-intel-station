@@ -1,1 +1,1 @@
-from .reports import write_digest_report, write_reading_list_report
+"""Briefing generation package; public operations live in ``briefing.service``."""

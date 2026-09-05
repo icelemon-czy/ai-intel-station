@@ -16,7 +16,7 @@ from pathlib import Path
 
 from library.items import ResearchItem, write_research_item
 from library.storage import load_research_items
-from workspace_web import service
+from workspace_web import discovery
 
 
 class LoadResearchItemsResilienceTests(unittest.TestCase):
@@ -85,11 +85,11 @@ class LoadResearchItemsResilienceTests(unittest.TestCase):
 
 
 class JobRegistryEvictionTests(unittest.TestCase):
-    """``service._JOBS`` must keep only the most-recent ``MAX_JOBS`` jobs."""
+    """The Discovery job owner keeps only the most-recent jobs."""
 
     def setUp(self) -> None:
         # Each test starts with a fresh registry so they are independent.
-        service._JOBS.clear()
+        discovery._JOBS.clear()
 
     def test_evict_caps_registry_to_max_jobs(self) -> None:
         from datetime import datetime, timedelta
@@ -97,17 +97,17 @@ class JobRegistryEvictionTests(unittest.TestCase):
         # Seed 50 finished jobs with timestamps spread over time so we
         # can order by started_at.
         now = datetime.now()
-        with service._JOBS_LOCK:
+        with discovery._JOBS_LOCK:
             for i in range(50):
-                service._JOBS[f"job-{i:03d}"] = {
+                discovery._JOBS[f"job-{i:03d}"] = {
                     "status": "success",
                     "started_at": (now + timedelta(seconds=i)).isoformat(timespec="seconds"),
                     "result": {"i": i},
                 }
-            service._evict_old_jobs()
-        self.assertLessEqual(len(service._JOBS), service.MAX_JOBS)
+            discovery._evict_old_jobs()
+        self.assertLessEqual(len(discovery._JOBS), discovery.MAX_JOBS)
         # The most recent MAX_JOBS entries (highest i) survive.
-        surviving = sorted(service._JOBS.keys())
+        surviving = sorted(discovery._JOBS.keys())
         # The evicted ones have the lowest indices.
         self.assertNotIn("job-000", surviving)
 
@@ -115,18 +115,18 @@ class JobRegistryEvictionTests(unittest.TestCase):
         from datetime import datetime
 
         now_iso = datetime.now().isoformat(timespec="seconds")
-        with service._JOBS_LOCK:
-            for i in range(service.MAX_JOBS + 5):
+        with discovery._JOBS_LOCK:
+            for i in range(discovery.MAX_JOBS + 5):
                 # Half running, half finished. Mark every other entry
                 # as 'running' so it must never get evicted.
-                service._JOBS[f"job-{i:03d}"] = {
+                discovery._JOBS[f"job-{i:03d}"] = {
                     "status": "running" if i % 2 == 0 else "success",
                     "started_at": now_iso,
                     "result": None,
                 }
-            service._evict_old_jobs()
+            discovery._evict_old_jobs()
         # The MAX_JOBS eviction must keep all 'running' entries.
-        running_count = sum(1 for r in service._JOBS.values() if r.get("status") == "running")
+        running_count = sum(1 for r in discovery._JOBS.values() if r.get("status") == "running")
         self.assertGreater(running_count, 0)
 
 
@@ -136,19 +136,19 @@ class GetJobReturnValueTests(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        service._JOBS.clear()
+        discovery._JOBS.clear()
 
     def test_get_job_returns_independent_copy(self) -> None:
-        service._JOBS["job-1"] = {
+        discovery._JOBS["job-1"] = {
             "status": "success",
             "result": {"nested": {"deep": 1}},
             "started_at": "2026-01-01T00:00:00",
         }
-        first = service.get_job("job-1")
+        first = discovery.get_job("job-1")
         first["result"]["nested"]["deep"] = 999
         first["status"] = "mutated"
 
-        second = service.get_job("job-1")
+        second = discovery.get_job("job-1")
         self.assertEqual(second["status"], "success")
         self.assertEqual(second["result"]["nested"]["deep"], 1)
 

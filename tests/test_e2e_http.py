@@ -110,12 +110,14 @@ class WorkspaceHttpEndToEndTests(unittest.TestCase):
         self.assertIn("has_run", body)
 
     def test_post_discover_run_returns_job_id(self) -> None:
-        # Sync mode returns the full report synchronously.
-        status, body = self._post("/api/discover/run?sync=1", {})
+        # Sync mode returns the full report synchronously.  Point at a missing
+        # temporary config so this HTTP contract never starts a live sweep.
+        status, body = self._post(
+            "/api/discover/run?sync=1",
+            {"config_path": str(Path(self._tmp.name) / "missing-discovery.yaml")},
+        )
         self.assertEqual(status, 200)
-        # No discovery YAML -> config_error, but importantly the endpoint
-        # responds correctly, no 500.
-        self.assertIn(body.get("status"), {"ok", "partial", "config_error"})
+        self.assertEqual(body.get("status"), "config_error")
 
     def test_get_unknown_api_returns_404(self) -> None:
         import urllib.error

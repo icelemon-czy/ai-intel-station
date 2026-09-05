@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 
 from library.items import ResearchItem
-from publish.obsidian import briefing_output_path, write_markdown
+from library.query import item_datetime
 
 
 def _sort_items(items: list[ResearchItem]) -> list[ResearchItem]:
@@ -16,33 +17,12 @@ def _sort_items(items: list[ResearchItem]) -> list[ResearchItem]:
     meaning a digest always opened with whatever happened to sort
     first — usually a 2-year-old generic write-up that nobody wanted.
     """
+    by_title = sorted(items, key=lambda item: item.title.lower())
     return sorted(
-        items,
-        key=lambda item: (
-            -(
-                # strptime-fallback chain so an unparseable date sorts as 0.
-                _parse_dt(item.published_at)
-                or _parse_dt(item.updated_at)
-                or 0
-            ),
-            item.title.lower(),
-        ),
+        by_title,
+        key=lambda item: item_datetime(item) or datetime.min,
+        reverse=True,
     )
-
-
-def _parse_dt(value: str | None) -> int | None:
-    """Parse a YYYY-MM-DD or YYYY-MM-DDT... timestamp into an epoch second.
-    Returns None when unparseable — duplicated from library.query to
-    keep this module independent of the library's date parsing."""
-    if not value:
-        return None
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
-        try:
-            from datetime import datetime
-            return int(datetime.strptime(value, fmt).timestamp())
-        except (ValueError, TypeError):
-            continue
-    return None
 
 
 def _coverage_note(items: list[ResearchItem], requested_sources: list[str] | None) -> list[str]:
@@ -191,23 +171,3 @@ def build_reading_list_markdown(title: str, items: list[ResearchItem], requested
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
-
-
-def write_digest_report(
-    output_root: Path,
-    title: str,
-    items: list[ResearchItem],
-    requested_sources: list[str] | None = None,
-) -> Path:
-    path = briefing_output_path(output_root, "digests", title)
-    return write_markdown(path, build_digest_markdown(title, items, requested_sources=requested_sources))
-
-
-def write_reading_list_report(
-    output_root: Path,
-    title: str,
-    items: list[ResearchItem],
-    requested_sources: list[str] | None = None,
-) -> Path:
-    path = briefing_output_path(output_root, "reading-lists", title)
-    return write_markdown(path, build_reading_list_markdown(title, items, requested_sources=requested_sources))

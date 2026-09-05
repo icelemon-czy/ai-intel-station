@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import html
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -9,6 +8,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from library.archive_paths import arxiv_identity, paper_leaf
 from library.items import build_paper_item, write_research_item
 
 
@@ -342,56 +342,47 @@ def paper_to_markdown(paper: dict) -> str:
 
 
 def save_papers(papers: list[dict], category: str, output_dir: Path) -> None:
-    category_dir = output_dir / f"arXiv-{category}"
-    category_dir.mkdir(parents=True, exist_ok=True)
+    """Persist each paper at ``output/papers/<arxiv-id>.md``.
 
+    ``category`` is only provenance (a cross-listed paper is stored once under
+    its stable ``arxiv-id``); the same id collected from another category writes
+    to the same path, so cross-category copies self-merge instead of duplicating.
+    ``output_dir`` is the papers source root (``output/papers``).
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    from library.items import _atomic_write_text
+
+    saved = 0
     for index, paper in enumerate(papers):
-        # Defensive: a malformed arxiv response missing the title
-        # field would have raised KeyError here. We still want to
-        # save the paper so the operator can see what we got, just
-        # with a placeholder title.
+        # Defensive: a malformed arxiv response missing the title field still
+        # gets a placeholder so the abstract and id remain inspectable.
         title = paper.get("title") or f"untitled-{index + 1:02d}"
-        safe_title = "".join(char for char in title[:50] if char.isalnum() or char in " -").strip()
-        # If the title is purely punctuation / CJK / unicode that the
-        # `isalnum()` filter strips, fall back to a positional name
-        # so the file is not named literally ".md".
-        if not safe_title:
-            safe_title = f"untitled-{index + 1:02d}"
-        filepath = category_dir / f"{index + 1:02d}-{safe_title}.md"
+        arxiv_id = arxiv_identity(paper.get("abs_url"), title)
+        filepath = output_dir / paper_leaf(arxiv_id)
         body = paper_to_markdown(paper)
-        # Atomic write — see library.items._atomic_write_text for the
-        # rationale. A SIGTERM mid-write used to leave a half-written
-        # file the operator assumed was complete.
-        from library.items import _atomic_write_text
+        # Atomic write — see library.items._atomic_write_text for the rationale.
         _atomic_write_text(filepath, body)
-        write_research_item(build_paper_item(paper, filepath), filepath.with_name(f"{filepath.stem}.research-item.json"))
+        sidecar_path = output_dir / paper_leaf(arxiv_id, suffix=".research-item.json")
+        item = build_paper_item(paper, filepath)
+        # If the same arXiv identity was already collected from another category,
+        # keep the union of categories/tags as provenance instead of dropping them.
+        item.tags = _union_categories(sidecar_path, item.tags)
+        write_research_item(item, sidecar_path)
+        saved += 1
 
-    print(f"✅ Saved {len(papers)} papers to {category_dir}")
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Fetch papers from arXiv by category")
-    parser.add_argument("categories", nargs="*", help="arXiv categories (e.g., cs.AI cs.LG)")
-    parser.add_argument("--max", type=int, default=10, help="Max papers per category (default: 10)")
-    parser.add_argument("--list", action="store_true", help="List AI-related categories")
-    parser.add_argument("-o", "--output", type=Path, default=OUTPUT_DIR)
-    args = parser.parse_args()
-
-    if args.list:
-        print(CATEGORIES_HELP)
-        return
-    if not args.categories:
-        print("⚠️  Please specify at least one category. Use --list to see available categories.")
-        print(CATEGORIES_HELP)
-        return
-
-    papers = fetch_papers_by_category(args.categories, args.max)
-    if papers:
-        for category in args.categories:
-            category_papers = [paper for paper in papers if category in paper.get("categories", [])]
-            if category_papers:
-                save_papers(category_papers, category, args.output)
+    print(f"✅ Saved {saved} papers to {output_dir} (identity: arxiv-id)")
 
 
-if __name__ == "__main__":
-    main()
+def _union_categories(sidecar_path: Path, current_tags: list[str]) -> list[str]:
+    import json
+
+    try:
+        existing = json.loads(Path(sidecar_path).read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError, UnicodeDecodeError):
+        existing = None
+    prior = existing.get("tags") if isinstance(existing, dict) else None
+    if not isinstance(prior, list):
+        return sorted(set(current_tags))
+    return sorted(set(current_tags) | {str(t) for t in prior})

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import unittest
 
-from research.discovery.config import _ErrorBag, _parse_briefing
+from research.discovery.config_validation import _ErrorBag, _parse_briefing
 
 
 class ParseBriefingSourcesTests(unittest.TestCase):

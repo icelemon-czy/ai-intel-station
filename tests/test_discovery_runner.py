@@ -9,7 +9,6 @@ from typing import Any
 import collect.github as github_collect
 import collect.papers as papers_collect
 import collect.wechat as wechat_collect
-import briefing.reports as briefing_reports
 import research.discovery.runner as runner_module
 from library.items import ResearchItem
 from research.discovery import (
@@ -26,7 +25,7 @@ from research.discovery import (
     generate_briefing,
     run_discovery,
 )
-from research.discovery.runner import _recent_enough
+from research.discovery.sources import _recent_enough
 
 
 def _build_config(
@@ -289,25 +288,6 @@ def test_generate_briefing_writes_markdown(self) -> None:
     )
     self._patch(runner_module, "query_research_items", lambda *args, **kwargs: [item])
 
-    saved: list[Path] = []
-
-    def _capture_reading_list(output_root, *, title, items, requested_sources=None):
-        from publish.obsidian import briefing_output_path, write_markdown
-
-        path = briefing_output_path(output_root, "reading-lists", title)
-        lines = [f"# Reading List: {title}", ""]
-        for it in items:
-            lines.append(f"- [ ] [{it.title}]({it.canonical_url or ''})")
-            if it.summary:
-                lines.append(f"  - {it.summary}")
-        write_markdown(path, "\n".join(lines))
-        saved.append(path)
-        print(f"DEBUG: capture output_root={output_root} path={path} exists={path.exists()}")
-        return path
-
-    self._patch(briefing_reports, "write_reading_list_report", _capture_reading_list)
-    self._patch(briefing_reports, "write_digest_report", _capture_reading_list)
-
     with tempfile.TemporaryDirectory() as tmp:
         config = _build_config(
             Path(tmp),
@@ -315,11 +295,11 @@ def test_generate_briefing_writes_markdown(self) -> None:
         )
         artifact = generate_briefing(config)
         self.assertIsNotNone(artifact)
-        self.assertTrue(saved, "briefing markdown was not written")
-        self.assertTrue(saved[0].name.startswith("daily-"))
+        assert artifact is not None
+        self.assertTrue(artifact.path.is_file(), "briefing markdown was not written")
+        self.assertTrue(artifact.path.name.startswith("daily-"))
         # Assert inside the with-block; the tempdir is cleaned up on exit.
-        self.assertTrue(saved[0].is_file(), f"expected briefing file at {saved[0]}")
-        self.assertIn("Repo A", saved[0].read_text(encoding="utf-8"))
+        self.assertIn("Repo A", artifact.path.read_text(encoding="utf-8"))
 
 
 def test_run_discovery_dry_run_skips_briefing_and_collect(self) -> None:

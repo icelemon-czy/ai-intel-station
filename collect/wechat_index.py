@@ -8,7 +8,8 @@ from typing import Callable
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from library.items import build_wechat_index_item, write_research_items_jsonl
+from library.archive_paths import wechat_index_leaf
+from library.items import build_wechat_index_item, utc_now_iso, write_research_items_jsonl
 
 
 SEARCH_URL = "https://weixin.sogou.com/weixin?type=2&query={query}"
@@ -143,8 +144,11 @@ def collect_account(
         ) from exc
     articles = parse_index_html(body, account=account, limit=limit)
 
-    safe_account = re.sub(r"[^\w\-\u4e00-\u9fff]+", "-", account).strip("-") or "account"
-    account_dir = Path(output_dir) / f"watch-{safe_account}"
+    # Public-index (watchlist) snapshots go under a reserved ``_index`` namespace
+    # keyed by account + collection time, so they never mix with per-article
+    # ``date-slug-hash`` unit dirs at the wechat root.
+    snapshot_at = discovered_at or utc_now_iso()
+    account_dir = Path(output_dir) / wechat_index_leaf(account, snapshot_at)
     account_dir.mkdir(parents=True, exist_ok=True)
     markdown_path = account_dir / "signals.md"
     items = [
@@ -153,7 +157,7 @@ def collect_account(
             markdown_path,
             account=account,
             wechat_id=wechat_id,
-            discovered_at=discovered_at,
+            discovered_at=snapshot_at,
         )
         for article in articles
     ]

@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from research.cli import run_discover_status
+from research.commands import run_discover_status
 from research.discovery import load_config, render_example_config, run_discovery
 from research.discovery.scripts import _render_cron
 from workspace_web.service import run_discover_from_request
@@ -147,10 +147,10 @@ class DiscoveryStateMigrationTests(unittest.TestCase):
             self.assertTrue(list(custom_log_dir.glob("*.log")))
 
     def test_examples_and_ignore_boundaries_stay_synchronized(self) -> None:
+        from research.discovery import EXAMPLE_CONFIG_PATH
+
         repo_root = Path(__file__).resolve().parents[1]
-        checked_in = (repo_root / "config" / "discovery.yaml.example").read_text(
-            encoding="utf-8"
-        )
+        checked_in = EXAMPLE_CONFIG_PATH.read_text(encoding="utf-8")
         self.assertEqual(render_example_config(), checked_in)
         self.assertIn("log_dir: .state/discovery", checked_in)
 

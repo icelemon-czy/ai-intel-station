@@ -72,9 +72,7 @@ function stripComments(body) {
 
 // ---------------------------------------------------------------------------
 // Requirement 1: Collect Form Stays Above The Fold
-//   Spec: `.compass/context/L3-specs/changes/fix-web-collect-workspace-layout/
-//         specs/research-web-workspace/spec.md` → "Collect Form Stays
-//         Above The Fold"
+//   Contract: `doc/web_workspace_design.md` → Collect workspace layout.
 // ---------------------------------------------------------------------------
 
 test("collect-layout empty-state-panel uses compact padding", () => {

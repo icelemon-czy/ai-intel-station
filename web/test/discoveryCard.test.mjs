@@ -35,7 +35,9 @@ function loadCss() {
 
 const BUNDLE = loadBundle();
 const CSS = loadCss();
-const SOURCE = readFileSync(resolve(__dirname, "../src/App.jsx"), "utf8");
+const SOURCE = ["App.jsx", "LibrarySection.jsx"]
+    .map((name) => readFileSync(resolve(__dirname, "../src", name), "utf8"))
+    .join("\n");
 
 // ---------------------------------------------------------------------------
 // Discovery card — primary user surface

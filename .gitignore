@@ -4,9 +4,16 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 .venv/
+build/
+dist/
 web/node_modules/
 web/.vite/
 .pnpm-store/
+.vscode/
+.obsidian/workspace.json
+.claude/launch.json
+.codex/
+.compass/
 
 # Per-user daily-discovery state
 config/discovery.yaml

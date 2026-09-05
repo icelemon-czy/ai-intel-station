@@ -1,22 +1,14 @@
-# Compass Project Context
+# Compass Context
 
-This directory becomes a project's `.compass/context/` when `compass/` is copied into that project. Populate it in place using only current source code, configuration, tests, or confirmed requirements.
+本目录在复制后成为目标项目的 `.compass/context/`。
 
-## Minimum set
+这里 **不是** 项目知识。项目知识在仓库自己的 README 和 `doc/`。
 
-| File | Requirement | Purpose |
-|:-----|:------------|:--------|
-| `L1-codebase-map/overview.md` | Required | Small feature and navigation index |
-| `L2-rules/global.md` | Required | Confirmed project-wide constraints |
-| `L2-rules/testing.md` | Required | Real test commands and conventions |
-| `L3-specs/change-management.md` | Required only when using the `develop` workflow | Change states and transition rules |
+| 文件 | 谁写 | 用途 |
+|:-----|:-----|:-----|
+| `cli-worker.md` | 安装器 | planner 是否可以调用 Claude Code CLI 及 bounded execution config |
+| `README.md` | 本文件 | 说明这个目录不是项目知识 |
 
-## Optional layers
+Planner 在每次 implementation delegation 前覆盖 `cli-worker-task.md`，写入一个完整且 bounded 的 task spec。Runtime 可以生成 `cli-worker.lock`、`cli-worker-state.json` 与 `cli-worker-audit.jsonl`；相同 task content 成功后再次调用只返回已有结果，不再次启动 Claude。Audit 与 state 不保存 task 内容、tool input、prompt、CLI output 或 secret。
 
-- Add detailed L1 feature, architecture, infrastructure, and dependency documents only when they improve navigation.
-- Add L2 module rules only for confirmed module-specific contracts.
-- Add L3 system/capability specs and active changes only when the project uses spec-driven changes.
-- Use L4 session state only when work must resume across sessions.
-- Add L5 traceability, test specs, and reports only for evidence that has actually been checked.
-
-Do not treat an empty field or example as project knowledge or a verification result. Keep optional files empty until they become useful; do not create a second context directory.
+普通产品工作不得改 `cli-worker.md` 的 `status`。

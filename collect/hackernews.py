@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Callable
 from urllib.request import Request, urlopen
 
-from library.items import build_hackernews_item, write_research_items_jsonl
+from library.archive_paths import hackernews_leaf
+from library.items import build_hackernews_item, hackernews_story_markdown, write_research_item
 
 
 API_ROOT = "https://hacker-news.firebaseio.com/v0"
@@ -75,12 +76,12 @@ def collect_feed(
     if not isinstance(ids, list) or any(not isinstance(item_id, int) for item_id in ids):
         raise HackerNewsFetchError(f"{feed} returned malformed item id list")
 
-    feed_dir = Path(output_dir) / feed
-    feed_dir.mkdir(parents=True, exist_ok=True)
-    markdown_path = feed_dir / "signals.md"
-    items = []
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    stories: list[Path] = []
+    rank = 0
     for item_id in ids[:MAX_SCANNED_ITEMS]:
-        if len(items) >= limit:
+        if len(stories) >= limit:
             break
         item_url = f"{API_ROOT}/item/{item_id}.json"
         try:
@@ -95,27 +96,35 @@ def collect_feed(
             continue
         if not _matches_keywords(story, keywords):
             continue
-        items.append(
-            build_hackernews_item(
-                story,
-                markdown_path,
-                feed=feed,
-                discovered_at=discovered_at,
-            )
-        )
+        rank += 1
+        # One primary unit per stable story id: feed / rank / discovered date are
+        # provenance inside the sidecar, and a story seen in several feeds never
+        # duplicates its material.
+        markdown_path = output_dir / hackernews_leaf(story.get("id"))
+        item = build_hackernews_item(story, markdown_path, feed=feed, discovered_at=discovered_at)
+        item.metadata["rank"] = rank
+        _accumulate_feed_provenance(item, output_dir / hackernews_leaf(story.get("id"), suffix=".research-item.json"))
+        markdown_path.write_text(hackernews_story_markdown(item), encoding="utf-8")
+        write_research_item(item, output_dir / hackernews_leaf(item_id, suffix=".research-item.json"))
+        stories.append(markdown_path)
 
-    lines = [f"# Hacker News: {feed}", "", f"Matched {len(items)} signal(s)", ""]
-    for item in items:
-        lines.extend(
-            [
-                f"## [{item.title}]({item.canonical_url})",
-                f"- Published: {item.published_at or 'unknown'}",
-                f"- Discussion: {item.metadata.get('discussion_url', '')}",
-                f"- Score: {item.metadata.get('score', 0)}",
-                f"- Comments: {item.metadata.get('comment_count', 0)}",
-                "",
-            ]
-        )
-    markdown_path.write_text("\n".join(lines), encoding="utf-8")
-    write_research_items_jsonl(items, feed_dir / "research-items.jsonl")
-    return markdown_path
+    print(f"✅ Saved {len(stories)} Hacker News {feed} story unit(s) to {output_dir}")
+    return stories[0] if stories else output_dir
+
+
+def _accumulate_feed_provenance(item, sidecar_path: Path) -> None:
+    """Keep the set of feeds a story was discovered through across collections."""
+    try:
+        existing = json.loads(sidecar_path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError, UnicodeDecodeError):
+        existing = None
+    feeds: list[str] = []
+    if isinstance(existing, dict):
+        prior = (existing.get("metadata") or {}).get("feeds")
+        if isinstance(prior, list):
+            feeds.extend(str(f) for f in prior)
+    current = item.metadata.get("feed")
+    if current and current not in feeds:
+        feeds.append(str(current))
+    if feeds:
+        item.metadata["feeds"] = feeds

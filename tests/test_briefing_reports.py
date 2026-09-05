@@ -79,11 +79,14 @@ class BriefingReportTests(unittest.TestCase):
 
     def test_digest_round_trip_write_and_read(self) -> None:
         """Briefing write produces a file containing the local link line."""
-        from briefing.reports import write_digest_report
+        from briefing.service import build_generic_briefing_from_items, save_generic_briefing
 
         item = _make_item(output_path="output/github/x-x/README.md")
         with tempfile.TemporaryDirectory() as tmp:
-            out = write_digest_report(Path(tmp), "daily", [item])
+            briefing = build_generic_briefing_from_items(mode="digest", title="daily", items=[item])
+            out = save_generic_briefing(briefing, Path(tmp)).path
+            self.assertIsNotNone(out)
+            assert out is not None
             content = out.read_text(encoding="utf-8")
         self.assertIn("[open local](../../github/x-x/README.md)", content)
 

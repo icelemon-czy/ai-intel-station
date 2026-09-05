@@ -13,29 +13,29 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from library.items import ResearchItem, write_research_item
-from library.query import _parse_datetime, _matches_time_window
+from library.query import _matches_time_window, parse_datetime
 from workspace_web.service import list_library_items
 
 
 class ParseDatetimeTests(unittest.TestCase):
     def test_empty_string_returns_none(self) -> None:
-        self.assertIsNone(_parse_datetime(""))
+        self.assertIsNone(parse_datetime(""))
 
     def test_none_returns_none(self) -> None:
-        self.assertIsNone(_parse_datetime(None))
+        self.assertIsNone(parse_datetime(None))
 
     def test_iso_date_parses(self) -> None:
-        result = _parse_datetime("2026-05-08")
+        result = parse_datetime("2026-05-08")
         self.assertEqual(result.year, 2026)
         self.assertEqual(result.month, 5)
         self.assertEqual(result.day, 8)
 
     def test_iso_datetime_with_z_parses(self) -> None:
-        result = _parse_datetime("2026-05-08T00:00:00Z")
+        result = parse_datetime("2026-05-08T00:00:00Z")
         self.assertEqual(result.year, 2026)
 
     def test_legacy_minute_precision_datetime_parses(self) -> None:
-        result = _parse_datetime("2026-04-02 08:31")
+        result = parse_datetime("2026-04-02 08:31")
         self.assertEqual(
             (result.year, result.month, result.day, result.hour, result.minute),
             (2026, 4, 2, 8, 31),
@@ -46,12 +46,12 @@ class ParseDatetimeTests(unittest.TestCase):
         # user is told their date filter is malformed, not silently
         # returned the unfiltered archive.
         with self.assertRaises(ValueError) as ctx:
-            _parse_datetime("garbage-date")
+            parse_datetime("garbage-date")
         self.assertIn("garbage-date", str(ctx.exception))
 
     def test_partially_valid_raises_value_error(self) -> None:
         with self.assertRaises(ValueError):
-            _parse_datetime("2026/05/08")  # wrong separator
+            parse_datetime("2026/05/08")  # wrong separator
 
 
 class MatchesTimeWindowTests(unittest.TestCase):

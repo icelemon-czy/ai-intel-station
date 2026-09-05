@@ -86,7 +86,7 @@ class DiscoverWebEndpointTests(unittest.TestCase):
 
     def test_discover_status_payload_when_no_runs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            from workspace_web import service as _svc
+            from workspace_web import discovery as _svc
 
             original = _svc._resolve_discovery_log_dir
             _svc._resolve_discovery_log_dir = lambda: Path(tmp) / "no-such-dir"
@@ -98,7 +98,11 @@ class DiscoverWebEndpointTests(unittest.TestCase):
         self.assertIn("log_dir", result)
 
     def test_run_endpoint_returns_job_id(self) -> None:
-        handler, wfile = _make_handler("POST", "/api/discover/run", {})
+        handler, wfile = _make_handler(
+            "POST",
+            "/api/discover/run",
+            {"config_path": "/nonexistent/discovery.yaml"},
+        )
         try:
             handler.do_POST()
         except Exception as exc:  # noqa: BLE001
@@ -121,7 +125,7 @@ class DiscoverWebEndpointTests(unittest.TestCase):
 
     def test_run_endpoint_async_returns_job_id(self) -> None:
         """Async mode (default) returns immediately with a job_id."""
-        from workspace_web.service import start_discover_job, _JOBS
+        from workspace_web.discovery import _JOBS
 
         # Use ?sync= is NOT set, so async path; payload must be valid.
         # We point at a non-existent config to trigger fast config_error.

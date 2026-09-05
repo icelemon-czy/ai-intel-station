@@ -12,12 +12,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from research.discovery.config import (
-    DiscoveryConfig,
-    DiscoveryConfigError,
-    _ErrorBag,
-    _parse_github,
-)
+from research.discovery.config import DiscoveryConfig, DiscoveryConfigError
+from research.discovery.config_validation import _ErrorBag, _parse_github
 
 
 def _write_yaml(body: str) -> Path:
@@ -63,7 +59,7 @@ class ParseGithubReposTests(unittest.TestCase):
         # offending path.
         path = _write_yaml(
             "output_root: output\n"
-            "log_dir: .ai/L4-session/discovery\n"
+            "log_dir: .state/discovery\n"
             "sources:\n"
             "  github:\n"
             "    enabled: true\n"
