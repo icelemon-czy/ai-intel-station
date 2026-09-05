@@ -13,8 +13,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from library.query import query_research_items
-from library.items import write_research_item, build_paper_item, build_github_repo_item
+from ai_intel_station.library.query import query_research_items
+from ai_intel_station.library.items import write_research_item, build_paper_item, build_github_repo_item
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -23,11 +23,11 @@ PYTHON = str(REPO_ROOT / ".venv" / "bin" / "python")
 
 def _run_cli(*args, env_extra=None, cwd=None, timeout=60):
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(REPO_ROOT)
+    env["PYTHONPATH"] = str(REPO_ROOT / "src")
     if env_extra:
         env.update(env_extra)
     return subprocess.run(
-        [PYTHON, "-c", "from research.cli import console_main; console_main()", *args],
+        [PYTHON, "-c", "from ai_intel_station.cli import console_main; console_main()", *args],
         capture_output=True,
         text=True,
         env=env,
@@ -110,7 +110,7 @@ class ContractOptionalLiveVerificationTests(unittest.TestCase):
         # would either fail (no network) or hang (camoufox launch).
         env = os.environ.copy()
         env.pop("WECHAT_E2E_URLS", None)
-        env["PYTHONPATH"] = str(REPO_ROOT)
+        env["PYTHONPATH"] = str(REPO_ROOT / "src")
         result = subprocess.run(
             [PYTHON, "-m", "pytest", "-q", "tests/test_wechat_e2e_live.py"],
             capture_output=True,

@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from library.items import ResearchItem
-from publish.obsidian import write_markdown
+from ai_intel_station.library.items import ResearchItem
+from ai_intel_station.briefing.markdown import write_markdown
 
 
 _WEB_WORKSPACE_SOURCE_FILES = (
@@ -25,7 +25,7 @@ _WEB_WORKSPACE_SOURCE_FILES = (
 
 
 def _read_web_workspace_source() -> str:
-    source_root = Path(__file__).resolve().parents[1] / "web" / "src"
+    source_root = Path(__file__).resolve().parents[1] / "frontend" / "src"
     return "\n".join(
         (source_root / name).read_text(encoding="utf-8")
         for name in _WEB_WORKSPACE_SOURCE_FILES
@@ -160,8 +160,8 @@ def test_serve_workspace_resolves_relative_output_root_against_project_root(tmp_
     """`serve_workspace(Path('output'))` MUST resolve the relative output_root
     against the project root, NOT against the server's cwd.
 
-    Repro: backend was started via `python -c "..."` from the `web/` cwd,
-    which made `Path('output')` resolve to `web/output` (non-existent) and
+    Repro: backend was started via `python -c "..."` from the `frontend/` cwd,
+    which made `Path('output')` resolve to `frontend/output` (non-existent) and
     silently produced 0 items even though `output/` at the repo root had
     16 sidecars. The fix: anchor relative paths to the repo root.
     """
@@ -171,7 +171,7 @@ def test_serve_workspace_resolves_relative_output_root_against_project_root(tmp_
     port = _free_loopback_port()
 
     # Seed a temp output dir + chdir into a DIFFERENT cwd (simulating the
-    # server being launched from `web/`). The seed tree MUST be reachable
+    # server being launched from `frontend/`). The seed tree MUST be reachable
     # via the relative path `output` resolved against project root.
     output_dir = project_root / "output"
     if not output_dir.exists() or not any(output_dir.rglob("research-item.json")):
@@ -181,8 +181,8 @@ def test_serve_workspace_resolves_relative_output_root_against_project_root(tmp_
     # on a non-default port with a quick auto-exit, then probe /api/dashboard.
     serve_script = (
         "import sys, threading, time, pathlib, os\n"
-        f"sys.path.insert(0, {str(project_root)!r})\n"
-        "from workspace_web import server as srv\n"
+        f"sys.path.insert(0, {str(project_root / "src")!r})\n"
+        "from ai_intel_station.adapters.web import server as srv\n"
         "def stop():\n"
         "    time.sleep(1.0)\n"
         "    os._exit(0)\n"
@@ -191,7 +191,7 @@ def test_serve_workspace_resolves_relative_output_root_against_project_root(tmp_
     )
     server_proc = subprocess.Popen(
         [sys.executable, "-c", serve_script],
-        cwd=str(project_root / "web"),  # WRONG cwd on purpose
+        cwd=str(project_root / "frontend"),  # WRONG cwd on purpose
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -199,7 +199,7 @@ def test_serve_workspace_resolves_relative_output_root_against_project_root(tmp_
         body = _wait_for_json(f"http://127.0.0.1:{port}/api/dashboard")
         # The fix MUST make this > 0 even though the server's cwd is wrong.
         assert body.get("total_items", 0) > 0, (
-            f"server cwd is {project_root / 'web'} but /api/dashboard reports 0 items; "
+            f"server cwd is {project_root / 'frontend'} but /api/dashboard reports 0 items; "
             f"the relative output_root was not resolved against the project root. "
             f"body={body!r}"
         )
@@ -233,8 +233,8 @@ def test_serve_workspace_passes_absolute_output_root_through_unchanged(tmp_path:
     # so we don't lose prints to the `os._exit(0)` cleanup race.
     serve_script = (
         "import sys, threading, time, pathlib, os\n"
-        f"sys.path.insert(0, {str(Path(__file__).resolve().parents[1])!r})\n"
-        "from workspace_web import server as srv\n"
+        f"sys.path.insert(0, {str(Path(__file__).resolve().parents[1] / "src")!r})\n"
+        "from ai_intel_station.adapters.web import server as srv\n"
         "def stop():\n"
         "    time.sleep(0.6)\n"
         "    sys.stdout.flush()\n"
@@ -295,8 +295,8 @@ def test_serve_workspace_with_nonexistent_relative_path_does_not_crash_dashboard
 
     serve_script = (
         "import sys, threading, time, pathlib, os\n"
-        f"sys.path.insert(0, {str(project_root)!r})\n"
-        "from workspace_web import server as srv\n"
+        f"sys.path.insert(0, {str(project_root / "src")!r})\n"
+        "from ai_intel_station.adapters.web import server as srv\n"
         "def stop():\n"
         "    time.sleep(2.0)\n"
         "    sys.stdout.flush()\n"
@@ -307,7 +307,7 @@ def test_serve_workspace_with_nonexistent_relative_path_does_not_crash_dashboard
     )
     server_proc = subprocess.Popen(
         [sys.executable, "-u", "-c", serve_script],
-        cwd=str(project_root / "web"),  # wrong cwd on purpose
+        cwd=str(project_root / "frontend"),  # wrong cwd on purpose
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
@@ -352,8 +352,8 @@ def test_serve_workspace_with_nonexistent_relative_path_does_not_crash_dashboard
 
 def test_read_item_markdown_returns_content_for_known_sidecar_path(tmp_path: Path) -> None:
     """Scenario 1: known sidecar output_path → file content returned."""
-    from library.storage import load_research_items
-    from workspace_web.service import read_item_markdown
+    from ai_intel_station.library.storage import load_research_items
+    from ai_intel_station.adapters.web.service import read_item_markdown
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -369,7 +369,7 @@ def test_read_item_markdown_returns_content_for_known_sidecar_path(tmp_path: Pat
 def test_read_item_markdown_rejects_path_outside_output_root(tmp_path: Path) -> None:
     """Scenario 2: ../etc/passwd or absolute paths → rejected."""
     import pytest
-    from workspace_web.service import read_item_markdown
+    from ai_intel_station.adapters.web.service import read_item_markdown
 
     output_root = tmp_path / "output"
     output_root.mkdir()
@@ -386,7 +386,7 @@ def test_read_item_markdown_rejects_path_outside_output_root(tmp_path: Path) -> 
 def test_read_item_markdown_rejects_path_not_in_any_sidecar(tmp_path: Path) -> None:
     """Scenario 3: a file inside output_root but not registered as any sidecar → 404-like."""
     import pytest
-    from workspace_web.service import read_item_markdown
+    from ai_intel_station.adapters.web.service import read_item_markdown
 
     output_root = tmp_path / "output"
     output_root.mkdir()
@@ -403,7 +403,7 @@ def test_read_item_markdown_rejects_path_not_in_any_sidecar(tmp_path: Path) -> N
 def test_read_item_markdown_returns_404_when_file_missing(tmp_path: Path) -> None:
     """Scenario 4: sidecar exists in the registry but underlying .md was deleted."""
     import pytest
-    from workspace_web.service import read_item_markdown
+    from ai_intel_station.adapters.web.service import read_item_markdown
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -490,7 +490,7 @@ def test_library_filter_bar_holds_all_search_controls() -> None:
 def test_library_workspace_uses_two_column_layout() -> None:
     """Scenario 2 + 7: result list wider than detail; legacy 3-column class removed."""
     app_jsx = _read_web_workspace_source()
-    styles = (Path(__file__).resolve().parents[1] / "web" / "src" / "styles.css").read_text(encoding="utf-8")
+    styles = (Path(__file__).resolve().parents[1] / "frontend" / "src" / "styles.css").read_text(encoding="utf-8")
 
     # The new two-column workspace class must be defined in CSS and used in JSX.
     assert ".library-workspace" in styles, (

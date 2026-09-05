@@ -9,14 +9,14 @@ from types import ModuleType
 
 import pytest
 
-from library.backfill import (
+from ai_intel_station.library.backfill import (
     backfill_output_tree,
     parse_github_repo_markdown,
     parse_github_search_markdown,
     parse_paper_markdown,
     parse_wechat_markdown,
 )
-from library.items import build_github_repo_item, build_wechat_item
+from ai_intel_station.library.items import build_github_repo_item, build_wechat_item
 
 
 def _write_parser_samples(root: Path) -> tuple[Path, Path, Path, Path]:
@@ -227,7 +227,7 @@ def test_backfill_output_tree_writes_expected_sidecars(tmp_path: Path) -> None:
 
 
 def test_save_repo_writes_markdown_and_research_item_sidecar(tmp_path: Path, monkeypatch) -> None:
-    import collect.github as github
+    import ai_intel_station.collect.github as github
 
     def fake_fetch_repo(owner: str, repo: str) -> dict:
         assert (owner, repo) == ("anthropic", "claude-code")
@@ -281,7 +281,7 @@ def test_save_repo_writes_markdown_and_research_item_sidecar(tmp_path: Path, mon
 
 
 def test_save_search_results_writes_markdown_and_jsonl_sidecar(tmp_path: Path) -> None:
-    from collect.github import save_search_results
+    from ai_intel_station.collect.github import save_search_results
 
     save_search_results(
         "agent harness",
@@ -334,7 +334,7 @@ def test_save_search_results_writes_markdown_and_jsonl_sidecar(tmp_path: Path) -
 
 
 def test_save_papers_writes_markdown_and_research_item_sidecar(tmp_path: Path) -> None:
-    from collect.papers import save_papers
+    from ai_intel_station.collect.papers import save_papers
 
     paper = {
         "title": "Agent Harness Study",
@@ -382,7 +382,7 @@ def test_fetch_article_writes_markdown_images_and_research_item_sidecar(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    import collect.wechat as wechat
+    import ai_intel_station.collect.wechat as wechat
 
     url = "https://mp.weixin.qq.com/s/example"
     html = """

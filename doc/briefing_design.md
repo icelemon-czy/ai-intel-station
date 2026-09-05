@@ -1,6 +1,6 @@
 # Briefing
 
-Briefing 把 local Library 中的 `ResearchItem` 转换成适合 Obsidian 阅读的 Markdown。它不拥有 remote collection；输入已经在本地，输出是可重建的 derived artifact。
+Briefing 把 local Library 中的 `ResearchItem` 转换成本地 Markdown。它不拥有 remote collection；输入已经在本地，输出是可重建的 derived artifact。
 
 ## 三类产物
 
@@ -36,12 +36,12 @@ Daily Signal Briefing 在 query 后额外执行 role、freshness、dedupe、rank
 
 - Briefing 是 derived reading artifact，不是新的 primary research item。
 - preview 与 save 分离，使 Web 用户可以在不写文件时检查结果。
-- output path 由 `publish.obsidian` 统一管理，保持 Obsidian-friendly filename 和 atomic write。
+- output path 由 `ai_intel_station.briefing.markdown` 统一管理，保持 stable filename 和 atomic write。
 - generic mode 保留作为明确的 local Library workflow；Daily Discovery 不用 generic digest 冒充 signal briefing。
 - Catalog 只建立 browse view，不根据不完整 metadata 自动移动、retag 或删除 primary material。
 
 ## 入口与 evidence
 
-- Runtime：`briefing/service.py`（generic build/save）、`briefing/reports.py`（render）、`briefing/signals.py`、`briefing/signal_rendering.py`、`publish/obsidian.py`
+- Runtime：`src/ai_intel_station/briefing/service.py`（generic build/save）、`src/ai_intel_station/briefing/reports.py`（render）、`src/ai_intel_station/briefing/signals.py`、`src/ai_intel_station/briefing/signal_rendering.py`、`src/ai_intel_station/briefing/markdown.py`
 - CLI：`research briefing ...`、`research briefing --list`
-- Tests：`tests/test_briefing_reports.py`、`tests/test_briefing_path_and_run_log.py`、`tests/test_obsidian_publish.py`、`tests/test_signal_rendering.py`
+- Tests：`tests/test_briefing_reports.py`、`tests/test_briefing_path_and_run_log.py`、`tests/test_briefing_markdown.py`、`tests/test_signal_rendering.py`

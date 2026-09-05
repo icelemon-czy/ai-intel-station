@@ -46,20 +46,20 @@ uv run --frozen --extra dev --extra wechat python -m pytest -q \
 Web 与 release：
 
 ```bash
-npm --prefix web ci
-npm --prefix web run build
-npm --prefix web test
+npm --prefix frontend ci
+npm --prefix frontend run build
+npm --prefix frontend test
 uv build
-uv run --frozen --extra dev python scripts/check_release_artifacts.py
+uv run --frozen --extra dev python release/check_release_artifacts.py
 ```
 
-Installed-wheel smoke 使用 `scripts/smoke_installed_wheel.py`。HTTP socket tests 在 restricted sandbox 可能无法执行 `bind(2)` 或 `connect(2)`；此时必须记录 limitation，并在允许 local socket 的环境补验证。
+Installed-wheel smoke 使用 `release/smoke_installed_wheel.py`。HTTP socket tests 在 restricted sandbox 可能无法执行 `bind(2)` 或 `connect(2)`；此时必须记录 limitation，并在允许 local socket 的环境补验证。
 
 ## Evidence map
 
-- Library / collect：`tests/test_research_item.py`、`tests/test_e2e_archive.py`、`tests/test_cli_e2e.py`、`tests/test_library_catalog.py`
+- Library / collect：`tests/test_research_item.py`、`tests/test_e2e_archive.py`、`tests/test_cli_e2e.py`、`tests/test_library_catalog.py`、`tests/test_archive_migration.py`、`tests/test_collector_layout.py`
 - System / HTTP boundary：`tests/test_system_contracts.py`、`tests/test_http_*_e2e.py`、`tests/test_source_contract_e2e.py`
-- Daily Discovery：`tests/test_signal_config.py`、`tests/test_signal_collection.py`、`tests/test_signal_selection.py`、`tests/test_signal_rendering.py`、`tests/test_discovery_runner.py`
-- Briefing / publish：`tests/test_briefing_reports.py`、`tests/test_obsidian_publish.py`
-- Web：`tests/test_web_backend.py`、`tests/test_web_http_preview.py`、`tests/test_service_e2e.py` 与 `web/test/`；frontend behavior 只在 Node suite 验证
-- Release：`tests/test_release_artifact_checker.py`、`scripts/check_release_artifacts.py`
+- Daily Discovery：`tests/test_signal_config.py`、`tests/test_signal_collection.py`、`tests/test_signal_selection.py`、`tests/test_signal_rendering.py`、`tests/test_discovery_runner.py`、`tests/test_discovery_cli.py`、`tests/test_discovery_config.py`、`tests/test_schedule_install.py`
+- Briefing：`tests/test_briefing_reports.py`、`tests/test_briefing_markdown.py`
+- Web：`tests/test_web_backend.py`、`tests/test_web_http_preview.py`、`tests/test_service_e2e.py`、`tests/test_discovery_web.py` 与 `frontend/test/`；frontend behavior 只在 Node suite 验证
+- Release：`tests/test_release_artifact_checker.py`、`release/check_release_artifacts.py`

@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from research.discovery import (
+from ai_intel_station.discovery import (
     GitHubSource,
     PapersSource,
     SourceConfig,
@@ -27,7 +27,7 @@ def _load_or_fail(tmp_path: Path, yaml_text: str):
 
 
 def _expect_load_error(tmp_path: Path, yaml_text: str, needle: str) -> None:
-    from research.discovery import DiscoveryConfigError
+    from ai_intel_station.discovery import DiscoveryConfigError
 
     try:
         load_config(_write_yaml(tmp_path, yaml_text))
@@ -39,7 +39,7 @@ def _expect_load_error(tmp_path: Path, yaml_text: str, needle: str) -> None:
 
 class DiscoveryConfigTests(unittest.TestCase):
     def test_load_minimal_config_uses_defaults(self) -> None:
-        from research.discovery.config import REPO_ROOT
+        from ai_intel_station.discovery.config import REPO_ROOT
 
         with self._tempdir() as tmp:
             config = _load_or_fail(
@@ -76,7 +76,7 @@ class DiscoveryConfigTests(unittest.TestCase):
         self.assertEqual(config.briefing.sources, ["github", "papers", "wechat"])
 
     def test_load_full_config(self) -> None:
-        from research.discovery.config import REPO_ROOT
+        from ai_intel_station.discovery.config import REPO_ROOT
 
         yaml = """
 output_root: output
@@ -182,7 +182,7 @@ sources:
             _expect_load_error(Path(tmp), yaml, ".query")
 
     def test_load_missing_file_raises(self) -> None:
-        from research.discovery import DiscoveryConfigError
+        from ai_intel_station.discovery import DiscoveryConfigError
 
         with self._tempdir() as tmp:
             with self.assertRaises(DiscoveryConfigError) as ctx:
@@ -190,7 +190,7 @@ sources:
         self.assertIn("Config file not found", str(ctx.exception))
 
     def test_load_aggregates_multiple_errors(self) -> None:
-        from research.discovery import DiscoveryConfigError
+        from ai_intel_station.discovery import DiscoveryConfigError
 
         yaml = """
 sources:
@@ -224,7 +224,7 @@ limits:
         self.assertGreaterEqual(message.count("•"), 5)
 
     def test_load_reports_line_numbers(self) -> None:
-        from research.discovery import DiscoveryConfigError
+        from ai_intel_station.discovery import DiscoveryConfigError
 
         yaml = (
             "sources:\n"

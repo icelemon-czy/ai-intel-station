@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import unittest
 
-from research.discovery.config import DiscoveryConfigError
-from research.discovery.config_validation import _ErrorBag, _parse_github
+from ai_intel_station.discovery.config import DiscoveryConfigError
+from ai_intel_station.discovery.config_validation import _ErrorBag, _parse_github
 
 
 class ParseGithubSearchLimitTests(unittest.TestCase):

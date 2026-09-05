@@ -4,13 +4,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from briefing.reports import (
+from ai_intel_station.briefing.reports import (
     _format_item,
     _local_link,
     build_digest_markdown,
     build_reading_list_markdown,
 )
-from library.items import ResearchItem
+from ai_intel_station.library.items import ResearchItem
 
 
 def _make_item(**kwargs):
@@ -79,7 +79,7 @@ class BriefingReportTests(unittest.TestCase):
 
     def test_digest_round_trip_write_and_read(self) -> None:
         """Briefing write produces a file containing the local link line."""
-        from briefing.service import build_generic_briefing_from_items, save_generic_briefing
+        from ai_intel_station.briefing.service import build_generic_briefing_from_items, save_generic_briefing
 
         item = _make_item(output_path="output/github/x-x/README.md")
         with tempfile.TemporaryDirectory() as tmp:
@@ -96,7 +96,7 @@ if __name__ == "__main__":
 
 class FormatItemLinkContractTests(unittest.TestCase):
     def _item(self, **overrides):
-        from library.items import ResearchItem
+        from ai_intel_station.library.items import ResearchItem
         base = dict(
             source="github",
             item_type="repo",
@@ -114,8 +114,8 @@ class FormatItemLinkContractTests(unittest.TestCase):
     def test_url_is_not_escaped(self) -> None:
         # The previous code ran the URL through _escape_link_text,
         # which turned `]` and `.` in the URL into backslash-prefixed
-        # forms — Obsidian would then fail to resolve the link.
-        from briefing.reports import _format_item
+        # forms — Markdown would then fail to resolve the link.
+        from ai_intel_station.briefing.reports import _format_item
         item = self._item(
             canonical_url="https://example.com/path/v1.0?x=[1,2,3]",
         )
@@ -124,8 +124,8 @@ class FormatItemLinkContractTests(unittest.TestCase):
 
     def test_missing_canonical_url_renders_plain_text(self) -> None:
         # The previous code emitted `[title]()` — an empty link
-        # target that rendered as a broken anchor in Obsidian.
-        from briefing.reports import _format_item
+        # target that rendered as a broken Markdown anchor.
+        from ai_intel_station.briefing.reports import _format_item
         item = self._item(canonical_url=None)
         joined = "\n".join(_format_item(item, checked=False))
         self.assertNotIn("]()", joined)

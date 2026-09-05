@@ -12,13 +12,13 @@ lands in CI.
 Rules enforced below:
 
   R1. No `monkeypatch.setattr(<business_module>, ...)` over a
-     business function we ship to operators (`collect.github.run_gh`,
-     `collect.github.fetch_repo`, `collect.github.save_repo`,
-     `collect.papers.fetch_papers_by_category`,
-     `collect.papers.save_papers`,
-     `collect.wechat.fetch_article`,
-     `workspace_web.service.run_collect`,
-     `research.cli.run_web_workspace`).
+     business function we ship to operators (`ai_intel_station.collect.github.run_gh`,
+     `ai_intel_station.collect.github.fetch_repo`, `ai_intel_station.collect.github.save_repo`,
+     `ai_intel_station.collect.papers.fetch_papers_by_category`,
+     `ai_intel_station.collect.papers.save_papers`,
+     `ai_intel_station.collect.wechat.fetch_article`,
+     `ai_intel_station.adapters.web.service.run_collect`,
+     `ai_intel_station.cli.run_web_workspace`).
      — replacing any of these with a fake is the very kind of
      mock the boundary contract rules out.
 
@@ -59,15 +59,15 @@ CONTRACT_TEST_FILES = [
 # Patterns R1 forbids. Each tuple is (regex_pattern, human_label).
 FORBIDDEN_BUSINESS_MOCK_PATTERNS = [
     (r"monkeypatch\.setattr\(github_collect,\s*['\"](run_gh|fetch_repo|save_repo)",
-     "`monkeypatch` of `collect.github.run_gh`/`fetch_repo`/`save_repo`"),
+     "`monkeypatch` of `ai_intel_station.collect.github.run_gh`/`fetch_repo`/`save_repo`"),
     (r"monkeypatch\.setattr\(papers_collect,\s*['\"](fetch_papers_by_category|save_papers)",
-     "`monkeypatch` of `collect.papers.fetch_papers_by_category`/`save_papers`"),
+     "`monkeypatch` of `ai_intel_station.collect.papers.fetch_papers_by_category`/`save_papers`"),
     (r"monkeypatch\.setattr\(wechat_collect,\s*['\"](fetch_article|normalize_wechat_url)",
-     "`monkeypatch` of `collect.wechat.fetch_article`/`normalize_wechat_url`"),
-    (r"monkeypatch\.setattr\(['\"]workspace_web\.service['\"],\s*['\"](run_collect)",
-     "`monkeypatch` of `workspace_web.service.run_collect`"),
-    (r"monkeypatch\.setattr\(['\"]research\.cli['\"],\s*['\"](run_web_workspace)",
-     "`monkeypatch` of `research.cli.run_web_workspace`"),
+     "`monkeypatch` of `ai_intel_station.collect.wechat.fetch_article`/`normalize_wechat_url`"),
+    (r"monkeypatch\.setattr\(['\"]ai_intel_station.adapters.web\.service['\"],\s*['\"](run_collect)",
+     "`monkeypatch` of `ai_intel_station.adapters.web.service.run_collect`"),
+    (r"monkeypatch\.setattr\(['\"]ai_intel_station\.cli['\"],\s*['\"](run_web_workspace)",
+     "`monkeypatch` of `ai_intel_station.cli.run_web_workspace`"),
 ]
 
 

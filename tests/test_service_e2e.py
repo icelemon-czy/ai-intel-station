@@ -1,4 +1,4 @@
-"""Real e2e tests for workspace_web.service — the dashboard / library /
+"""Real e2e tests for ai_intel_station.adapters.web.service — the dashboard / library /
 briefing / collect endpoints. No mocks: build a real on-disk output tree
 (seeded by writing actual ResearchItem sidecars + markdown), then exercise
 each endpoint through a real ThreadingHTTPServer (skipped when the sandbox
@@ -15,12 +15,12 @@ from contextlib import redirect_stdout
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
-from library.items import (
+from ai_intel_station.library.items import (
     ResearchItem,
     write_research_item,
     write_research_items_jsonl,
 )
-from workspace_web.server import _create_handler
+from ai_intel_station.adapters.web.server import _create_handler
 
 
 def _can_bind_loopback() -> bool:
@@ -126,10 +126,10 @@ def _seed_output_tree(output_root: Path) -> None:
 
 
 class ServiceDirectTests(unittest.TestCase):
-    """Exercise workspace_web.service.* without going through HTTP."""
+    """Exercise ai_intel_station.adapters.web.service.* without going through HTTP."""
 
     def test_build_dashboard_overview_with_seeded_tree(self) -> None:
-        from workspace_web.service import build_dashboard_overview
+        from ai_intel_station.adapters.web.service import build_dashboard_overview
 
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
@@ -148,7 +148,7 @@ class ServiceDirectTests(unittest.TestCase):
         self.assertIn("daily-2026-06-15.md", overview["recent_briefings"][0]["path"])
 
     def test_build_dashboard_overview_empty_archive_returns_empty_state(self) -> None:
-        from workspace_web.service import build_dashboard_overview
+        from ai_intel_station.adapters.web.service import build_dashboard_overview
 
         with tempfile.TemporaryDirectory() as tmp:
             overview = build_dashboard_overview(Path(tmp))
@@ -157,7 +157,7 @@ class ServiceDirectTests(unittest.TestCase):
         self.assertGreater(len(overview["empty_state"]["next_steps"]), 0)
 
     def test_list_library_items_returns_seeded_repo(self) -> None:
-        from workspace_web.service import list_library_items
+        from ai_intel_station.adapters.web.service import list_library_items
 
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
@@ -171,7 +171,7 @@ class ServiceDirectTests(unittest.TestCase):
         self.assertIn("Sample Paper", titles)
 
     def test_list_library_items_filters_by_source(self) -> None:
-        from workspace_web.service import list_library_items
+        from ai_intel_station.adapters.web.service import list_library_items
 
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
@@ -182,7 +182,7 @@ class ServiceDirectTests(unittest.TestCase):
         self.assertEqual(payload["total_count"], 3)
 
     def test_list_library_items_pagination(self) -> None:
-        from workspace_web.service import list_library_items
+        from ai_intel_station.adapters.web.service import list_library_items
 
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
@@ -193,7 +193,7 @@ class ServiceDirectTests(unittest.TestCase):
         self.assertEqual(len(payload["items"]), 2)
 
     def test_get_library_item_detail_known_item(self) -> None:
-        from workspace_web.service import get_library_item_detail
+        from ai_intel_station.adapters.web.service import get_library_item_detail
 
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
@@ -208,14 +208,14 @@ class ServiceDirectTests(unittest.TestCase):
             self.assertEqual(detail["source"], "github")
 
     def test_get_library_item_detail_unknown_returns_none(self) -> None:
-        from workspace_web.service import get_library_item_detail
+        from ai_intel_station.adapters.web.service import get_library_item_detail
 
         with tempfile.TemporaryDirectory() as tmp:
             detail = get_library_item_detail(Path(tmp), "github/missing/README.md")
         self.assertIsNone(detail)
 
     def test_read_item_markdown_returns_body(self) -> None:
-        from workspace_web.service import read_item_markdown
+        from ai_intel_station.adapters.web.service import read_item_markdown
 
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
@@ -225,7 +225,7 @@ class ServiceDirectTests(unittest.TestCase):
         self.assertIn("text/markdown", mime)
 
     def test_read_item_markdown_refuses_unknown_path(self) -> None:
-        from workspace_web.service import read_item_markdown
+        from ai_intel_station.adapters.web.service import read_item_markdown
 
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(Exception) as ctx:
@@ -239,7 +239,7 @@ class ServiceDirectTests(unittest.TestCase):
         )
 
     def test_preview_briefing_returns_markdown(self) -> None:
-        from workspace_web.service import preview_briefing
+        from ai_intel_station.adapters.web.service import preview_briefing
 
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
@@ -258,7 +258,7 @@ class ServiceDirectTests(unittest.TestCase):
         self.assertEqual(result["item_count"], 3)  # 1 repo + 2 search
 
     def test_save_briefing_writes_file(self) -> None:
-        from workspace_web.service import save_briefing
+        from ai_intel_station.adapters.web.service import save_briefing
 
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
@@ -276,7 +276,7 @@ class ServiceDirectTests(unittest.TestCase):
             self.assertIn("harness-alpha", content)
 
     def test_run_collect_validates_source(self) -> None:
-        from workspace_web.service import run_collect
+        from ai_intel_station.adapters.web.service import run_collect
 
         # Unknown source should return a structured error, not raise.
         with tempfile.TemporaryDirectory() as tmp:
@@ -288,8 +288,8 @@ class ServiceDirectTests(unittest.TestCase):
         """GitHub collect must NOT 500 when `gh` is missing or the network
         fails — the front-end renders structured errors via the same
         ``_format_collect_result`` shape used for happy-path responses."""
-        import collect.github as gh_collect
-        import workspace_web.service as service
+        import ai_intel_station.collect.github as gh_collect
+        import ai_intel_station.adapters.web.service as service
 
         original_run_gh = gh_collect.run_gh
         gh_collect.run_gh = lambda *args, **kwargs: exec(
@@ -316,8 +316,8 @@ class ServiceDirectTests(unittest.TestCase):
 
     def test_run_collect_wraps_arxiv_failure(self) -> None:
         """arXiv fetch errors become structured results, not 500s."""
-        import collect.papers as papers_collect
-        import workspace_web.service as service
+        import ai_intel_station.collect.papers as papers_collect
+        import ai_intel_station.adapters.web.service as service
 
         original = papers_collect.fetch_papers_by_category
         papers_collect.fetch_papers_by_category = (
@@ -341,7 +341,7 @@ class ServiceDirectTests(unittest.TestCase):
 
     def test_run_collect_rejects_unknown_arxiv_category_without_writing(self) -> None:
         """Invalid category input is an explicit source error, not empty success."""
-        import workspace_web.service as service
+        import ai_intel_station.adapters.web.service as service
 
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
@@ -358,8 +358,8 @@ class ServiceDirectTests(unittest.TestCase):
 
     def test_run_collect_wraps_wechat_failure(self) -> None:
         """WeChat fetch errors become structured results, not 500s."""
-        import collect.wechat as wechat_collect
-        import workspace_web.service as service
+        import ai_intel_station.collect.wechat as wechat_collect
+        import ai_intel_station.adapters.web.service as service
 
         original = wechat_collect.fetch_article
         wechat_collect.fetch_article = (
@@ -382,7 +382,7 @@ class ServiceDirectTests(unittest.TestCase):
         self.assertIn("camoufox", result["message"])
 
     def test_list_collect_sources_returns_known_sources(self) -> None:
-        from workspace_web.service import list_collect_sources
+        from ai_intel_station.adapters.web.service import list_collect_sources
 
         sources = list_collect_sources()
         ids = [s["id"] for s in sources]
@@ -391,7 +391,7 @@ class ServiceDirectTests(unittest.TestCase):
         self.assertIn("wechat", ids)
 
     def test_get_collect_form_for_github(self) -> None:
-        from workspace_web.service import get_collect_form
+        from ai_intel_station.adapters.web.service import get_collect_form
 
         form = get_collect_form("github")
         self.assertIn("GitHub", form["label"])

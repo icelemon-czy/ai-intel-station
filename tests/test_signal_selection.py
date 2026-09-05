@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from library.items import ResearchItem, write_research_item
+from ai_intel_station.library.items import ResearchItem, write_research_item
 
 
 def _signal(
@@ -54,7 +54,7 @@ def _evidence(
     )
 
 def test_evidence_cannot_seed_top_list_but_can_raise_corroboration() -> None:
-    from briefing.signals import select_daily_signals
+    from ai_intel_station.briefing.signals import select_daily_signals
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     evidence_only = _evidence("Old giant repo")
@@ -75,7 +75,7 @@ def test_evidence_cannot_seed_top_list_but_can_raise_corroboration() -> None:
 
 
 def test_quota_selector_builds_source_grouped_default_composition() -> None:
-    from briefing.signals import select_daily_briefing
+    from ai_intel_station.briefing.signals import select_daily_briefing
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     items = [
@@ -132,7 +132,7 @@ def test_quota_selector_builds_source_grouped_default_composition() -> None:
 
 
 def test_optional_wechat_cap_uses_non_wechat_replacements() -> None:
-    from briefing.signals import select_daily_briefing
+    from ai_intel_station.briefing.signals import select_daily_briefing
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     wechat = [
@@ -173,9 +173,9 @@ def test_optional_wechat_cap_uses_non_wechat_replacements() -> None:
 
 
 def test_optional_wechat_cap_can_leave_news_quota_short() -> None:
-    from briefing.signal_rendering import render_daily_signal_markdown
-    from briefing.signals import select_daily_briefing
-    from research.discovery.models import SourceReport
+    from ai_intel_station.briefing.signal_rendering import render_daily_signal_markdown
+    from ai_intel_station.briefing.signals import select_daily_briefing
+    from ai_intel_station.discovery.models import SourceReport
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     selection = select_daily_briefing(
@@ -213,9 +213,9 @@ def test_optional_wechat_cap_can_leave_news_quota_short() -> None:
 
 
 def test_hackernews_github_targets_stay_in_hackernews() -> None:
-    from briefing.signal_rendering import render_daily_signal_markdown
-    from briefing.signals import select_daily_briefing
-    from research.discovery.models import SourceReport
+    from ai_intel_station.briefing.signal_rendering import render_daily_signal_markdown
+    from ai_intel_station.briefing.signals import select_daily_briefing
+    from ai_intel_station.discovery.models import SourceReport
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     candidates = [
@@ -267,7 +267,7 @@ def test_hackernews_github_targets_stay_in_hackernews() -> None:
 
 
 def test_cross_source_duplicate_leaves_distinct_hackernews_item() -> None:
-    from briefing.signals import select_daily_briefing
+    from ai_intel_station.briefing.signals import select_daily_briefing
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     shared = "https://github.com/example/shared"
@@ -302,7 +302,7 @@ def test_cross_source_duplicate_leaves_distinct_hackernews_item() -> None:
 
 
 def test_legacy_signal_selector_keeps_multiple_github_destinations() -> None:
-    from briefing.signals import select_daily_signals
+    from ai_intel_station.briefing.signals import select_daily_signals
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     selected = select_daily_signals(
@@ -322,7 +322,7 @@ def test_legacy_signal_selector_keeps_multiple_github_destinations() -> None:
 
 
 def test_wechat_minimum_counts_deduped_news_entries_and_reports_shortfall() -> None:
-    from briefing.signals import select_daily_briefing
+    from ai_intel_station.briefing.signals import select_daily_briefing
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     duplicate_a = _signal(
@@ -363,7 +363,7 @@ def test_wechat_minimum_counts_deduped_news_entries_and_reports_shortfall() -> N
 
 
 def test_wechat_minimum_counts_duplicate_and_separate_mixed_group_once_each() -> None:
-    from briefing.signals import select_daily_briefing
+    from ai_intel_station.briefing.signals import select_daily_briefing
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     first_url = "https://example.com/wechat-one"
@@ -413,7 +413,7 @@ def test_wechat_minimum_counts_duplicate_and_separate_mixed_group_once_each() ->
 
 
 def test_dedicated_freshness_ranking_and_cross_lane_ownership() -> None:
-    from briefing.signals import select_daily_briefing
+    from ai_intel_station.briefing.signals import select_daily_briefing
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     shared_url = "https://example.com/shared"
@@ -473,9 +473,9 @@ def test_dedicated_freshness_ranking_and_cross_lane_ownership() -> None:
 
 
 def test_paper_github_duplicate_without_replacement_reports_github_shortfall() -> None:
-    from briefing.signal_rendering import render_daily_signal_markdown
-    from briefing.signals import select_daily_briefing
-    from research.discovery.models import SourceReport
+    from ai_intel_station.briefing.signal_rendering import render_daily_signal_markdown
+    from ai_intel_station.briefing.signals import select_daily_briefing
+    from ai_intel_station.discovery.models import SourceReport
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     shared_url = "https://example.com/only-dedicated"
@@ -526,7 +526,7 @@ def test_paper_github_duplicate_without_replacement_reports_github_shortfall() -
 
 
 def test_dedicated_entries_reject_discovered_only_stale_and_future_times() -> None:
-    from briefing.signals import select_daily_briefing
+    from ai_intel_station.briefing.signals import select_daily_briefing
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     discovered_only = _evidence("discovered only", source="papers", published_at="")
@@ -557,7 +557,7 @@ def test_dedicated_entries_reject_discovered_only_stale_and_future_times() -> No
 
 
 def test_dedicated_source_time_fallback_and_paper_publication_ranking() -> None:
-    from briefing.signals import select_daily_briefing
+    from ai_intel_station.briefing.signals import select_daily_briefing
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     github_fallback = _evidence(
@@ -615,7 +615,7 @@ def test_dedicated_source_time_fallback_and_paper_publication_ranking() -> None:
 
 
 def test_dedicated_confidence_uses_independent_signal_sources_and_watchlist() -> None:
-    from briefing.signals import select_daily_briefing
+    from ai_intel_station.briefing.signals import select_daily_briefing
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     url = "https://example.com/corroborated"
@@ -655,7 +655,7 @@ def test_dedicated_confidence_uses_independent_signal_sources_and_watchlist() ->
 
 
 def test_dedicated_confidence_covers_low_medium_and_wechat_watchlist_high() -> None:
-    from briefing.signals import select_daily_briefing
+    from ai_intel_station.briefing.signals import select_daily_briefing
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     papers = [
@@ -712,7 +712,7 @@ def test_dedicated_confidence_covers_low_medium_and_wechat_watchlist_high() -> N
 
 
 def test_dedupe_normalization_ranking_and_confidence_are_deterministic() -> None:
-    from briefing.signals import select_daily_signals
+    from ai_intel_station.briefing.signals import select_daily_signals
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     first = _signal(

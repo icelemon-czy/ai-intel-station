@@ -5,7 +5,7 @@ These tests differ from `tests/test_system_contracts.py` and
 `tests/test_e2e_archive.py` in one critical respect:
 
   * **No mocked request handler.** They spawn the actual
-    `workspace_web.server.serve_workspace` in a real subprocess,
+    `ai_intel_station.adapters.web.server.serve_workspace` in a real subprocess,
     bind a real `ThreadingHTTPServer`, and probe the bound port
     with real HTTP. What the user gets in their browser when they
     run `uv run research web` is what the test hits.
@@ -13,7 +13,7 @@ These tests differ from `tests/test_system_contracts.py` and
     `console_main()` through `subprocess.run(..., "-c", ...)`, that
     exercise does not exercise the bundled frontend. This file
     rebuilds the frontend bundle when needed (`npm run build`),
-    serves the actual `workspace_web/static/` directory, and
+    serves the actual `ai_intel_station/adapters/web/static/` directory, and
     asserts the served `/`, `/assets/<hashed>.js`, and
     `/api/library` shape matches what the React app expects.
   * **No mocked data layer.** The server reads `output/` from disk
@@ -40,7 +40,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from library.items import (
+from ai_intel_station.library.items import (
     build_github_repo_item,
     build_paper_item,
     write_research_item,
@@ -49,7 +49,7 @@ from library.items import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYTHON = str(REPO_ROOT / ".venv" / "bin" / "python")
-STATIC_DIR = REPO_ROOT / "workspace_web" / "static"
+STATIC_DIR = REPO_ROOT / "src" / "ai_intel_station" / "adapters" / "web" / "static"
 ASSETS_DIR = STATIC_DIR / "assets"
 
 
@@ -131,8 +131,8 @@ class _WorkspaceServer:
         # noise from uvicorn-style access logs.
         script = (
             "import os, sys, pathlib, time\n"
-            f"sys.path.insert(0, {str(REPO_ROOT)!r})\n"
-            "from workspace_web import server as srv\n"
+            f"sys.path.insert(0, {str(REPO_ROOT / "src")!r})\n"
+            "from ai_intel_station.adapters.web import server as srv\n"
             "self_url = f'http://127.0.0.1:{int(os.environ[\"PORT\"])}'\n"
             "print(f'LISTENING {self_url}', flush=True)\n"
             f"srv.serve_workspace(pathlib.Path({str(self.output_root)!r}), "
@@ -244,14 +244,14 @@ class ContractExplicitFailureHttpBoundaryTests(unittest.TestCase):
         (self.tmp / "papers").mkdir(parents=True, exist_ok=True)
         # Spawn the real server with an empty PATH-like env so `gh` etc
         # genuinely resolve to nothing. We keep PYTHONPATH so the server
-        # can still import workspace_web.
+        # can still import ai_intel_station.adapters.web.
         empty_path_dir = self._make_empty_path_dir()
         self.port = _free_loopback_port()
         env = {
             **os.environ,
             "PATH": str(empty_path_dir),  # only contains /bin true
             "PORT": str(self.port),
-            "PYTHONPATH": str(REPO_ROOT),
+            "PYTHONPATH": str(REPO_ROOT / "src"),
             "HTTP_PROXY": "http://127.0.0.1:9",
             "HTTPS_PROXY": "http://127.0.0.1:9",
             "ALL_PROXY": "http://127.0.0.1:9",
@@ -259,9 +259,9 @@ class ContractExplicitFailureHttpBoundaryTests(unittest.TestCase):
         }
         script = (
             "import sys, pathlib, os\n"
-            f"sys.path.insert(0, {str(REPO_ROOT)!r})\n"
+            f"sys.path.insert(0, {str(REPO_ROOT / "src")!r})\n"
             "print('LISTENING http://127.0.0.1:' + os.environ['PORT'], flush=True)\n"
-            f"from workspace_web import server as srv\n"
+            f"from ai_intel_station.adapters.web import server as srv\n"
             f"srv.serve_workspace(pathlib.Path({str(self.tmp)!r}), "
             "port=int(os.environ['PORT']))\n"
         )

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from bs4 import BeautifulSoup
 
-from collect.wechat import (
+from ai_intel_station.collect.wechat import (
     _load_wechat_runtime,
     convert_to_markdown,
     extract_publish_time,

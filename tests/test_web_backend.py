@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from library.items import ResearchItem
-from publish.obsidian import write_markdown
+from ai_intel_station.library.items import ResearchItem
+from ai_intel_station.briefing.markdown import write_markdown
 
 
 _WEB_WORKSPACE_SOURCE_FILES = (
@@ -25,7 +25,7 @@ _WEB_WORKSPACE_SOURCE_FILES = (
 
 
 def _read_web_workspace_source() -> str:
-    source_root = Path(__file__).resolve().parents[1] / "web" / "src"
+    source_root = Path(__file__).resolve().parents[1] / "frontend" / "src"
     return "\n".join(
         (source_root / name).read_text(encoding="utf-8")
         for name in _WEB_WORKSPACE_SOURCE_FILES
@@ -157,7 +157,7 @@ def _seed_briefings(output_root: Path) -> None:
     )
     os.utime(reading_list_path, (1_800_000_000, 1_800_000_000))
 def test_workspace_sections_match_phase_one_scope() -> None:
-    from workspace_web.service import workspace_sections
+    from ai_intel_station.adapters.web.service import workspace_sections
 
     assert workspace_sections() == [
         {
@@ -197,7 +197,7 @@ def test_workspace_sections_match_phase_one_scope() -> None:
 
 def test_workspace_sections_includes_collect_workspace() -> None:
     """Test that Collect Workspace is included in navigation sections."""
-    from workspace_web.service import workspace_sections
+    from ai_intel_station.adapters.web.service import workspace_sections
 
     sections = workspace_sections()
     section_ids = [s["id"] for s in sections]
@@ -209,7 +209,7 @@ def test_workspace_sections_includes_collect_workspace() -> None:
 
 def test_collect_workspace_has_description() -> None:
     """Test that Collect Workspace section includes description for page heading."""
-    from workspace_web.service import workspace_sections
+    from ai_intel_station.adapters.web.service import workspace_sections
 
     sections = workspace_sections()
     collect_section = next(s for s in sections if s["id"] == "collect")
@@ -219,7 +219,7 @@ def test_collect_workspace_has_description() -> None:
 
 def test_list_collect_sources_returns_all_supported_sources() -> None:
     """Test that collect workspace lists all supported sources."""
-    from workspace_web.service import list_collect_sources
+    from ai_intel_station.adapters.web.service import list_collect_sources
 
     sources = list_collect_sources()
     source_ids = [s["id"] for s in sources]
@@ -231,7 +231,7 @@ def test_list_collect_sources_returns_all_supported_sources() -> None:
 
 def test_get_collect_form_returns_source_specific_fields() -> None:
     """Test that collect form returns fields specific to each source."""
-    from workspace_web.service import get_collect_form
+    from ai_intel_station.adapters.web.service import get_collect_form
 
     github_form = get_collect_form("github")
     github_field_names = [f["name"] for f in github_form["fields"]]
@@ -250,7 +250,7 @@ def test_get_collect_form_returns_source_specific_fields() -> None:
 
 
 def test_build_dashboard_overview_summarizes_local_archive_and_recent_briefings(tmp_path: Path) -> None:
-    from workspace_web.service import build_dashboard_overview
+    from ai_intel_station.adapters.web.service import build_dashboard_overview
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -264,7 +264,7 @@ def test_build_dashboard_overview_summarizes_local_archive_and_recent_briefings(
 
 
 def test_build_dashboard_overview_reports_missing_sources_and_orphan_markdown(tmp_path: Path) -> None:
-    from workspace_web.service import build_dashboard_overview
+    from ai_intel_station.adapters.web.service import build_dashboard_overview
 
     output_root = tmp_path / "output"
     _write_item(
@@ -289,9 +289,9 @@ def test_build_dashboard_overview_reports_missing_sources_and_orphan_markdown(tm
 
 
 def test_list_library_items_uses_local_filters_without_remote_collection(tmp_path: Path, monkeypatch) -> None:
-    import collect.github as github_collect
-    import collect.wechat as wechat_collect
-    from workspace_web.service import list_library_items
+    import ai_intel_station.collect.github as github_collect
+    import ai_intel_station.collect.wechat as wechat_collect
+    from ai_intel_station.adapters.web.service import list_library_items
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -306,7 +306,7 @@ def test_list_library_items_uses_local_filters_without_remote_collection(tmp_pat
 
 
 def test_get_library_item_detail_maps_local_metadata(tmp_path: Path) -> None:
-    from workspace_web.service import get_library_item_detail
+    from ai_intel_station.adapters.web.service import get_library_item_detail
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -322,7 +322,7 @@ def test_get_library_item_detail_maps_local_metadata(tmp_path: Path) -> None:
 
 
 def test_preview_briefing_returns_markdown_without_writing_file(tmp_path: Path) -> None:
-    from workspace_web.service import preview_briefing
+    from ai_intel_station.adapters.web.service import preview_briefing
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -341,7 +341,7 @@ def test_preview_briefing_returns_markdown_without_writing_file(tmp_path: Path) 
 
 
 def test_save_briefing_writes_output_and_marks_missing_sources(tmp_path: Path) -> None:
-    from workspace_web.service import save_briefing
+    from ai_intel_station.adapters.web.service import save_briefing
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -360,12 +360,12 @@ def test_save_briefing_writes_output_and_marks_missing_sources(tmp_path: Path) -
 
 
 def test_workspace_operator_surface_supports_local_web_entrypoint(tmp_path: Path, monkeypatch) -> None:
-    from research.cli import main
+    from ai_intel_station.cli import main
 
     output_root = tmp_path / "output"
     calls: list[Path] = []
 
-    monkeypatch.setattr("research.cli.run_web_workspace", lambda current_output_root: calls.append(current_output_root))
+    monkeypatch.setattr("ai_intel_station.cli.run_web_workspace", lambda current_output_root: calls.append(current_output_root))
 
     assert main(["web", "--output-root", str(output_root)]) == 0
     assert calls == [output_root]
@@ -373,7 +373,7 @@ def test_workspace_operator_surface_supports_local_web_entrypoint(tmp_path: Path
 
 def test_build_dashboard_overview_returns_empty_state_info_when_no_items(tmp_path: Path) -> None:
     """Test that dashboard overview indicates empty state when no items exist."""
-    from workspace_web.service import build_dashboard_overview
+    from ai_intel_station.adapters.web.service import build_dashboard_overview
 
     output_root = tmp_path / "output"
     output_root.mkdir(parents=True)
@@ -387,7 +387,7 @@ def test_build_dashboard_overview_returns_empty_state_info_when_no_items(tmp_pat
 
 def test_list_library_items_returns_empty_list_when_no_items(tmp_path: Path) -> None:
     """Test that library returns empty list when no items exist."""
-    from workspace_web.service import list_library_items
+    from ai_intel_station.adapters.web.service import list_library_items
 
     output_root = tmp_path / "output"
     output_root.mkdir(parents=True)
@@ -399,7 +399,7 @@ def test_list_library_items_returns_empty_list_when_no_items(tmp_path: Path) -> 
 
 def test_preview_briefing_handles_empty_items_gracefully(tmp_path: Path) -> None:
     """Test that briefing preview works with no items."""
-    from workspace_web.service import preview_briefing
+    from ai_intel_station.adapters.web.service import preview_briefing
 
     output_root = tmp_path / "output"
     output_root.mkdir(parents=True)
@@ -418,7 +418,7 @@ def test_preview_briefing_handles_empty_items_gracefully(tmp_path: Path) -> None
 
 def test_github_collect_form_has_repo_and_search_mode_fields() -> None:
     """Test that GitHub collect form supports both repo and search modes."""
-    from workspace_web.service import get_collect_form
+    from ai_intel_station.adapters.web.service import get_collect_form
 
     github_form = get_collect_form("github")
     field_names = [f["name"] for f in github_form["fields"]]
@@ -430,7 +430,7 @@ def test_github_collect_form_has_repo_and_search_mode_fields() -> None:
 
 def test_papers_collect_form_has_category_and_max_fields() -> None:
     """Test that papers collect form has category and max fields."""
-    from workspace_web.service import get_collect_form
+    from ai_intel_station.adapters.web.service import get_collect_form
 
     papers_form = get_collect_form("papers")
     field_names = [f["name"] for f in papers_form["fields"]]
@@ -441,7 +441,7 @@ def test_papers_collect_form_has_category_and_max_fields() -> None:
 
 def test_collect_form_includes_field_labels_and_placeholders() -> None:
     """Test that collect forms include proper labels and placeholders."""
-    from workspace_web.service import get_collect_form
+    from ai_intel_station.adapters.web.service import get_collect_form
 
     github_form = get_collect_form("github")
     for field in github_form["fields"]:
@@ -456,7 +456,7 @@ def test_collect_form_includes_field_labels_and_placeholders() -> None:
 
 def test_get_collect_form_returns_unknown_for_unsupported_source() -> None:
     """Test that get_collect_form handles unsupported sources gracefully."""
-    from workspace_web.service import get_collect_form
+    from ai_intel_station.adapters.web.service import get_collect_form
 
     unknown_form = get_collect_form("unsupported")
     assert unknown_form["id"] == "unsupported"
@@ -466,7 +466,7 @@ def test_get_collect_form_returns_unknown_for_unsupported_source() -> None:
 
 def test_run_collect_github_single_repo(tmp_path: Path, monkeypatch) -> None:
     """Test that run_collect dispatches to GitHub collect for single repo mode."""
-    import collect.github as github_collect
+    import ai_intel_station.collect.github as github_collect
 
     called_with: list = []
 
@@ -475,7 +475,7 @@ def test_run_collect_github_single_repo(tmp_path: Path, monkeypatch) -> None:
         return None
 
     monkeypatch.setattr(github_collect, "save_repo", mock_save_repo)
-    from workspace_web.service import run_collect
+    from ai_intel_station.adapters.web.service import run_collect
 
     result = run_collect(
         "github",
@@ -489,7 +489,7 @@ def test_run_collect_github_single_repo(tmp_path: Path, monkeypatch) -> None:
 
 def test_run_collect_github_search_mode(tmp_path: Path, monkeypatch) -> None:
     """Test that run_collect dispatches to GitHub search when search=True."""
-    import collect.github as github_collect
+    import ai_intel_station.collect.github as github_collect
 
     called_with: list = []
 
@@ -498,7 +498,7 @@ def test_run_collect_github_search_mode(tmp_path: Path, monkeypatch) -> None:
         return "[]"
 
     monkeypatch.setattr(github_collect, "run_gh", mock_run_gh)
-    from workspace_web.service import run_collect
+    from ai_intel_station.adapters.web.service import run_collect
 
     result = run_collect(
         "github",
@@ -518,7 +518,7 @@ def test_run_collect_github_search_mode(tmp_path: Path, monkeypatch) -> None:
 
 def test_run_collect_papers(tmp_path: Path, monkeypatch) -> None:
     """Test that run_collect dispatches to papers collect."""
-    import collect.papers as papers_collect
+    import ai_intel_station.collect.papers as papers_collect
 
     called_with: list = []
     save_called: list = []
@@ -536,7 +536,7 @@ def test_run_collect_papers(tmp_path: Path, monkeypatch) -> None:
 
     monkeypatch.setattr(papers_collect, "fetch_papers_by_category", mock_fetch_papers)
     monkeypatch.setattr(papers_collect, "save_papers", mock_save_papers)
-    from workspace_web.service import run_collect
+    from ai_intel_station.adapters.web.service import run_collect
 
     result = run_collect("papers", {"category": "cs.AI", "max": 3})
     assert result["status"] == "success"
@@ -547,7 +547,7 @@ def test_run_collect_papers(tmp_path: Path, monkeypatch) -> None:
 
 def test_run_collect_wechat(tmp_path: Path, monkeypatch) -> None:
     """Test that run_collect dispatches to WeChat collect with URL."""
-    import collect.wechat as wechat_collect
+    import ai_intel_station.collect.wechat as wechat_collect
 
     called_with: list = []
 
@@ -556,7 +556,7 @@ def test_run_collect_wechat(tmp_path: Path, monkeypatch) -> None:
         return {"title": "Agent Overview", "url": url}
 
     monkeypatch.setattr(wechat_collect, "fetch_article", mock_fetch)
-    from workspace_web.service import run_collect
+    from ai_intel_station.adapters.web.service import run_collect
 
     result = run_collect("wechat", {"url": "https://mp.weixin.qq.com/s/test"})
     assert result["status"] == "success"
@@ -565,7 +565,7 @@ def test_run_collect_wechat(tmp_path: Path, monkeypatch) -> None:
 
 def test_run_collect_wechat_missing_url_returns_error(tmp_path: Path) -> None:
     """Test that WeChat collect returns error when URL is missing."""
-    from workspace_web.service import run_collect
+    from ai_intel_station.adapters.web.service import run_collect
 
     result = run_collect("wechat", {"url": ""})
     assert result["status"] == "error"
@@ -578,7 +578,7 @@ def test_run_collect_wechat_missing_url_returns_error(tmp_path: Path) -> None:
 
 def test_list_library_items_pagination_returns_correct_slice(tmp_path: Path) -> None:
     """Test that list_library_items returns paginated results with metadata."""
-    from workspace_web.service import list_library_items
+    from ai_intel_station.adapters.web.service import list_library_items
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -596,7 +596,7 @@ def test_list_library_items_pagination_returns_correct_slice(tmp_path: Path) -> 
 
 def test_list_library_items_pagination_page_2(tmp_path: Path) -> None:
     """Test that requesting page 2 returns different results."""
-    from workspace_web.service import list_library_items
+    from ai_intel_station.adapters.web.service import list_library_items
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -611,7 +611,7 @@ def test_list_library_items_pagination_page_2(tmp_path: Path) -> None:
 
 def test_list_library_items_total_count_matches_all_results(tmp_path: Path) -> None:
     """Test that total_count equals all items without pagination."""
-    from workspace_web.service import list_library_items
+    from ai_intel_station.adapters.web.service import list_library_items
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -624,7 +624,7 @@ def test_list_library_items_total_count_matches_all_results(tmp_path: Path) -> N
 
 def test_list_library_items_page_size_change_resets_to_page_1(tmp_path: Path) -> None:
     """Test that changing page_size returns page 1 results."""
-    from workspace_web.service import list_library_items
+    from ai_intel_station.adapters.web.service import list_library_items
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -642,7 +642,7 @@ def test_list_library_items_page_size_change_resets_to_page_1(tmp_path: Path) ->
 
 def test_list_library_items_keyword_change_affects_total_count(tmp_path: Path) -> None:
     """Test that changing keyword changes total_count and results."""
-    from workspace_web.service import list_library_items
+    from ai_intel_station.adapters.web.service import list_library_items
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -656,7 +656,7 @@ def test_list_library_items_keyword_change_affects_total_count(tmp_path: Path) -
 
 def test_get_library_item_detail_returns_expanded_metadata(tmp_path: Path) -> None:
     """Test that get_library_item_detail returns item_type, published_at, and updated_at fields."""
-    from workspace_web.service import get_library_item_detail
+    from ai_intel_station.adapters.web.service import get_library_item_detail
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -672,7 +672,7 @@ def test_get_library_item_detail_returns_expanded_metadata(tmp_path: Path) -> No
 
 def test_run_collect_unknown_source_returns_error(tmp_path: Path) -> None:
     """Test that run_collect returns error for unknown source."""
-    from workspace_web.service import run_collect
+    from ai_intel_station.adapters.web.service import run_collect
 
     result = run_collect("twitter", {"query": "test"})
     assert result["status"] == "error"
@@ -683,7 +683,7 @@ def test_run_collect_unknown_source_returns_error(tmp_path: Path) -> None:
 
 def test_run_collect_github_writes_to_output_root(tmp_path: Path, monkeypatch) -> None:
     """GitHub single-repo collect MUST write to output_root/github, not /tmp."""
-    import collect.github as github_collect
+    import ai_intel_station.collect.github as github_collect
 
     captured: dict = {}
 
@@ -691,7 +691,7 @@ def test_run_collect_github_writes_to_output_root(tmp_path: Path, monkeypatch) -
         captured["output_dir"] = output_dir
 
     monkeypatch.setattr(github_collect, "save_repo", mock_save_repo)
-    from workspace_web.service import run_collect
+    from ai_intel_station.adapters.web.service import run_collect
 
     result = run_collect(
         "github",
@@ -704,7 +704,7 @@ def test_run_collect_github_writes_to_output_root(tmp_path: Path, monkeypatch) -
 
 def test_run_collect_papers_saves_to_output_root(tmp_path: Path, monkeypatch) -> None:
     """Papers collect MUST call save_papers() with output_root/papers."""
-    import collect.papers as papers_collect
+    import ai_intel_station.collect.papers as papers_collect
 
     save_captured: dict = {}
 
@@ -722,7 +722,7 @@ def test_run_collect_papers_saves_to_output_root(tmp_path: Path, monkeypatch) ->
 
     monkeypatch.setattr(papers_collect, "fetch_papers_by_category", mock_fetch)
     monkeypatch.setattr(papers_collect, "save_papers", mock_save)
-    from workspace_web.service import run_collect
+    from ai_intel_station.adapters.web.service import run_collect
 
     result = run_collect(
         "papers",
@@ -736,7 +736,7 @@ def test_run_collect_papers_saves_to_output_root(tmp_path: Path, monkeypatch) ->
 
 def test_run_collect_wechat_uses_output_root_and_awaits(tmp_path: Path, monkeypatch) -> None:
     """WeChat collect MUST await fetch_article and pass output_root/wechat."""
-    import collect.wechat as wechat_collect
+    import ai_intel_station.collect.wechat as wechat_collect
 
     captured: dict = {}
 
@@ -746,7 +746,7 @@ def test_run_collect_wechat_uses_output_root_and_awaits(tmp_path: Path, monkeypa
         return {"title": "Test Article", "url": url}
 
     monkeypatch.setattr(wechat_collect, "fetch_article", mock_fetch_article)
-    from workspace_web.service import run_collect
+    from ai_intel_station.adapters.web.service import run_collect
 
     result = run_collect(
         "wechat",

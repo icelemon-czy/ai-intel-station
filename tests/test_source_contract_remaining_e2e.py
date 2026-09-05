@@ -97,9 +97,9 @@ def _make_fake_gh_dir(tmp: Path, *, repo_name: str = "demo-real-gh",
 def _run_subprocess(args: list[str], *, env_extra: dict[str, str], cwd: str = str(REPO_ROOT), timeout: int = 60):
     """Run `python -m` style subprocess with our project on PYTHONPATH and the
     fake `gh` directory prepended to PATH. Returns CompletedProcess."""
-    env = {**os.environ, "PYTHONPATH": str(REPO_ROOT), **env_extra}
+    env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "src"), **env_extra}
     return subprocess.run(
-        [PYTHON, "-c", "from research.cli import console_main; console_main()", *args],
+        [PYTHON, "-c", "from ai_intel_station.cli import console_main; console_main()", *args],
         capture_output=True,
         text=True,
         env=env,
@@ -325,17 +325,17 @@ class ContractPapersFetchLatestSubprocessTests(unittest.TestCase):
             # use for the arxiv category failure scenario.
             script = (
                 "import sys, pathlib\n"
-                f"sys.path.insert(0, {str(REPO_ROOT)!r})\n"
-                "import collect.papers as papers_collect\n"
+                f"sys.path.insert(0, {str(REPO_ROOT / "src")!r})\n"
+                "import ai_intel_station.collect.papers as papers_collect\n"
                 "from urllib import request as _urequest\n"
                 f"original = _urequest.urlopen\n"
                 f"def redirect(url, *args, **kwargs):\n"
                 f"    return original({xml_url!r}, *args, **kwargs)\n"
                 f"_urequest.urlopen = redirect\n"
                 f"papers_collect.urlopen = redirect\n"
-                f"from research.cli import console_main; console_main()\n"
+                f"from ai_intel_station.cli import console_main; console_main()\n"
             )
-            env = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
+            env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")}
             # NOTE: We pass `-o output_root` for cleanup. The CLI
             # subcommand `collect papers` parses `-o` as `--output-root`.
             cmd = [PYTHON, "-c", script,

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import unittest
 
-from research.discovery.config_validation import _ErrorBag, _parse_papers
+from ai_intel_station.discovery.config_validation import _ErrorBag, _parse_papers
 
 
 class ParsePapersCategoriesTests(unittest.TestCase):

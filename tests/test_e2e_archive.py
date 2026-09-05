@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from library.backfill import backfill_output_tree
-from library.items import (
+from ai_intel_station.library.backfill import backfill_output_tree
+from ai_intel_station.library.items import (
     ResearchItem,
     build_github_repo_item,
     build_paper_item,
@@ -56,7 +56,7 @@ class RealArchiveRoundTripTests(unittest.TestCase):
             write_research_item(item, repo_dir / "research-item.json")
 
             # Read back through the loader.
-            from library.storage import load_research_items
+            from ai_intel_station.library.storage import load_research_items
 
             items = load_research_items(output_root)
             self.assertEqual(len(items), 1)
@@ -68,8 +68,8 @@ class RealArchiveRoundTripTests(unittest.TestCase):
 
     def test_paper_sidecar_loads_and_renders_in_briefing(self) -> None:
         """A real paper sidecar should appear in a generated briefing."""
-        from briefing.service import build_generic_briefing_from_items, save_generic_briefing
-        from library.query import query_research_items
+        from ai_intel_station.briefing.service import build_generic_briefing_from_items, save_generic_briefing
+        from ai_intel_station.library.query import query_research_items
 
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
@@ -124,8 +124,8 @@ class RealArchiveRoundTripTests(unittest.TestCase):
 
     def test_github_search_results_jsonl_loads(self) -> None:
         """Search results use JSONL sidecars; load_research_items handles both."""
-        from collect.github import build_github_search_items
-        from library.storage import load_research_items
+        from ai_intel_station.collect.github import build_github_search_items
+        from ai_intel_station.library.storage import load_research_items
 
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
@@ -151,7 +151,7 @@ class RealArchiveRoundTripTests(unittest.TestCase):
 
     def test_backfill_creates_sidecars_for_historical_markdown(self) -> None:
         """A directory of legacy markdown (no sidecars) becomes queryable."""
-        from library.storage import load_research_items
+        from ai_intel_station.library.storage import load_research_items
 
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
@@ -210,7 +210,7 @@ class ContractSourceSegregatedArchiveTests(unittest.TestCase):
             )
 
     def test_github_writes_only_under_output_github(self):
-        from library.items import build_github_repo_item, write_research_item
+        from ai_intel_station.library.items import build_github_repo_item, write_research_item
 
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
@@ -236,7 +236,7 @@ class ContractSourceSegregatedArchiveTests(unittest.TestCase):
             self._assert_no_escape(output_root, "github")
 
     def test_papers_writes_only_under_output_papers(self):
-        from library.items import build_paper_item, write_research_item
+        from ai_intel_station.library.items import build_paper_item, write_research_item
 
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
@@ -273,7 +273,7 @@ class ContractSourceSegregatedArchiveTests(unittest.TestCase):
 
 class ContractTraceableArtifactsTests(unittest.TestCase):
     def test_github_repo_markdown_preserves_canonical_url(self):
-        from library.items import build_github_repo_item
+        from ai_intel_station.library.items import build_github_repo_item
 
         with tempfile.TemporaryDirectory() as tmp:
             repo_dir = Path(tmp) / "github" / "demo-demo"
@@ -310,7 +310,7 @@ class ContractTraceableArtifactsTests(unittest.TestCase):
             self.assertEqual(item.metadata["primary_language"], "Python")
 
     def test_paper_markdown_preserves_arxiv_urls(self):
-        from library.items import build_paper_item
+        from ai_intel_station.library.items import build_paper_item
 
         with tempfile.TemporaryDirectory() as tmp:
             papers_dir = Path(tmp) / "papers" / "arXiv-cs.AI"

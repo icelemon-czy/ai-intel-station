@@ -1,4 +1,4 @@
-"""Regression tests for ``research.discovery.config.load_config`` IO
+"""Regression tests for ``ai_intel_station.discovery.config.load_config`` IO
 errors.
 
 The previous version used ``config_path.exists()`` which only catches
@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from research.discovery.config import DiscoveryConfigError, load_config
+from ai_intel_station.discovery.config import DiscoveryConfigError, load_config
 
 
 class LoadConfigIOTests(unittest.TestCase):

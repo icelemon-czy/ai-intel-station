@@ -5,7 +5,7 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
-from research.discovery import (
+from ai_intel_station.discovery import (
     DiscoveryLogger,
     latest_log_path,
     read_log_summary,

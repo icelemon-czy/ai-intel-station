@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType
 
-from library.items import ResearchItem
+from ai_intel_station.library.items import ResearchItem
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -136,7 +136,7 @@ def _wechat_dependency_stubs() -> dict[str, ModuleType]:
 
 
 def test_library_query_supports_cross_source_and_optional_time_filters(tmp_path: Path) -> None:
-    from library.query import query_research_items
+    from ai_intel_station.library.query import query_research_items
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -157,9 +157,9 @@ def test_library_query_supports_cross_source_and_optional_time_filters(tmp_path:
     assert {item.title for item in recent_only} == {"Claude Code", "Agent Harness Benchmark"}
 
 
-def test_briefing_reports_generate_obsidian_friendly_markdown(tmp_path: Path) -> None:
-    from briefing.service import build_generic_briefing_from_items, save_generic_briefing
-    from library.query import query_research_items
+def test_briefing_reports_generate_markdown(tmp_path: Path) -> None:
+    from ai_intel_station.briefing.service import build_generic_briefing_from_items, save_generic_briefing
+    from ai_intel_station.library.query import query_research_items
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -188,8 +188,8 @@ def test_briefing_reports_generate_obsidian_friendly_markdown(tmp_path: Path) ->
 
 
 def test_briefing_reports_allow_partial_success_with_explicit_source_gap(tmp_path: Path) -> None:
-    from briefing.service import build_generic_briefing_from_items, save_generic_briefing
-    from library.query import query_research_items
+    from ai_intel_station.briefing.service import build_generic_briefing_from_items, save_generic_briefing
+    from ai_intel_station.library.query import query_research_items
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -213,24 +213,24 @@ def test_briefing_reports_allow_partial_success_with_explicit_source_gap(tmp_pat
 
 
 def test_workspace_operator_surface_dispatches_collect_actions(tmp_path: Path, monkeypatch) -> None:
-    from research.cli import main
+    from ai_intel_station.cli import main
 
     output_root = tmp_path / "output"
     calls: list[tuple[str, object]] = []
 
     monkeypatch.setattr(
-        "research.cli.collect_github_targets",
+        "ai_intel_station.cli.collect_github_targets",
         lambda targets, output_root, search=False: calls.append(("github", (targets, output_root, search))),
     )
     monkeypatch.setattr(
-        "research.cli.collect_paper_categories",
+        "ai_intel_station.cli.collect_paper_categories",
         lambda categories, output_root, max_results=10: calls.append(("papers", (categories, output_root, max_results))),
     )
 
     async def fake_collect_wechat(url: str, output_root: Path) -> None:
         calls.append(("wechat", (url, output_root)))
 
-    monkeypatch.setattr("research.cli.collect_wechat_article", fake_collect_wechat)
+    monkeypatch.setattr("ai_intel_station.cli.collect_wechat_article", fake_collect_wechat)
 
     assert main(["collect", "github", "anthropic/claude-code", "--output-root", str(output_root)]) == 0
     assert main(["collect", "papers", "cs.AI", "--max", "3", "--output-root", str(output_root)]) == 0
@@ -244,7 +244,7 @@ def test_workspace_operator_surface_dispatches_collect_actions(tmp_path: Path, m
 
 
 def test_workspace_operator_surface_supports_query_briefing_and_backfill(tmp_path: Path, capsys) -> None:
-    from research.cli import main
+    from ai_intel_station.cli import main
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -285,7 +285,7 @@ def test_workspace_operator_surface_supports_query_briefing_and_backfill(tmp_pat
 
 
 def test_workspace_operator_surface_continues_with_partial_briefing_results(tmp_path: Path) -> None:
-    from research.cli import main
+    from ai_intel_station.cli import main
 
     output_root = tmp_path / "output"
     _seed_output_tree(output_root)
@@ -317,9 +317,16 @@ def test_workspace_operator_surface_continues_with_partial_briefing_results(tmp_
 
 
 def test_current_entrypoint_and_root_boundaries() -> None:
-    assert (REPO_ROOT / "research" / "cli.py").is_file()
-    assert (REPO_ROOT / "research" / "commands.py").is_file()
+    cli_dir = REPO_ROOT / "src" / "ai_intel_station" / "cli"
+    assert (cli_dir / "__init__.py").is_file()
+    assert (cli_dir / "commands.py").is_file()
     for retired in (
+        "briefing",
+        "collect",
+        "library",
+        "publish",
+        "research",
+        "workspace_web",
         "github",
         "github-tools",
         "papers-tools",
@@ -329,17 +336,14 @@ def test_current_entrypoint_and_root_boundaries() -> None:
     ):
         assert not (REPO_ROOT / retired).exists()
     for retired_file in (
-        REPO_ROOT / "briefing" / "main.py",
-        REPO_ROOT / "publish" / "cli.py",
-        REPO_ROOT / "workspace_web" / "archive.py",
+        REPO_ROOT / "src" / "ai_intel_station" / "briefing" / "main.py",
+        REPO_ROOT / "src" / "ai_intel_station" / "adapters" / "web" / "archive.py",
     ):
         assert not retired_file.exists()
 
-    tools_dir = REPO_ROOT / "tools"
-    assert {path.name for path in tools_dir.iterdir() if path.is_dir()} == {
-        "github",
-        "papers",
-        "wechat",
-    }
+    playbooks_dir = REPO_ROOT / ".agents" / "playbooks"
     for source in ("github", "papers", "wechat"):
-        assert {path.name for path in (tools_dir / source).iterdir()} == {"SKILL.md"}
+        assert (playbooks_dir / source / "SKILL.md").is_file()
+    assert not (REPO_ROOT / "tools").exists()
+    assert not (REPO_ROOT / "web").exists()
+    assert not (REPO_ROOT / "scripts").exists()

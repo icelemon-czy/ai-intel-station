@@ -17,14 +17,13 @@ optional Web ─→ adapters/web ────────┘          │
 
 ## Source-of-truth boundary
 
-本页是 target architecture 的 source of truth，不是 current file inventory。Refactor 可以让 current implementation 暂时处于迁移状态，但不能用临时 code shape 改写这里的 ownership 和 dependency direction。本页描述的是 **target `src/` layout**；source 从 root package 收拢到 `src/ai_intel_station/` 的物理移动仍在进行，进度见 [`todo.md`](todo.md)（不在此重复其步骤）。
+本页是 architecture 的 source of truth：layer ownership、dependency direction 与当前 **`src/ai_intel_station/` layout**。它不是逐文件 inventory。Refactor 不能用临时 code shape 改写这里的 ownership 和 dependency direction。
 
 | 问题 | Canonical source |
 |:-----|:-----------------|
 | 项目持续解决什么、从哪里开始操作 | [`README.md`](../README.md) |
 | system boundary、layer ownership、dependency direction | 本页 |
 | feature 的 intended behavior 与重要 decision | 对应 `doc/*_design.md` |
-| 当前 source-tree migration 尚未完成什么 | [`todo.md`](todo.md) |
 | current implementation 是否符合 design | code、config、test 与 runtime evidence |
 
 用户确认优先于已有 design。发现 design 与 implementation 冲突时，先记录 conflict；在用户确认前，implementation 不能自动成为新 requirement。
@@ -37,7 +36,7 @@ Refactor 必须保持以下 invariant：
 2. remote fetch 只发生在 collect 或 discovery boundary；Library query、generic briefing 和 Web Library 只读取 local archive。
 3. `ResearchItem` sidecar 是 collector、Library、briefing 和 Web 共享的数据 contract；source-specific metadata 不要求抹平成中央 database。
 4. `output/<source>/` 保存 primary material，`output/briefing/` 保存可重建的 derived artifact，两者不互相冒充。
-5. `adapters/web` 只组合 shared service 并维护 HTTP/job boundary；React UI（`web/`）不复制 Python business rule。
+5. `adapters/web` 只组合 shared service 并维护 HTTP/job boundary；React UI（`frontend/`）不复制 Python business rule。
 6. dependency 从 operator adapter 指向 orchestration/service，再指向 domain、filesystem 或 external boundary；Library 与 briefing 不依赖 Web，source adapter 之间不互相调用。
 7. project Workflow 只在 `.agents/skills/` 维护 canonical copy；platform-specific Skill 保持 thin adapter。
 8. 已退休的 context hierarchy、source-specific standalone CLI 和重复 full Skill copy 不重新进入 repository。
@@ -50,36 +49,53 @@ Refactor 必须保持以下 invariant：
 | `cli`（`research`） | 提供唯一 CLI、解析 command、编排 service | 不拥有 source-specific parsing 或 rendering rule |
 | `collect` | 访问 remote source，normalize 并保存 source material | 不执行本地 query 或生成 briefing |
 | `library` | 维护 `ResearchItem` contract、sidecar storage、query、backfill 与 archive migration | 不访问 remote source |
-| `briefing` | 选择、render、preview 并保存 derived reading artifact；含 Obsidian persistence（原 `publish`） | 不拥有 primary archive |
-| `adapters/web` + `web` | 将现有 service 暴露为 local HTTP/UI | 不复制 collector、Library 或 briefing business rule |
+| `briefing` | 选择、render、preview 并保存 derived reading artifact；含 Markdown persistence | 不拥有 primary archive |
+| `adapters/web` + `frontend` | 将现有 service 暴露为 local HTTP/UI | 不复制 collector、Library 或 briefing business rule |
 | `discovery` | 验证 discovery config，编排 source sweep、selection、coverage 与 run log | 不替代 standalone collect 或 generic briefing |
-
-Layer table 展开上述 invariant 的具体 ownership：
 
 ## Repository map
 
-Repository 按 ownership 分区，而不是按每个 command 建一套 vertical stack。Python source 一律收拢在 `src/ai_intel_station/` 下：
+Repository 按 ownership 分区，而不是按每个 command 建一套 vertical stack。开发者扫 root 时先看这些组；`frontend/` 独立于 Python package，不是漏进 `src/` 的业务代码。
+
+### Product source
+
+| Path | Role |
+|:-----|:-----|
+| `src/ai_intel_station/cli/` | `research` CLI、command orchestration |
+| `src/ai_intel_station/discovery/` | Daily Discovery runtime；`schedule/` 下是 `research schedule` 的 packaged launchd/cron template |
+| `src/ai_intel_station/collect/` | source adapter |
+| `src/ai_intel_station/library/` | ResearchItem / sidecar / query / backfill / migration |
+| `src/ai_intel_station/briefing/` | briefing behavior 与 Markdown persistence |
+| `src/ai_intel_station/adapters/web/` | Python HTTP adapter（backend + static build artifact） |
+| `frontend/` | React UI source 与 Node tests；独立于 Python package，不是漏进 `src/` 的业务代码 |
+
+### Agent surface
 
 | Path | Role |
 |:-----|:-----|
 | `.agents/skills/` | canonical project Workflow 与 Daily Discovery Skill |
-| `CLAUDE.md`、`.claude/skills/`、`.github/*instructions*`、`.github/skills/` | platform adapter；只引用 `AGENTS.md` 与 canonical Skill，不复制完整规则 |
-| `tools/` | one-off source playbook；调用 `research` runtime |
-| `src/ai_intel_station/cli/` | `research` CLI、command orchestration |
-| `src/ai_intel_station/discovery/` | Daily Discovery runtime |
-| `src/ai_intel_station/collect/` | GitHub、arXiv、WeChat、Hacker News、X source adapter |
-| `src/ai_intel_station/library/` | `ResearchItem`、sidecar、storage、query、backfill 与 archive migration |
-| `src/ai_intel_station/briefing/` | briefing behavior 与 Obsidian-friendly persistence（含原 `publish`） |
-| `src/ai_intel_station/adapters/web/` | Python HTTP adapter（backend + static build artifact） |
-| `web/` | React frontend、frontend test；独立于 Python source |
+| `.agents/playbooks/` | one-off source fetch playbook；调用 `research` runtime |
+| `CLAUDE.md`、`.claude/skills/`、`.github/*instructions*`、`.github/skills/` | platform adapter |
+
+### Validation / release
+
+| Path | Role |
+|:-----|:-----|
+| `tests/` | behavior evidence |
+| `release/` | wheel/artifact checker 与 installed-wheel smoke |
+
+### Design
+
+| Path | Role |
+|:-----|:-----|
 | `doc/` | canonical product 与 validation design |
-| `tests/`、`scripts/` | behavior evidence 与 release validation helper |
 
 ## State 与 artifact boundary
 
 | Path | Lifetime | Ownership |
 |:-----|:---------|:----------|
 | `src/ai_intel_station/discovery/discovery.yaml.example` | packaged | canonical discovery config example |
+| `src/ai_intel_station/discovery/schedule/` | packaged | `research schedule` 的 launchd/cron template |
 | `config/discovery.yaml` | local、ignored | operator preference |
 | `output/<source>/` | local archive | collect / discovery primary material |
 | `output/briefing/` | local derived artifact | briefing，可重建 |

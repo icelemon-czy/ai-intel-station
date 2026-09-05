@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from library.items import ResearchItem, write_research_item
+from ai_intel_station.library.items import ResearchItem, write_research_item
 
 
 def _signal(
@@ -54,8 +54,8 @@ def _evidence(
     )
 
 def test_hackernews_fixture_collection_writes_signal_sidecars(tmp_path: Path) -> None:
-    from collect.hackernews import collect_feed
-    from library.storage import load_research_items
+    from ai_intel_station.collect.hackernews import collect_feed
+    from ai_intel_station.library.storage import load_research_items
 
     payloads = {
         "https://hacker-news.firebaseio.com/v0/newstories.json": [101, 102],
@@ -100,7 +100,7 @@ def test_hackernews_fixture_collection_writes_signal_sidecars(tmp_path: Path) ->
 
 
 def test_hackernews_malformed_feed_fails_instead_of_empty_success(tmp_path: Path) -> None:
-    from collect.hackernews import HackerNewsFetchError, collect_feed
+    from ai_intel_station.collect.hackernews import HackerNewsFetchError, collect_feed
 
     with pytest.raises(HackerNewsFetchError, match="newstories"):
         collect_feed(
@@ -115,7 +115,7 @@ def test_hackernews_malformed_feed_fails_instead_of_empty_success(tmp_path: Path
 def test_hackernews_oversized_and_unavailable_items_fail_with_context(
     tmp_path: Path,
 ) -> None:
-    from collect.hackernews import HackerNewsFetchError, collect_feed
+    from ai_intel_station.collect.hackernews import HackerNewsFetchError, collect_feed
 
     def _unavailable(url: str, **_kwargs):
         if url.endswith("newstories.json"):
@@ -144,8 +144,8 @@ def test_hackernews_oversized_and_unavailable_items_fail_with_context(
 
 
 def test_x_fixture_collection_and_missing_token_boundary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from collect.x import XCredentialError, collect_recent_search
-    from library.storage import load_research_items
+    from ai_intel_station.collect.x import XCredentialError, collect_recent_search
+    from ai_intel_station.library.storage import load_research_items
 
     requested: list[str] = []
     monkeypatch.setenv("TEST_X_TOKEN", "secret")
@@ -204,8 +204,8 @@ def test_x_fixture_collection_and_missing_token_boundary(tmp_path: Path, monkeyp
 
 
 def test_wechat_index_fixture_discovers_watchlist_and_rejects_captcha(tmp_path: Path) -> None:
-    from collect.wechat_index import WeChatIndexCoverageError, collect_account
-    from library.storage import load_research_items
+    from ai_intel_station.collect.wechat_index import WeChatIndexCoverageError, collect_account
+    from ai_intel_station.library.storage import load_research_items
 
     html = """
     <ul class="news-list2">
@@ -260,7 +260,7 @@ def test_wechat_index_fixture_discovers_watchlist_and_rejects_captcha(tmp_path: 
 def test_wechat_index_empty_malformed_and_missing_time_are_incomplete(
     tmp_path: Path, body: str, needle: str
 ) -> None:
-    from collect.wechat_index import WeChatIndexCoverageError, collect_account
+    from ai_intel_station.collect.wechat_index import WeChatIndexCoverageError, collect_account
 
     with pytest.raises(WeChatIndexCoverageError, match=needle):
         collect_account(
@@ -298,7 +298,7 @@ def test_repeated_write_preserves_first_discovered_at(tmp_path: Path) -> None:
 def test_jsonl_reappearance_preserves_first_observation_across_absent_run(
     tmp_path: Path,
 ) -> None:
-    from library.items import write_research_items_jsonl
+    from ai_intel_station.library.items import write_research_items_jsonl
 
     path = tmp_path / "research-items.jsonl"
     first = _signal("Returns later", published_at="2026-08-13T00:00:00Z")
@@ -325,7 +325,7 @@ def test_backfilled_legacy_item_does_not_invent_discovered_at() -> None:
 
 
 def test_freshness_gate_is_timezone_aware_inclusive_and_rejects_future_skew() -> None:
-    from briefing.signals import select_daily_signals
+    from ai_intel_station.briefing.signals import select_daily_signals
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     items = [

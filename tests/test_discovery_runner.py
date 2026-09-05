@@ -6,12 +6,12 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-import collect.github as github_collect
-import collect.papers as papers_collect
-import collect.wechat as wechat_collect
-import research.discovery.runner as runner_module
-from library.items import ResearchItem
-from research.discovery import (
+import ai_intel_station.collect.github as github_collect
+import ai_intel_station.collect.papers as papers_collect
+import ai_intel_station.collect.wechat as wechat_collect
+import ai_intel_station.discovery.runner as runner_module
+from ai_intel_station.library.items import ResearchItem
+from ai_intel_station.discovery import (
     BriefingConfig,
     DiscoveryConfig,
     GitHubSearchQuery,
@@ -25,7 +25,7 @@ from research.discovery import (
     generate_briefing,
     run_discovery,
 )
-from research.discovery.sources import _recent_enough
+from ai_intel_station.discovery.sources import _recent_enough
 
 
 def _build_config(

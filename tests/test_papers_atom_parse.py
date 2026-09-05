@@ -1,5 +1,5 @@
 """Regression tests for the arxiv Atom feed parsing in
-``collect.papers.fetch_papers_by_category``.
+``ai_intel_station.collect.papers.fetch_papers_by_category``.
 
 The parser used to dereference ``element.text`` without checking the
 element was non-None, so a row missing ``<title>``, ``<summary>``,
@@ -13,7 +13,7 @@ from urllib.error import HTTPError
 from unittest.mock import patch
 from xml.etree import ElementTree as ET
 
-from collect.papers import PapersFetchError, fetch_papers_by_category, parse_atom_entry
+from ai_intel_station.collect.papers import PapersFetchError, fetch_papers_by_category, parse_atom_entry
 
 
 class _FakeResponse:
@@ -59,7 +59,7 @@ class ParseAtomEntryTests(unittest.TestCase):
             self.assertEqual(timeout, 15)
             return response
 
-        with patch("collect.papers.urlopen", side_effect=_open):
+        with patch("ai_intel_station.collect.papers.urlopen", side_effect=_open):
             papers = fetch_papers_by_category(
                 ["cs.AI"],
                 max_results=1,
@@ -75,10 +75,10 @@ class ParseAtomEntryTests(unittest.TestCase):
 
         with (
             patch(
-                "collect.papers.urlopen",
+                "ai_intel_station.collect.papers.urlopen",
                 side_effect=[TimeoutError("read timed out"), response],
             ) as open_mock,
-            patch("collect.papers.sleep", create=True) as sleep_mock,
+            patch("ai_intel_station.collect.papers.sleep", create=True) as sleep_mock,
         ):
             papers = fetch_papers_by_category(
                 ["cs.AI"],
@@ -137,8 +137,8 @@ class ParseAtomEntryTests(unittest.TestCase):
             return response
 
         with (
-            patch("collect.papers.urlopen", side_effect=_open),
-            patch("collect.papers.sleep") as sleep_mock,
+            patch("ai_intel_station.collect.papers.urlopen", side_effect=_open),
+            patch("ai_intel_station.collect.papers.sleep") as sleep_mock,
         ):
             papers = fetch_papers_by_category(
                 ["cs.AI"],
@@ -205,8 +205,8 @@ class ParseAtomEntryTests(unittest.TestCase):
             return response
 
         with (
-            patch("collect.papers.urlopen", side_effect=_open),
-            patch("collect.papers.sleep") as sleep_mock,
+            patch("ai_intel_station.collect.papers.urlopen", side_effect=_open),
+            patch("ai_intel_station.collect.papers.sleep") as sleep_mock,
         ):
             papers = fetch_papers_by_category(
                 ["cs.AI"],
@@ -315,10 +315,10 @@ class ParseAtomEntryTests(unittest.TestCase):
     def test_single_category_caller_can_surface_remote_failure(self) -> None:
         with (
             patch(
-                "collect.papers.urlopen",
+                "ai_intel_station.collect.papers.urlopen",
                 side_effect=OSError("offline"),
             ) as open_mock,
-            patch("collect.papers.sleep") as sleep_mock,
+            patch("ai_intel_station.collect.papers.sleep") as sleep_mock,
         ):
             with self.assertRaises(PapersFetchError) as context:
                 fetch_papers_by_category(
@@ -333,7 +333,7 @@ class ParseAtomEntryTests(unittest.TestCase):
         self.assertIn("offline", str(context.exception))
 
     def test_single_category_caller_rejects_unknown_category_before_network(self) -> None:
-        with patch("collect.papers.urlopen") as urlopen_mock:
+        with patch("ai_intel_station.collect.papers.urlopen") as urlopen_mock:
             with self.assertRaises(PapersFetchError) as context:
                 fetch_papers_by_category(
                     ["cs.UNKNOWN"],
@@ -351,7 +351,7 @@ class ParseAtomEntryTests(unittest.TestCase):
             content_length=str(max_bytes + 1),
         )
 
-        with patch("collect.papers.urlopen", return_value=response):
+        with patch("ai_intel_station.collect.papers.urlopen", return_value=response):
             with self.assertRaises(PapersFetchError) as context:
                 fetch_papers_by_category(
                     ["cs.AI"],
@@ -366,7 +366,7 @@ class ParseAtomEntryTests(unittest.TestCase):
         max_bytes = 5 * 1024 * 1024
         response = _FakeResponse(b"x" * max_bytes)
 
-        with patch("collect.papers.urlopen", return_value=response):
+        with patch("ai_intel_station.collect.papers.urlopen", return_value=response):
             with self.assertRaises(PapersFetchError) as context:
                 fetch_papers_by_category(
                     ["cs.AI"],

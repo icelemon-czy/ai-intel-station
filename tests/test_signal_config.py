@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from library.items import ResearchItem, write_research_item
+from ai_intel_station.library.items import ResearchItem, write_research_item
 
 
 def _signal(
@@ -55,7 +55,7 @@ def _evidence(
 
 
 def test_load_config_accepts_realtime_sources_and_signal_defaults(tmp_path: Path) -> None:
-    from research.discovery import load_config
+    from ai_intel_station.discovery import load_config
 
     config_path = tmp_path / "discovery.yaml"
     config_path.write_text(
@@ -107,7 +107,7 @@ limits: {}
 
 
 def test_signal_config_legacy_cap_and_new_quota_conflict(tmp_path: Path) -> None:
-    from research.discovery import DiscoveryConfigError, load_config
+    from ai_intel_station.discovery import DiscoveryConfigError, load_config
 
     legacy_path = tmp_path / "legacy.yaml"
     legacy_path.write_text(
@@ -182,7 +182,7 @@ limits: {}
 def test_signal_config_rejects_invalid_quota_relations(
     tmp_path: Path, briefing: str, needle: str
 ) -> None:
-    from research.discovery import DiscoveryConfigError, load_config
+    from ai_intel_station.discovery import DiscoveryConfigError, load_config
 
     config_path = tmp_path / "invalid.yaml"
     config_path.write_text(
@@ -211,7 +211,7 @@ limits: {{}}
 def test_existing_news_items_migrates_and_github_destination_field_is_ignored(
     tmp_path: Path,
 ) -> None:
-    from research.discovery import load_config
+    from ai_intel_station.discovery import load_config
 
     quota_path = tmp_path / "quota.yaml"
     quota_path.write_text(
@@ -257,7 +257,7 @@ limits: {}
 def test_signal_config_preserves_explicit_legacy_wechat_minimum_without_maximum(
     tmp_path: Path,
 ) -> None:
-    from research.discovery import load_config
+    from ai_intel_station.discovery import load_config
 
     config_path = tmp_path / "legacy-wechat-minimum.yaml"
     config_path.write_text(
@@ -291,7 +291,7 @@ limits: {}
 def test_signal_config_does_not_expand_explicit_zero_wechat_minimum(
     tmp_path: Path,
 ) -> None:
-    from research.discovery import load_config
+    from ai_intel_station.discovery import load_config
 
     config_path = tmp_path / "explicit-zero-wechat-minimum.yaml"
     config_path.write_text(
@@ -323,7 +323,7 @@ limits: {}
 def test_optional_wechat_maximum_does_not_require_a_wechat_source(
     tmp_path: Path,
 ) -> None:
-    from research.discovery import load_config
+    from ai_intel_station.discovery import load_config
 
     config_path = tmp_path / "optional-wechat-without-source.yaml"
     config_path.write_text(
@@ -358,7 +358,7 @@ limits: {}
 def test_signal_config_rejects_positive_quota_without_viable_sources(
     tmp_path: Path,
 ) -> None:
-    from research.discovery import DiscoveryConfigError, load_config
+    from ai_intel_station.discovery import DiscoveryConfigError, load_config
 
     config_path = tmp_path / "missing-sources.yaml"
     config_path.write_text(
@@ -394,7 +394,7 @@ limits: {}
 def test_signal_config_rejects_explicit_empty_briefing_sources(
     tmp_path: Path,
 ) -> None:
-    from research.discovery import DiscoveryConfigError, load_config
+    from ai_intel_station.discovery import DiscoveryConfigError, load_config
 
     config_path = tmp_path / "empty-sources.yaml"
     config_path.write_text(
@@ -435,7 +435,7 @@ limits: {}
 def test_signal_config_rejects_non_integer_quota_types(
     tmp_path: Path, field: str
 ) -> None:
-    from research.discovery import DiscoveryConfigError, load_config
+    from ai_intel_station.discovery import DiscoveryConfigError, load_config
 
     config_path = tmp_path / "non-integer.yaml"
     config_path.write_text(
@@ -462,7 +462,7 @@ limits: {{}}
 
 
 def test_digest_mode_ignores_signal_quota_source_requirements(tmp_path: Path) -> None:
-    from research.discovery import load_config
+    from ai_intel_station.discovery import load_config
 
     config_path = tmp_path / "digest.yaml"
     config_path.write_text(
@@ -501,7 +501,7 @@ limits: {}
 def test_load_config_rejects_invalid_realtime_source_shapes(
     tmp_path: Path, yaml_fragment: str, needle: str
 ) -> None:
-    from research.discovery import DiscoveryConfigError, load_config
+    from ai_intel_station.discovery import DiscoveryConfigError, load_config
 
     config_path = tmp_path / "discovery.yaml"
     config_path.write_text(

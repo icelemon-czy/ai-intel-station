@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from collect.papers import save_papers
+from ai_intel_station.collect.papers import save_papers
 
 _SAMPLE_ID = "2606.00001"
 

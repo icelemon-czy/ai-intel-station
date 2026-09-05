@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import unittest
 
-from collect.wechat import build_markdown
+from ai_intel_station.collect.wechat import build_markdown
 
 
 class BuildMarkdownTests(unittest.TestCase):

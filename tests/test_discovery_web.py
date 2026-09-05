@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from workspace_web.server import _create_handler
-from workspace_web.service import discover_status_payload, run_discover_from_request
+from ai_intel_station.adapters.web.server import _create_handler
+from ai_intel_station.adapters.web.service import discover_status_payload, run_discover_from_request
 
 
 class _WFile:
@@ -86,7 +86,7 @@ class DiscoverWebEndpointTests(unittest.TestCase):
 
     def test_discover_status_payload_when_no_runs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            from workspace_web import discovery as _svc
+            from ai_intel_station.adapters.web import discovery as _svc
 
             original = _svc._resolve_discovery_log_dir
             _svc._resolve_discovery_log_dir = lambda: Path(tmp) / "no-such-dir"
@@ -125,7 +125,7 @@ class DiscoverWebEndpointTests(unittest.TestCase):
 
     def test_run_endpoint_async_returns_job_id(self) -> None:
         """Async mode (default) returns immediately with a job_id."""
-        from workspace_web.discovery import _JOBS
+        from ai_intel_station.adapters.web.discovery import _JOBS
 
         # Use ?sync= is NOT set, so async path; payload must be valid.
         # We point at a non-existent config to trigger fast config_error.

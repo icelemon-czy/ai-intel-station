@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from library.items import ResearchItem, write_research_item
+from ai_intel_station.library.items import ResearchItem, write_research_item
 
 
 def _signal(
@@ -54,9 +54,9 @@ def _evidence(
     )
 
 def test_renderer_separates_hn_target_from_discussion_and_preserves_other_sources() -> None:
-    from briefing.signal_rendering import render_daily_signal_markdown
-    from briefing.signals import select_daily_briefing
-    from research.discovery.models import SourceReport
+    from ai_intel_station.briefing.signal_rendering import render_daily_signal_markdown
+    from ai_intel_station.briefing.signals import select_daily_briefing
+    from ai_intel_station.discovery.models import SourceReport
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     hn = _signal(
@@ -127,9 +127,9 @@ def test_renderer_separates_hn_target_from_discussion_and_preserves_other_source
 
 
 def test_render_daily_signal_briefing_ready_partial_and_empty_statuses() -> None:
-    from briefing.signal_rendering import render_daily_signal_markdown
-    from briefing.signals import select_daily_signals
-    from research.discovery.models import SourceReport
+    from ai_intel_station.briefing.signal_rendering import render_daily_signal_markdown
+    from ai_intel_station.briefing.signals import select_daily_signals
+    from ai_intel_station.discovery.models import SourceReport
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     entries = select_daily_signals(
@@ -163,9 +163,9 @@ def test_render_daily_signal_briefing_ready_partial_and_empty_statuses() -> None
 
 
 def test_quota_renderer_groups_lanes_and_reports_honest_coverage() -> None:
-    from briefing.signal_rendering import render_daily_signal_markdown
-    from briefing.signals import select_daily_briefing
-    from research.discovery.models import SourceReport
+    from ai_intel_station.briefing.signal_rendering import render_daily_signal_markdown
+    from ai_intel_station.briefing.signals import select_daily_briefing
+    from ai_intel_station.discovery.models import SourceReport
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     selection = select_daily_briefing(
@@ -221,9 +221,9 @@ def test_quota_renderer_groups_lanes_and_reports_honest_coverage() -> None:
 
 
 def test_wechat_quota_shortfall_alone_makes_nonempty_result_partial() -> None:
-    from briefing.signal_rendering import render_daily_signal_markdown
-    from briefing.signals import select_daily_briefing
-    from research.discovery.models import SourceReport
+    from ai_intel_station.briefing.signal_rendering import render_daily_signal_markdown
+    from ai_intel_station.briefing.signals import select_daily_briefing
+    from ai_intel_station.discovery.models import SourceReport
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     selection = select_daily_briefing(
@@ -254,9 +254,9 @@ def test_wechat_quota_shortfall_alone_makes_nonempty_result_partial() -> None:
 
 
 def test_optional_wechat_failure_does_not_downgrade_completed_news_coverage() -> None:
-    from briefing.signal_rendering import render_daily_signal_markdown
-    from briefing.signals import select_daily_briefing
-    from research.discovery.models import SourceReport
+    from ai_intel_station.briefing.signal_rendering import render_daily_signal_markdown
+    from ai_intel_station.briefing.signals import select_daily_briefing
+    from ai_intel_station.discovery.models import SourceReport
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     reports = {
@@ -310,9 +310,9 @@ def test_optional_wechat_failure_does_not_downgrade_completed_news_coverage() ->
 
 
 def test_optional_wechat_failure_still_blocks_when_it_is_the_only_news_provider() -> None:
-    from briefing.signal_rendering import render_daily_signal_markdown
-    from briefing.signals import select_daily_briefing
-    from research.discovery.models import SourceReport
+    from ai_intel_station.briefing.signal_rendering import render_daily_signal_markdown
+    from ai_intel_station.briefing.signals import select_daily_briefing
+    from ai_intel_station.discovery.models import SourceReport
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     reports = {
@@ -352,9 +352,9 @@ def test_optional_wechat_failure_still_blocks_when_it_is_the_only_news_provider(
 
 
 def test_optional_wechat_exception_does_not_hide_x_failure() -> None:
-    from briefing.signal_rendering import render_daily_signal_markdown
-    from briefing.signals import select_daily_briefing
-    from research.discovery.models import SourceReport
+    from ai_intel_station.briefing.signal_rendering import render_daily_signal_markdown
+    from ai_intel_station.briefing.signals import select_daily_briefing
+    from ai_intel_station.discovery.models import SourceReport
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     selection = select_daily_briefing(
@@ -388,9 +388,9 @@ def test_optional_wechat_exception_does_not_hide_x_failure() -> None:
 
 
 def test_quota_renderer_marks_unattempted_news_and_required_lane_incomplete() -> None:
-    from briefing.signal_rendering import render_daily_signal_markdown
-    from briefing.signals import select_daily_briefing
-    from research.discovery.models import SourceReport
+    from ai_intel_station.briefing.signal_rendering import render_daily_signal_markdown
+    from ai_intel_station.briefing.signals import select_daily_briefing
+    from ai_intel_station.discovery.models import SourceReport
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     local_news = _signal("Local sidecar", published_at="2026-08-13T00:30:00Z")
@@ -444,9 +444,9 @@ def test_quota_renderer_marks_unattempted_news_and_required_lane_incomplete() ->
 def test_quota_renderer_counts_all_selected_source_failures(
     failed_source: str,
 ) -> None:
-    from briefing.signal_rendering import render_daily_signal_markdown
-    from briefing.signals import select_daily_briefing
-    from research.discovery.models import SourceReport
+    from ai_intel_station.briefing.signal_rendering import render_daily_signal_markdown
+    from ai_intel_station.briefing.signals import select_daily_briefing
+    from ai_intel_station.discovery.models import SourceReport
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     selection = select_daily_briefing(
@@ -480,9 +480,9 @@ def test_quota_renderer_counts_all_selected_source_failures(
 
 
 def test_quota_renderer_complete_empty_success_is_no_fresh_signals() -> None:
-    from briefing.signal_rendering import render_daily_signal_markdown
-    from briefing.signals import select_daily_briefing
-    from research.discovery.models import SourceReport
+    from ai_intel_station.briefing.signal_rendering import render_daily_signal_markdown
+    from ai_intel_station.briefing.signals import select_daily_briefing
+    from ai_intel_station.discovery.models import SourceReport
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     selection = select_daily_briefing(
@@ -513,9 +513,9 @@ def test_quota_renderer_complete_empty_success_is_no_fresh_signals() -> None:
 
 
 def test_signal_markdown_escapes_untrusted_titles_and_coverage_notes() -> None:
-    from briefing.signal_rendering import render_daily_signal_markdown
-    from briefing.signals import select_daily_signals
-    from research.discovery.models import SourceReport
+    from ai_intel_station.briefing.signal_rendering import render_daily_signal_markdown
+    from ai_intel_station.briefing.signals import select_daily_signals
+    from ai_intel_station.discovery.models import SourceReport
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     signal = _signal(
@@ -541,8 +541,8 @@ def test_signal_markdown_escapes_untrusted_titles_and_coverage_notes() -> None:
 
 
 def test_signal_briefing_is_bounded_to_five_items() -> None:
-    from briefing.signal_rendering import render_daily_signal_markdown
-    from briefing.signals import select_daily_signals
+    from ai_intel_station.briefing.signal_rendering import render_daily_signal_markdown
+    from ai_intel_station.briefing.signals import select_daily_signals
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     entries = select_daily_signals(
@@ -565,8 +565,8 @@ def test_signal_briefing_is_bounded_to_five_items() -> None:
 def test_generate_signal_briefing_filters_to_configured_sources(
     tmp_path: Path,
 ) -> None:
-    from research.discovery import BriefingConfig, DiscoveryConfig
-    from research.discovery.runner import generate_briefing
+    from ai_intel_station.discovery import BriefingConfig, DiscoveryConfig
+    from ai_intel_station.discovery.runner import generate_briefing
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     hn = _signal("Allowed HN", published_at="2026-08-13T00:30:00Z")
@@ -600,8 +600,8 @@ def test_quota_dry_run_reports_github_news_maximum_without_fake_actuals(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from research.discovery import BriefingConfig, DiscoveryConfig, DiscoveryLogger
-    from research.discovery.runner import generate_briefing
+    from ai_intel_station.discovery import BriefingConfig, DiscoveryConfig, DiscoveryLogger
+    from ai_intel_station.discovery.runner import generate_briefing
 
     config = DiscoveryConfig(
         output_root=tmp_path,
@@ -632,8 +632,8 @@ def test_quota_dry_run_reports_github_news_maximum_without_fake_actuals(
 def test_nondefault_github_news_maximum_flows_from_yaml_through_runner(
     tmp_path: Path,
 ) -> None:
-    from research.discovery import SourceReport, load_config
-    from research.discovery.runner import generate_briefing
+    from ai_intel_station.discovery import SourceReport, load_config
+    from ai_intel_station.discovery.runner import generate_briefing
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     for index, item in enumerate(
@@ -709,7 +709,7 @@ limits: {{}}
 def test_generate_quota_briefing_runs_real_production_path_with_seven_items(
     tmp_path: Path,
 ) -> None:
-    from research.discovery import (
+    from ai_intel_station.discovery import (
         BriefingConfig,
         DiscoveryConfig,
         GitHubSource,
@@ -719,8 +719,8 @@ def test_generate_quota_briefing_runs_real_production_path_with_seven_items(
         WeChatAccount,
         WeChatSource,
     )
-    from research.discovery.models import SourceReport
-    from research.discovery.runner import generate_briefing
+    from ai_intel_station.discovery.models import SourceReport
+    from ai_intel_station.discovery.runner import generate_briefing
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     items = [
@@ -849,7 +849,7 @@ def test_generate_quota_briefing_applies_optional_wechat_outcome_matrix(
     reports: dict[str, tuple[int, int]],
     expected_status: str,
 ) -> None:
-    from research.discovery import (
+    from ai_intel_station.discovery import (
         BriefingConfig,
         DiscoveryConfig,
         HackerNewsSource,
@@ -858,8 +858,8 @@ def test_generate_quota_briefing_applies_optional_wechat_outcome_matrix(
         WeChatSource,
         XSource,
     )
-    from research.discovery.models import SourceReport
-    from research.discovery.runner import generate_briefing
+    from ai_intel_station.discovery.models import SourceReport
+    from ai_intel_station.discovery.runner import generate_briefing
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     output_root = tmp_path / case
@@ -926,9 +926,9 @@ def test_generate_quota_briefing_applies_optional_wechat_outcome_matrix(
 def test_legacy_max_items_runner_keeps_one_fresh_news_item_ready(
     tmp_path: Path,
 ) -> None:
-    from research.discovery import load_config
-    from research.discovery.models import SourceReport
-    from research.discovery.runner import generate_briefing
+    from ai_intel_station.discovery import load_config
+    from ai_intel_station.discovery.models import SourceReport
+    from ai_intel_station.discovery.runner import generate_briefing
 
     config_path = tmp_path / "legacy.yaml"
     config_path.write_text(
@@ -978,7 +978,7 @@ limits: {{}}
 def test_runner_counts_attempted_failure_outside_briefing_sources_as_partial(
     tmp_path: Path,
 ) -> None:
-    from research.discovery import (
+    from ai_intel_station.discovery import (
         BriefingConfig,
         DiscoveryConfig,
         GitHubSource,
@@ -988,8 +988,8 @@ def test_runner_counts_attempted_failure_outside_briefing_sources_as_partial(
         WeChatSource,
         XSource,
     )
-    from research.discovery.models import SourceReport
-    from research.discovery.runner import generate_briefing
+    from ai_intel_station.discovery.models import SourceReport
+    from ai_intel_station.discovery.runner import generate_briefing
 
     now = datetime(2026, 8, 13, 1, 0, tzinfo=timezone.utc)
     items = [
@@ -1051,9 +1051,9 @@ def test_runner_counts_attempted_failure_outside_briefing_sources_as_partial(
 def test_run_discovery_isolates_missing_x_token_and_keeps_hn_signal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import collect.hackernews as hackernews
-    from library.items import write_research_items_jsonl
-    from research.discovery import (
+    import ai_intel_station.collect.hackernews as hackernews
+    from ai_intel_station.library.items import write_research_items_jsonl
+    from ai_intel_station.discovery import (
         BriefingConfig,
         DiscoveryConfig,
         GitHubSource,
@@ -1126,7 +1126,7 @@ def test_run_discovery_isolates_missing_x_token_and_keeps_hn_signal(
 def test_discover_help_lists_realtime_sources_without_standalone_collect(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from research.cli import main
+    from ai_intel_station.cli import main
 
     with pytest.raises(SystemExit) as discover_help:
         main(["discover", "--help"])
@@ -1142,9 +1142,9 @@ def test_discover_help_lists_realtime_sources_without_standalone_collect(
 
 
 def test_github_search_is_recency_evidence_and_returns_real_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    import collect.github as github
-    from library.storage import load_research_items
-    from research.discovery.sources import _github_search_repos
+    import ai_intel_station.collect.github as github
+    from ai_intel_station.library.storage import load_research_items
+    from ai_intel_station.discovery.sources import _github_search_repos
 
     captured: list[str] = []
     monkeypatch.setattr(

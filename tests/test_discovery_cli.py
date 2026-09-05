@@ -9,8 +9,8 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from research.cli import run_discover, run_init_config
-from research.discovery import DEFAULT_CONFIG_PATH, render_example_config
+from ai_intel_station.cli import run_discover, run_init_config
+from ai_intel_station.discovery import DEFAULT_CONFIG_PATH, render_example_config
 
 
 class DiscoverCliTests(unittest.TestCase):
@@ -37,7 +37,7 @@ class DiscoverCliTests(unittest.TestCase):
 
     def test_discover_dry_run_with_real_example_succeeds(self) -> None:
         """When the example config exists, dry-run with it succeeds (no network)."""
-        import research.commands as command_module
+        import ai_intel_station.cli.commands as command_module
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -94,12 +94,12 @@ class InitConfigCliTests(unittest.TestCase):
         """`research discover --help` must guide first-time users."""
         repo_root = Path(__file__).resolve().parents[1]
         env = os.environ.copy()
-        env["PYTHONPATH"] = str(repo_root)
+        env["PYTHONPATH"] = str(repo_root / "src")
         result = subprocess.run(
             [
                 sys.executable,
                 "-c",
-                "from research.cli import console_main; console_main()",
+                "from ai_intel_station.cli import console_main; console_main()",
                 "discover",
                 "--help",
             ],

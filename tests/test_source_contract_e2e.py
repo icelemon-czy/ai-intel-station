@@ -29,10 +29,10 @@ def _run_research(*args, output_root: Path | None = None, timeout: int = 60):
     pointed at the repo root so the `research` console script
     resolves to the in-tree module (not a globally-installed copy)."""
     cmd_args = [PYTHON, "-c",
-                "from research.cli import console_main; console_main()",
+                "from ai_intel_station.cli import console_main; console_main()",
                 *args]
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(REPO_ROOT)
+    env["PYTHONPATH"] = str(REPO_ROOT / "src")
     if output_root is not None:
         env["_USE_OUT"] = str(output_root)
         # The CLI accepts -o flag for some commands; that's enough.
@@ -51,10 +51,10 @@ def _run_research_with_output(*args, output_root: Path, timeout: int = 60):
     flag (the way a real operator would). Returns CompletedProcess.
     """
     cmd_args = [PYTHON, "-c",
-                "from research.cli import console_main; console_main()",
+                "from ai_intel_station.cli import console_main; console_main()",
                 *args, "-o", str(output_root)]
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(REPO_ROOT)
+    env["PYTHONPATH"] = str(REPO_ROOT / "src")
     return subprocess.run(
         cmd_args,
         capture_output=True,
@@ -76,7 +76,7 @@ def _run_research_with_output(*args, output_root: Path, timeout: int = 60):
 
 class ContractPapersListSubprocessTests(unittest.TestCase):
     def test_research_collect_papers_list_exposes_every_ai_category(self):
-        from collect.papers import AI_CATEGORIES  # type: ignore
+        from ai_intel_station.collect.papers import AI_CATEGORIES  # type: ignore
 
         result = _run_research("collect", "papers", "--list")
         self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
@@ -135,15 +135,15 @@ class ContractPapersMixedOutcomeSubprocessTests(unittest.TestCase):
             )
             script = (
                 "import sys\n"
-                f"sys.path.insert(0, {str(REPO_ROOT)!r})\n"
-                "import collect.papers as papers_collect\n"
+                f"sys.path.insert(0, {str(REPO_ROOT / "src")!r})\n"
+                "import ai_intel_station.collect.papers as papers_collect\n"
                 "from urllib import request as urllib_request\n"
                 "original = urllib_request.urlopen\n"
                 f"fixture_url = {xml_path.as_uri()!r}\n"
                 "def redirect(_request, *args, **kwargs):\n"
                 "    return original(fixture_url, *args, **kwargs)\n"
                 "papers_collect.urlopen = redirect\n"
-                "from research.cli import console_main\n"
+                "from ai_intel_station.cli import console_main\n"
                 "console_main()\n"
             )
             result = subprocess.run(
@@ -162,7 +162,7 @@ class ContractPapersMixedOutcomeSubprocessTests(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
-                env={**os.environ, "PYTHONPATH": str(REPO_ROOT)},
+                env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")},
                 cwd=str(REPO_ROOT),
                 timeout=60,
             )
@@ -202,7 +202,7 @@ class ContractResearchPartialProgressSubprocessTests(unittest.TestCase):
         # Then ask for a briefing over github + papers + wechat.
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
-            from library.items import (
+            from ai_intel_station.library.items import (
                 build_github_repo_item,
                 write_research_item,
             )
@@ -296,10 +296,10 @@ class ContractResearchUnifiedCliSurfaceTests(unittest.TestCase):
             empty_path.mkdir(exist_ok=True)
             env = os.environ.copy()
             env["PATH"] = str(empty_path)  # mask real gh
-            env["PYTHONPATH"] = str(REPO_ROOT)
+            env["PYTHONPATH"] = str(REPO_ROOT / "src")
             result = subprocess.run(
                 [PYTHON, "-c",
-                 "from research.cli import console_main; console_main()",
+                 "from ai_intel_station.cli import console_main; console_main()",
                  "collect", "github", "demo/never-existed"],
                 capture_output=True, text=True, env=env,
                 cwd=str(REPO_ROOT), timeout=30,
@@ -330,7 +330,7 @@ class ContractResearchQuerySubprocessTests(unittest.TestCase):
     def test_research_query_returns_seeded_item_through_unified_cli(self):
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp)
-            from library.items import (
+            from ai_intel_station.library.items import (
                 build_github_repo_item,
                 write_research_item,
             )

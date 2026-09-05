@@ -13,12 +13,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from library.items import (
+from ai_intel_station.library.items import (
     REPO_ROOT,
     ResearchItem,
     write_research_item,
 )
-from library.storage import load_research_items
+from ai_intel_station.library.storage import load_research_items
 
 
 class SidecarSchemaMigrationTests(unittest.TestCase):

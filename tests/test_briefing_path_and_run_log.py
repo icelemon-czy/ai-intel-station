@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from publish.obsidian import briefing_output_path
+from ai_intel_station.briefing.markdown import briefing_output_path
 
 
 class BriefingOutputPathCollisionTests(unittest.TestCase):
@@ -70,9 +70,9 @@ class RunDiscoveryLogHandleTests(unittest.TestCase):
     """
 
     def test_log_handle_closed_even_on_runner_crash(self) -> None:
-        from research.discovery.log import DiscoveryLogger, recent_log_paths
-        from research.discovery.runner import run_discovery
-        from research.discovery import DiscoveryConfig
+        from ai_intel_station.discovery.log import DiscoveryLogger, recent_log_paths
+        from ai_intel_station.discovery.runner import run_discovery
+        from ai_intel_station.discovery import DiscoveryConfig
 
         # We can't realistically run the full discovery sweep in a
         # unit test, but we can verify the same finally pattern that

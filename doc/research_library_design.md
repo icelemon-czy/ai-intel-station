@@ -80,7 +80,7 @@ Physical archive 已按上表迁移：collector 与 discovery writer 直接写 t
 - 使用 sidecar 而不是中央 database，保持 local-first、可检查和易迁移。
 - 保留 source-specific archive，避免不同来源的 metadata 和原文语义被过早抹平。
 - GitHub repository/search 与 arXiv paper 在 daily discovery 中默认是 `evidence`；它们仍可通过 standalone collect 和 Library 独立使用。
-- output path 尽量保存为 repository-relative POSIX path，使 Obsidian link 和不同 cwd 下的 runtime 保持稳定。
+- output path 尽量保存为 repository-relative POSIX path，使 Markdown link 和不同 cwd 下的 runtime 保持稳定。
 
 ## 入口与 evidence
 
@@ -102,5 +102,5 @@ uv sync --extra wechat
 uv run research collect wechat "https://mp.weixin.qq.com/s/example"
 ```
 
-- Runtime：`research/commands.py`、`collect/`、`library/items.py`（model/write）、`library/backfill.py`（legacy parser/backfill）、`library/query.py`、`library/catalog.py`
+- Runtime：`src/ai_intel_station/cli/commands.py`、`src/ai_intel_station/collect/`、`src/ai_intel_station/library/items.py`（model/write）、`src/ai_intel_station/library/backfill.py`（legacy parser/backfill）、`src/ai_intel_station/library/query.py`、`src/ai_intel_station/library/catalog.py`
 - Contract tests：`tests/test_research_item.py`、`tests/test_e2e_archive.py`、`tests/test_cli_e2e.py`、`tests/test_library_query_datetime.py`、`tests/test_library_catalog.py`

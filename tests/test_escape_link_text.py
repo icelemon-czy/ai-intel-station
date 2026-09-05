@@ -2,7 +2,7 @@
 
 1. Multiline input collapses onto one line so the bullet stays a
    single bullet rather than splitting into siblings.
-2. ``\\.`` backslash-period is escaped so an Obsidian extension
+2. ``\\.`` backslash-period is escaped so a Markdown extension
    directive inside a title does not break the link label.
 3. Existing bracket-escape behaviour still holds.
 """
@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import unittest
 
-from briefing.reports import _escape_link_text, _format_item
-from library.items import ResearchItem
+from ai_intel_station.briefing.reports import _escape_link_text, _format_item
+from ai_intel_station.library.items import ResearchItem
 
 
 class EscapeLinkTextTests(unittest.TestCase):
@@ -23,13 +23,13 @@ class EscapeLinkTextTests(unittest.TestCase):
 
     def test_collapses_newlines_to_spaces(self) -> None:
         # A title like 'foo\nbar' would otherwise break the bullet into
-        # multiple rendered lines that Obsidian treats as siblings of
+        # multiple rendered lines that Markdown treats as siblings of
         # the parent bullet.
         self.assertEqual(_escape_link_text("foo\nbar"), "foo bar")
         self.assertEqual(_escape_link_text("a\r\nb"), "a  b")
 
     def test_escapes_backslash_period(self) -> None:
-        # Obsidian/CommonMark parses `\\.` as an extension directive.
+        # CommonMark parses `\\.` as an extension directive.
         # Inside a link label the marker should not fire.
         self.assertEqual(
             _escape_link_text("foo\\.bar"),
@@ -38,7 +38,7 @@ class EscapeLinkTextTests(unittest.TestCase):
 
     def test_combined_brackets_and_newlines(self) -> None:
         # Real-world: a Jira-style title with a newline AND a literal
-        # backslash-period sequence (which Obsidian/CommonMark parse
+        # backslash-period sequence (which CommonMark parsers parse
         # as an extension directive).
         out = _escape_link_text("foo]\n.\\bar")
         # Newlines must collapse so the bullet cannot split.
@@ -69,7 +69,7 @@ class FormatItemMultilineTests(unittest.TestCase):
         lines = _format_item(item, checked=False)
         joined = "\n".join(lines)
         # The bullet's title was collapsed; the embedded newline is
-        # gone. Obsidian would otherwise split [- [foo\nbar](url) ]
+        # gone. Markdown would otherwise split [- [foo\nbar](url) ]
         # across multiple lines and treat them as siblings.
         self.assertNotIn("[foo\n", joined)
         self.assertNotIn("foo\nbar", joined)

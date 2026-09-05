@@ -3,7 +3,7 @@ DiscoveryLogger close behaviour.
 
 ``_format_item`` previously inlined ResearchItem.title and
 canonical_url into a markdown link without escaping ']' — a title like
-``"Python] beyond"`` produced a broken link that Obsidian rendered as
+``"Python] beyond"`` produced a broken link that Markdown rendered as
 just "[Python". ``_escape_link_text`` now turns each ']' into ``\\]``
 so the link survives.
 """
@@ -13,9 +13,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from briefing.reports import _escape_link_text, _format_item, build_digest_markdown
-from library.items import ResearchItem
-from research.discovery.log import DiscoveryLogger
+from ai_intel_station.briefing.reports import _escape_link_text, _format_item, build_digest_markdown
+from ai_intel_station.library.items import ResearchItem
+from ai_intel_station.discovery.log import DiscoveryLogger
 
 
 class EscapeLinkTextTests(unittest.TestCase):
@@ -46,7 +46,7 @@ class FormatItemLinkRoundtripTests(unittest.TestCase):
         lines = _format_item(item, checked=False)
         joined = "\n".join(lines)
         # The closing `]` in the title is now escaped, so the markdown
-        # link round-trips correctly when Obsidian parses it.
+        # link round-trips correctly when Markdown parses it.
         self.assertIn("[Python\\] beyond](https://example.com/x)", joined)
 
     def test_summary_with_newlines_keeps_indentation(self) -> None:

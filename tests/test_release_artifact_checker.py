@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.check_release_artifacts import _assert_web_assets
+from release.check_release_artifacts import _assert_web_assets
 
 
 ARTIFACT = Path("ai_intel_station-test.whl")
@@ -10,9 +10,9 @@ ARTIFACT = Path("ai_intel_station-test.whl")
 
 def test_artifact_checker_requires_every_referenced_hashed_asset() -> None:
     names = [
-        "workspace_web/static/index.html",
-        "workspace_web/static/assets/app-valid.js",
-        "workspace_web/static/assets/app-valid.css",
+        "ai_intel_station/adapters/web/static/index.html",
+        "ai_intel_station/adapters/web/static/assets/app-valid.js",
+        "ai_intel_station/adapters/web/static/assets/app-valid.css",
     ]
     html = """
     <script type="module" src="/assets/app-missing.js"></script>
@@ -25,9 +25,9 @@ def test_artifact_checker_requires_every_referenced_hashed_asset() -> None:
 
 def test_artifact_checker_accepts_packaged_assets_referenced_by_index() -> None:
     names = [
-        "workspace_web/static/index.html",
-        "workspace_web/static/assets/app-valid.js",
-        "workspace_web/static/assets/app-valid.css",
+        "ai_intel_station/adapters/web/static/index.html",
+        "ai_intel_station/adapters/web/static/assets/app-valid.js",
+        "ai_intel_station/adapters/web/static/assets/app-valid.css",
     ]
     html = """
     <script type="module" src="/assets/app-valid.js"></script>

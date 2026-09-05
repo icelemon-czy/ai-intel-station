@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-import collect.wechat as wechat_collect
+import ai_intel_station.collect.wechat as wechat_collect
 
 
 pytestmark = pytest.mark.e2e

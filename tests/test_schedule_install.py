@@ -5,7 +5,7 @@ import unittest
 from contextlib import contextmanager
 from pathlib import Path
 
-from research.discovery.scripts import (
+from ai_intel_station.discovery.scripts import (
     install_cron,
     install_launchd,
     render_install_instructions,

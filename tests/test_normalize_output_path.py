@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import unittest
 
-from library.items import _normalize_output_path
+from ai_intel_station.library.items import _normalize_output_path
 
 
 class NormalizeOutputPathNonStringTests(unittest.TestCase):

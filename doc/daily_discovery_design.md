@@ -26,7 +26,7 @@ Daily Top item 必须由带可信 publication time 的 realtime `signal` 发起�
 
 ## 默认 composition 与 selection
 
-默认配置尝试选择 3 条 Hacker News、最多 2 条 optional WeChat、1 条 GitHub 和 1 篇 arXiv；X quota 默认为 0。实际值由 `config/discovery.yaml` 控制，canonical schema 与 packaged example 位于 `research/discovery/`。
+默认配置尝试选择 3 条 Hacker News、最多 2 条 optional WeChat、1 条 GitHub 和 1 篇 arXiv；X quota 默认为 0。实际值由 `config/discovery.yaml` 控制，canonical schema 与 packaged example 位于 `src/ai_intel_station/discovery/`。
 
 Selection 依次执行：
 
@@ -52,7 +52,7 @@ WeChat 默认 optional：只要其他 viable News source 完成，单独的 WeCh
 
 ## 配置、日志与调度
 
-- `research init-config` 从 packaged `research/discovery/discovery.yaml.example` 写出 ignored `config/discovery.yaml`。
+- `research init-config` 从 packaged `src/ai_intel_station/discovery/discovery.yaml.example` 写出 ignored `config/discovery.yaml`。
 - `research discover --dry-run` 验证 config 并列出计划，保证不触网。
 - 每次 run 写入 `log_dir`；默认是 `.state/discovery/`，并由 `limits.max_log_files` 控制 retention。
 - `research discover --status` 和 `--log-list N` 只读现有 run log，不重新执行。
@@ -66,7 +66,7 @@ WeChat 默认 optional：只要其他 viable News source 完成，单独的 WeCh
 ## 入口与 evidence
 
 - Agent surface：`.agents/skills/daily-discovery/SKILL.md`
-- Runtime：`research/discovery/sources.py`、`research/discovery/runner.py`、`briefing/signals.py`、`briefing/signal_rendering.py`
-- Config：`research/discovery/config.py` 负责 YAML/resource plumbing，`config_schema.py` 与 `config_validation.py` 负责 schema 和 line-aware validation
-- Example：`research/discovery/discovery.yaml.example`
+- Runtime：`src/ai_intel_station/discovery/sources.py`、`src/ai_intel_station/discovery/runner.py`、`src/ai_intel_station/briefing/signals.py`、`src/ai_intel_station/briefing/signal_rendering.py`
+- Config：`src/ai_intel_station/discovery/config.py` 负责 YAML/resource plumbing，`config_schema.py` 与 `config_validation.py` 负责 schema 和 line-aware validation
+- Example：`src/ai_intel_station/discovery/discovery.yaml.example`
 - Tests：`tests/test_signal_config.py`、`tests/test_signal_collection.py`、`tests/test_signal_selection.py`、`tests/test_signal_rendering.py`、`tests/test_discovery_runner.py`

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from library.catalog import build_library_catalog
-from library.items import ResearchItem, write_research_item
+from ai_intel_station.library.catalog import build_library_catalog
+from ai_intel_station.library.items import ResearchItem, write_research_item
 
 
 def _seed_item(output_root: Path, relative: str, item: ResearchItem) -> Path:
@@ -88,7 +88,7 @@ def test_catalog_adds_date_tag_and_duplicate_views_without_moving_archive(tmp_pa
 
 
 def test_organize_cli_rebuilds_stable_catalog_paths(tmp_path: Path, capsys) -> None:
-    from research.cli import main
+    from ai_intel_station.cli import main
 
     output_root = tmp_path / "output"
     _seed_item(
@@ -119,7 +119,7 @@ def test_organize_cli_rebuilds_stable_catalog_paths(tmp_path: Path, capsys) -> N
 
 
 def test_catalog_is_not_reported_as_recent_briefing(tmp_path: Path) -> None:
-    from workspace_web.dashboard import build_dashboard_overview
+    from ai_intel_station.adapters.web.dashboard import build_dashboard_overview
 
     output_root = tmp_path / "output"
     _seed_item(

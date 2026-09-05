@@ -12,8 +12,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from research.discovery.config import DiscoveryConfig, DiscoveryConfigError
-from research.discovery.config_validation import _ErrorBag, _parse_github
+from ai_intel_station.discovery.config import DiscoveryConfig, DiscoveryConfigError
+from ai_intel_station.discovery.config_validation import _ErrorBag, _parse_github
 
 
 def _write_yaml(body: str) -> Path:
@@ -68,7 +68,7 @@ class ParseGithubReposTests(unittest.TestCase):
             "limits: {}\n"
         )
         with self.assertRaises(DiscoveryConfigError) as ctx:
-            from research.discovery.config import load_config
+            from ai_intel_station.discovery.config import load_config
             load_config(path)
         # The aggregated error message mentions the bad path.
         self.assertIn("sources.github.repos[0]", str(ctx.exception))

@@ -6,7 +6,7 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from workspace_web.discovery import (
+from ai_intel_station.adapters.web.discovery import (
     _BRIEFING_RE,
     _parse_briefing_marker,
     discover_status_payload,
@@ -101,7 +101,7 @@ class DiscoverStatusPayloadTests(unittest.TestCase):
             )
 
             # Bypass the resolver to point at our isolated log dir.
-            from workspace_web import discovery as _svc
+            from ai_intel_station.adapters.web import discovery as _svc
 
             original = _svc._resolve_discovery_log_dir
             _svc._resolve_discovery_log_dir = lambda: log_dir
@@ -130,7 +130,7 @@ class DiscoverStatusPayloadTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            from workspace_web import discovery as _svc
+            from ai_intel_station.adapters.web import discovery as _svc
 
             original = _svc._resolve_discovery_log_dir
             _svc._resolve_discovery_log_dir = lambda: log_dir

@@ -6,8 +6,8 @@ from __future__ import annotations
 import unittest
 from datetime import datetime, timezone
 
-from briefing.reports import _sort_items, build_digest_markdown
-from library.items import ResearchItem, _normalize_output_path, write_research_item
+from ai_intel_station.briefing.reports import _sort_items, build_digest_markdown
+from ai_intel_station.library.items import ResearchItem, _normalize_output_path, write_research_item
 
 
 class NormalizeOutputPathTests(unittest.TestCase):

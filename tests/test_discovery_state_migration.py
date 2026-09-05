@@ -8,10 +8,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from research.commands import run_discover_status
-from research.discovery import load_config, render_example_config, run_discovery
-from research.discovery.scripts import _render_cron
-from workspace_web.service import run_discover_from_request
+from ai_intel_station.cli.commands import run_discover_status
+from ai_intel_station.discovery import load_config, render_example_config, run_discovery
+from ai_intel_station.discovery.scripts import _render_cron
+from ai_intel_station.adapters.web.service import run_discover_from_request
 
 
 MINIMAL_CONFIG = """\
@@ -33,7 +33,7 @@ limits:
 
 class DiscoveryStateMigrationTests(unittest.TestCase):
     def test_default_run_status_and_log_list_share_new_directory(self) -> None:
-        from research.discovery import config as config_module
+        from ai_intel_station.discovery import config as config_module
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -63,7 +63,7 @@ class DiscoveryStateMigrationTests(unittest.TestCase):
         self.assertIn("Last 1 runs", output)
 
     def test_legacy_explicit_directory_keeps_existing_sentinel(self) -> None:
-        from research.discovery import config as config_module
+        from ai_intel_station.discovery import config as config_module
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -147,7 +147,7 @@ class DiscoveryStateMigrationTests(unittest.TestCase):
             self.assertTrue(list(custom_log_dir.glob("*.log")))
 
     def test_examples_and_ignore_boundaries_stay_synchronized(self) -> None:
-        from research.discovery import EXAMPLE_CONFIG_PATH
+        from ai_intel_station.discovery import EXAMPLE_CONFIG_PATH
 
         repo_root = Path(__file__).resolve().parents[1]
         checked_in = EXAMPLE_CONFIG_PATH.read_text(encoding="utf-8")
@@ -159,17 +159,22 @@ class DiscoveryStateMigrationTests(unittest.TestCase):
         self.assertIn(".ai/L4-session/discovery/", gitignore)
 
         cron_example = (
-            repo_root / "scripts" / "cron" / "ai-intel-station.cron.example"
+            repo_root
+            / "src"
+            / "ai_intel_station"
+            / "discovery"
+            / "schedule"
+            / "ai-intel-station.cron.example"
         ).read_text(encoding="utf-8")
         self.assertIn("mkdir -p .state/discovery", cron_example)
         self.assertNotIn(".ai/L4-session/discovery", cron_example)
 
-        web_source = (repo_root / "web" / "src" / "DailyDiscoveryCard.jsx").read_text(
+        web_source = (repo_root / "frontend" / "src" / "DailyDiscoveryCard.jsx").read_text(
             encoding="utf-8"
         )
         built_bundle = "\n".join(
             path.read_text(encoding="utf-8")
-            for path in sorted((repo_root / "workspace_web" / "static" / "assets").glob("*.js"))
+            for path in sorted((repo_root / "src" / "ai_intel_station" / "adapters" / "web" / "static" / "assets").glob("*.js"))
         )
         for text in (web_source, built_bundle):
             self.assertIn(".state/discovery/", text)

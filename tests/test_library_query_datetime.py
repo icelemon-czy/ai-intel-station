@@ -12,9 +12,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from library.items import ResearchItem, write_research_item
-from library.query import _matches_time_window, parse_datetime
-from workspace_web.service import list_library_items
+from ai_intel_station.library.items import ResearchItem, write_research_item
+from ai_intel_station.library.query import _matches_time_window, parse_datetime
+from ai_intel_station.adapters.web.service import list_library_items
 
 
 class ParseDatetimeTests(unittest.TestCase):

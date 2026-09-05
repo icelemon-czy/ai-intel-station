@@ -96,7 +96,7 @@ jobs:
       - name: Build Python release artifacts
         run: |
           uv build
-          uv run --frozen --extra dev python scripts/check_release_artifacts.py
+          uv run --frozen --extra dev python release/check_release_artifacts.py
 
       - name: Install and smoke-test the built wheel
         run: |
@@ -106,7 +106,7 @@ jobs:
             dist/*.whl
           "$RUNNER_TEMP/ai-intel-wheel-smoke/bin/research" --help
           "$RUNNER_TEMP/ai-intel-wheel-smoke/bin/python" \
-            -I scripts/smoke_installed_wheel.py
+            -I release/smoke_installed_wheel.py
 
   wechat-tests:
     runs-on: ubuntu-latest
@@ -141,13 +141,13 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install Python backend runtime
         run: uv sync --frozen
 
       - name: Install, build, and test Web workspace
-        working-directory: web
+        working-directory: frontend
         run: |
           npm ci
           npm run build

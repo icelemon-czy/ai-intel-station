@@ -14,7 +14,7 @@
 | `/brainstorm`、`/build-docs`、`/maintain-docs` | `.cursor/skills/<name>/SKILL.md` |
 | `/ralph-loop`、`/skill-creator` | `.cursor/skills/<name>/SKILL.md` |
 | Daily intelligence | `.agents/skills/daily-discovery/SKILL.md` |
-| 无关的一次性 source fetch | `tools/wechat/SKILL.md`、`tools/github/SKILL.md` 或 `tools/papers/SKILL.md` |
+| 无关的一次性 source fetch | `.agents/playbooks/wechat/SKILL.md`、`.agents/playbooks/github/SKILL.md` 或 `.agents/playbooks/papers/SKILL.md` |
 
 明确调用或语义命中 Workflow 时，完整读取对应 `SKILL.md`。所有 product operation 通过唯一 `research` CLI 执行；不要恢复旧 context hierarchy、platform-specific full Skill copy 或 standalone source entrypoint。
 
@@ -92,7 +92,10 @@ Review 先从 high-level requirement 和 source of truth 判断 implementation /
 
 项目启用 Compass CLI worker 时，planner 不按 Write / Edit / Bash 的 tool-call 粒度调用 Claude：
 
-1. implementation 开始前，将一个完整且 bounded 的 task 写入 `.compass/context/cli-worker-task.md`，包含原始 goal、已确认 scope、acceptance criteria 和明确的 out-of-scope。
+1. implementation 开始前，将一个完整且 bounded 的 task 写入 `.compass/context/cli-worker-task.md`，包含原始 goal、已确认 scope、acceptance criteria、明确的 out-of-scope 和一行 `model: sonnet` 或 `model: opus` 分类：
+   - `model: sonnet`：confirmed-scope 的常规 implementation（edit、delete、probe、沿用现有 pattern 的小 feature、docs、tests）。
+   - `model: opus`：需要更深 reasoning 的 task（未决定的 architecture、大型 multi-module change、未确认 root cause 的 hard bug、security-sensitive change）。
+   不要把每个 task 默认写成 opus；省略 `model:` 时 worker 按 `sonnet` 执行。
 2. 按 hook 返回的 platform command 只执行一次 `--delegate`。不要直接执行 raw `claude` command，不要使用 `--resume`、`--continue`、`--session-id`，也不要把同一 task 拆成逐文件 delegation。
 3. worker 返回后检查 diff 并做独立 verification。相同 task revision 不重复执行；只有 scope 或 acceptance criteria 确实改变时才重写 task spec。
 4. worker 报 blocker 时停止，不通过扩大 scope 或连续生成新 task revision 绕过 blocker。

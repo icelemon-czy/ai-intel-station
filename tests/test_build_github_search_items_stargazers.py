@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from library.items import build_github_search_items
+from ai_intel_station.library.items import build_github_search_items
 
 
 class BuildGithubSearchItemsStargazersTests(unittest.TestCase):

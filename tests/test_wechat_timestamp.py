@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import unittest
 
-from collect.wechat import extract_publish_time, format_timestamp
+from ai_intel_station.collect.wechat import extract_publish_time, format_timestamp
 
 
 class FormatTimestampTests(unittest.TestCase):

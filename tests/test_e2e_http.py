@@ -28,12 +28,12 @@ class WorkspaceHttpEndToEndTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        from workspace_web.server import _create_handler
+        from ai_intel_station.adapters.web.server import _create_handler
 
         cls._tmp = tempfile.TemporaryDirectory()
         out = Path(cls._tmp.name)
         # Seed one sidecar so /api/library returns something real.
-        from library.items import ResearchItem, write_research_item
+        from ai_intel_station.library.items import ResearchItem, write_research_item
 
         repo_md = out / "github" / "demo-demo-repo" / "README.md"
         repo_md.parent.mkdir(parents=True)

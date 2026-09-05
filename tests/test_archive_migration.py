@@ -22,9 +22,9 @@ from pathlib import Path
 
 import pytest
 
-from library import migration
-from library.items import ResearchItem, utc_now_iso
-from library.storage import load_research_items
+from ai_intel_station.library import migration
+from ai_intel_station.library.items import ResearchItem, utc_now_iso
+from ai_intel_station.library.storage import load_research_items
 
 
 def _sha(path: Path) -> str:

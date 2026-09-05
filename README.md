@@ -1,6 +1,6 @@
 # AI Intel Station
 
-AI Intel Station（AI 情报站）是一个 local-first AI 研究工作区。它把 remote source 收集为可检查的本地 archive，通过统一的 Library contract 支持查询，并生成适合 Obsidian 阅读的 briefing。日常操作以 project Agent 为主；`research` CLI 是唯一 deterministic runtime，Web workspace 只是 optional viewer。
+AI Intel Station（AI 情报站）是一个 local-first AI 研究工作区。它把 remote source 收集为可检查的本地 archive，通过统一的 Library contract 支持查询，并生成本地 Markdown briefing。日常操作以 project Agent 为主；`research` CLI 是唯一 deterministic runtime，Web workspace 只是 optional viewer。
 
 ```text
 Agent / CLI / optional Web
@@ -21,7 +21,7 @@ Agent / CLI / optional Web
 | [`doc/web_workspace_design.md`](doc/web_workspace_design.md) | optional Web viewer、HTTP boundary 与 background job | 修改 Web workspace 时 |
 | [`doc/validation_design.md`](doc/validation_design.md) | test layer、真实 boundary 与 release validation | 设计 test 或执行 release check 时 |
 
-当前正在进行 source-tree 整理（把 Python source 收拢到 `src/ai_intel_station/`）；进行中的迁移清单见 [`doc/todo.md`](doc/todo.md)，完成后删除。
+开发者看 layout 时先读 [`doc/system_design.md`](doc/system_design.md) Repository map。Product Python 在 `src/ai_intel_station/`，product UI 在 `frontend/`，Agent playbook 在 `.agents/playbooks/`，release helper 在 `release/`。
 
 ## Operator entry
 

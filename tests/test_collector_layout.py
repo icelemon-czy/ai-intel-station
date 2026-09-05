@@ -12,13 +12,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from collect import github as github_mod
-from collect import hackernews as hn_mod
-from collect import papers as papers_mod
-from library import migration
-from library.archive_paths import github_search_leaf, paper_leaf
-from library.items import write_research_item
-from library.storage import load_research_items
+from ai_intel_station.collect import github as github_mod
+from ai_intel_station.collect import hackernews as hn_mod
+from ai_intel_station.collect import papers as papers_mod
+from ai_intel_station.library import migration
+from ai_intel_station.library.archive_paths import github_search_leaf, paper_leaf
+from ai_intel_station.library.items import write_research_item
+from ai_intel_station.library.storage import load_research_items
 
 
 def _item_output_path(output_root: Path, item) -> Path:

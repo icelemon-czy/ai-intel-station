@@ -1,0 +1,5 @@
+# AI Intel Station — daily discovery cron entry
+# Pick an off-minute (07 here) to avoid the :00 cron stampede.
+# Easier path: run `uv run research schedule cron` — it renders this entry
+# with the absolute repo root and installs it via crontab.
+7 9 * * *  cd __REPO_ROOT__ && mkdir -p .state/discovery && uv run research discover >> .state/discovery/cron.log 2>&1

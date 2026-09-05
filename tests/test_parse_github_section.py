@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from library.backfill import parse_github_repo_markdown
+from ai_intel_station.library.backfill import parse_github_repo_markdown
 
 
 def _write_markdown(path: Path, body: str) -> None:

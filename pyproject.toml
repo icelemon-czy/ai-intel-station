@@ -24,14 +24,15 @@ dev = [
 ]
 
 [project.scripts]
-research = "research.cli:console_main"
+research = "ai_intel_station.cli:console_main"
 
 [tool.setuptools.packages.find]
-include = ["research*", "collect*", "library*", "briefing*", "publish*", "workspace_web*"]
+where = ["src"]
+include = ["ai_intel_station*"]
 
 [tool.setuptools.package-data]
-"research.discovery" = ["discovery.yaml.example"]
-workspace_web = [
+"ai_intel_station.discovery" = ["discovery.yaml.example", "schedule/*"]
+"ai_intel_station.adapters.web" = [
   "static/index.html",
   "static/assets/*.css",
   "static/assets/*.js",

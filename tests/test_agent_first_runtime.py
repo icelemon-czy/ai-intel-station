@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from research.discovery import EXAMPLE_CONFIG_PATH
+from ai_intel_station.discovery import EXAMPLE_CONFIG_PATH
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -126,7 +126,7 @@ def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
         raise AssertionError(f"optional package imported by core flow: {{name}}")
     return real_import(name, globals, locals, fromlist, level)
 builtins.__import__ = guarded_import
-from research.cli import main
+from ai_intel_station.cli import main
 raise SystemExit(main(["discover", "--dry-run", "--config", {str(config)!r}]))
 """
             result = subprocess.run(
@@ -153,7 +153,7 @@ def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
         )
     return real_import(name, globals, locals, fromlist, level)
 builtins.__import__ = guarded_import
-from research.cli import main
+from ai_intel_station.cli import main
 raise SystemExit(
     main(["collect", "wechat", "https://mp.weixin.qq.com/s/example"])
 )

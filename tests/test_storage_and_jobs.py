@@ -14,9 +14,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from library.items import ResearchItem, write_research_item
-from library.storage import load_research_items
-from workspace_web import discovery
+from ai_intel_station.library.items import ResearchItem, write_research_item
+from ai_intel_station.library.storage import load_research_items
+from ai_intel_station.adapters.web import discovery
 
 
 class LoadResearchItemsResilienceTests(unittest.TestCase):

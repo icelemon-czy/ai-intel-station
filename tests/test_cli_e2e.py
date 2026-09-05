@@ -8,27 +8,24 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from research.discovery import EXAMPLE_CONFIG_PATH
+from ai_intel_station.discovery import EXAMPLE_CONFIG_PATH
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYTHON = str(REPO_ROOT / ".venv" / "bin" / "python")
-MODULE = REPO_ROOT  # so `python -m research.cli` works
+MODULE = REPO_ROOT / "src"  # so `from ai_intel_station.cli import console_main` works
 
 
 def _run_cli(*args: str, env_extra: dict[str, str] | None = None, cwd: Path | None = None, timeout: int = 60) -> subprocess.CompletedProcess:
     """Run the CLI as a real subprocess.
 
-    We deliberately do NOT use ``python -m research.cli`` — ``research/__init__.py``
-    eagerly imports from ``cli``, which causes a RuntimeWarning and prevents
-    the ``if __name__ == "__main__":`` path from running. Instead we invoke
-    the console_main entry point directly.
+    We invoke ``console_main`` directly rather than ``python -m ai_intel_station.cli``.
     """
     env = os.environ.copy()
     env["PYTHONPATH"] = str(MODULE)
     if env_extra:
         env.update(env_extra)
     return subprocess.run(
-        [PYTHON, "-c", "from research.cli import console_main; console_main()", *args],
+        [PYTHON, "-c", "from ai_intel_station.cli import console_main; console_main()", *args],
         capture_output=True,
         text=True,
         env=env,
@@ -217,7 +214,7 @@ class CliDateFilterErrorTests(unittest.TestCase):
         # the keyword (otherwise the time-window check never fires).
         #
         # We seed a known item so the date filter actually evaluates.
-        from library.items import build_github_repo_item, write_research_item
+        from ai_intel_station.library.items import build_github_repo_item, write_research_item
 
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp) / "out"

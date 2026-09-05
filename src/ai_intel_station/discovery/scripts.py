@@ -1,0 +1,160 @@
+from __future__ import annotations
+
+import platform as _platform_mod
+import shutil
+from importlib import resources
+from pathlib import Path
+
+
+LAUNCHD_LABEL = "com.ai-intel-station.daily"
+LAUNCHD_TEMPLATE_NAME = f"{LAUNCHD_LABEL}.plist"
+CRON_TEMPLATE_NAME = "ai-intel-station.cron.example"
+
+
+def _schedule_template(name: str) -> str:
+    return (
+        resources.files("ai_intel_station.discovery")
+        .joinpath("schedule", name)
+        .read_text(encoding="utf-8")
+    )
+
+
+def _schedule_template_path(name: str) -> Path:
+    return Path(str(resources.files("ai_intel_station.discovery").joinpath("schedule", name)))
+
+
+def _render_launchd(repo_root: Path) -> str:
+    """Render the packaged launchd plist with this repo's absolute paths."""
+    uv_path = shutil.which("uv") or str(repo_root / ".venv" / "bin" / "uv")
+    return (
+        _schedule_template(LAUNCHD_TEMPLATE_NAME)
+        .replace("__UV_PATH__", uv_path)
+        .replace("__REPO_ROOT__", repo_root.as_posix())
+    )
+
+
+def _render_cron(repo_root: Path) -> str:
+    return _schedule_template(CRON_TEMPLATE_NAME).replace(
+        "__REPO_ROOT__", repo_root.as_posix()
+    )
+
+
+def render_install_instructions(platform: str, repo_root: Path) -> str:
+    repo_root = Path(repo_root)
+    if platform == "launchd":
+        plist_src = _schedule_template_path(LAUNCHD_TEMPLATE_NAME)
+        plist_dst = Path.home() / "Library" / "LaunchAgents" / LAUNCHD_TEMPLATE_NAME
+        steps = [
+            f"# macOS launchd install (9:00 AM every day)",
+            f"mkdir -p {plist_dst.parent}",
+            f"cp {plist_src} {plist_dst}",
+            f"launchctl load -w {plist_dst}",
+            "",
+            "# Check status / unload:",
+            f"launchctl list | grep {LAUNCHD_LABEL}",
+            f"launchctl unload {plist_dst}",
+            "",
+            "# Logs:",
+            "tail -f /tmp/ai-intel-station.daily.out",
+            f"tail -f {repo_root.as_posix()}/.state/discovery/*.log",
+            "",
+            "# rendered plist content:",
+            _render_launchd(repo_root),
+        ]
+        return "\n".join(steps)
+
+    if platform == "cron":
+        return "\n".join(
+            [
+                "# crontab install (Linux + macOS fallback)",
+                f"crontab -l > /tmp/ais-cron.bak 2>/dev/null || true",
+                f"( crontab -l 2>/dev/null; cat <<'EOF'",
+                _render_cron(repo_root).rstrip(),
+                "EOF",
+                ") | crontab -",
+                "",
+                "# Verify:",
+                "crontab -l | grep ai-intel-station",
+            ]
+        )
+
+    raise ValueError(f"Unknown platform: {platform!r}")
+
+
+def install_launchd(
+    repo_root: Path,
+    *,
+    home_dir: Path | None = None,
+    runner=None,
+) -> tuple[Path, str]:
+    """Render the launchd plist at the user's LaunchAgents dir and load it.
+
+    Returns ``(plist_path, launchctl_output)``.
+
+    Parameters
+    ----------
+    home_dir:
+        Override ``Path.home()`` for testing. Defaults to the real home.
+    runner:
+        Optional callable accepting ``(command, **kwargs)`` and returning a
+        ``CompletedProcess``-like object. Defaults to ``subprocess.run``.
+    """
+    import subprocess
+
+    repo_root = Path(repo_root)
+    home = home_dir or Path.home()
+    plist_dst = home / "Library" / "LaunchAgents" / LAUNCHD_TEMPLATE_NAME
+    plist_dst.parent.mkdir(parents=True, exist_ok=True)
+    plist_dst.write_text(_render_launchd(repo_root), encoding="utf-8")
+    run = runner or subprocess.run
+    completed = run(
+        ["launchctl", "load", "-w", str(plist_dst)],
+        capture_output=True,
+        text=True,
+    )
+    output = (completed.stdout + completed.stderr).strip()
+    return plist_dst, output
+
+
+def install_cron(
+    repo_root: Path,
+    *,
+    backup_path: Path | None = None,
+    runner=None,
+) -> tuple[str, str]:
+    """Install the cron entry non-interactively. Returns ``(crontab_output, backup_path)``.
+
+    Parameters
+    ----------
+    backup_path:
+        Override ``/tmp/ais-cron.bak`` for testing.
+    runner:
+        Optional callable accepting ``(command, **kwargs)`` and returning a
+        ``CompletedProcess``-like object.
+    """
+    import subprocess
+
+    repo_root = Path(repo_root)
+    backup = Path(backup_path) if backup_path else Path("/tmp/ais-cron.bak")
+    run = runner or subprocess.run
+    existing = ""
+    listed = run(["crontab", "-l"], capture_output=True, text=True)
+    if listed.returncode == 0:
+        existing = listed.stdout
+        backup.parent.mkdir(parents=True, exist_ok=True)
+        backup.write_text(existing, encoding="utf-8")
+    new_block = _render_cron(repo_root)
+    merged = existing.rstrip("\n") + "\n" + new_block
+    piped = run(
+        ["crontab", "-"],
+        input=merged,
+        capture_output=True,
+        text=True,
+    )
+    return (piped.stdout + piped.stderr).strip(), str(backup)
+
+
+def installed_platform() -> str:
+    if _platform_mod.system() == "Darwin":
+        return "launchd"
+    return "cron"

@@ -1,4 +1,4 @@
-"""Edge-case unit tests for `workspace_web.server._json_body`.
+"""Edge-case unit tests for `ai_intel_station.adapters.web.server._json_body`.
 
 These tests catch regressions where the body parser either:
   - crashes with an uncaught ValueError on a malformed request, OR
@@ -12,7 +12,7 @@ from __future__ import annotations
 import io
 import unittest
 
-from workspace_web.server import _json_body
+from ai_intel_station.adapters.web.server import _json_body
 
 
 class _FakeHandler:
