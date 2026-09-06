@@ -14,7 +14,10 @@ frontend/.vite/
 .codex/
 .compass/
 
-# Per-user daily-discovery state
+# Per-user preference and runtime state
 config/discovery.yaml
 .state/
 .ai/L4-session/discovery/
+
+# User-owned local archive and derived briefing (not part of the product repo)
+output/

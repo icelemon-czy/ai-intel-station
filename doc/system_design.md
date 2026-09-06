@@ -97,9 +97,9 @@ Repository 按 ownership 分区，而不是按每个 command 建一套 vertical 
 | `src/ai_intel_station/discovery/discovery.yaml.example` | packaged | canonical discovery config example |
 | `src/ai_intel_station/discovery/schedule/` | packaged | `research schedule` 的 launchd/cron template |
 | `config/discovery.yaml` | local、ignored | operator preference |
-| `output/<source>/` | local archive | collect / discovery / seek primary material |
-| `output/briefing/` | local derived artifact | briefing，可重建 |
-| `output/briefing/library/` | local derived index | Library catalog；按 date/tag 浏览并审计 duplicate，不移动 archive |
+| `output/<source>/` | local、ignored | collect / discovery / seek primary material |
+| `output/briefing/` | local、ignored | briefing，可重建 |
+| `output/briefing/library/` | local、ignored | Library catalog；按 date/tag 浏览并审计 duplicate，不移动 archive |
 | `.state/discovery/` | local runtime state | discovery run log |
 | `src/ai_intel_station/adapters/web/static/` | packaged build artifact | Web runtime，由 release validation 检查 |
 

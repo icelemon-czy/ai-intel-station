@@ -65,7 +65,7 @@ Physical archive 已按上表迁移：collector 与 discovery writer 直接写 t
 | `duplicates.md` | 按 canonical URL 审计重复 context |
 | `orphans.md` | 列出没有 sidecar 引用的 Markdown，等待人工 backfill、move 或 deletion decision |
 
-`output/` 是 user-owned local data，Git tracking 只是一种 operator backup choice，不属于 runtime contract。Runtime 不自动 `git add` 或删除 archive；test 必须使用 temporary output root，不能依赖或修改 repository 中的真实 Library。
+`output/` 是 user-owned local archive，已被 `.gitignore` 排除，不属于 repository。Runtime 不自动 `git add` 或删除 archive；test 必须使用 temporary output root，不能依赖或修改 repository 中的真实 Library。
 
 ## 主要 flow
 
