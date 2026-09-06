@@ -11,6 +11,8 @@
 - `/ralph-loop`、`/skill-creator`
 
 每日情报使用 `.github/skills/daily-discovery/SKILL.md` thin adapter，再转到 canonical
-Skill。单次 source fetch 使用 `.agents/playbooks/wechat|github|papers/` 下的 source playbook。
+Skill。按 topic 一次性拉取（`research seek`）使用 `.github/skills/interest-sweep/SKILL.md`
+thin adapter，同样再转到 canonical Skill。单次 source fetch 使用
+`.agents/playbooks/wechat|github|papers/` 下的 source playbook。
 
 不要恢复 `.compass/context/`、`.ai/`、platform-specific full Skill copy 或 standalone source CLI。所有 product operation 通过 `research` entrypoint；runtime state 只写 ignored `.state/`。

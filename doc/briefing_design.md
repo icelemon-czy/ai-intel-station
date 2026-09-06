@@ -2,15 +2,16 @@
 
 Briefing 把 local Library 中的 `ResearchItem` 转换成本地 Markdown。它不拥有 remote collection；输入已经在本地，输出是可重建的 derived artifact。
 
-## 三类产物
+## 产物类型
 
 | 类型 | 触发入口 | 用途 |
 |:-----|:---------|:-----|
 | Digest / Reading List | `research briefing` 或 Web preview/save | 按 keyword、source 和日期过滤本地 Library，生成摘要或待阅读清单 |
 | Daily Signal Briefing | `research discover` | 展示 freshness、source lane、confidence、coverage 和 quota 状态 |
+| Interest Sweep Reading List | `research seek` | 汇总本次 topic sweep 命中的 item（新收集 + 本地已存在）成一份 this-run reading list |
 | Library Catalog | `research organize` | 提供 date/tag browse 与 duplicate audit，不移动 primary archive |
 
-Digest 与 Reading List 是 generic local-library mode；Daily Signal Briefing 由 Daily Discovery 的 selection contract 驱动；Library Catalog 是从全部 sidecar 重建的 navigation artifact。三类产物共享 output 和 Markdown publishing boundary，但不共享 selection 语义。
+Digest 与 Reading List 是 generic local-library mode；Daily Signal Briefing 由 Daily Discovery 的 selection contract 驱动；Interest Sweep Reading List 复用 Reading List 的 output 与 Markdown publishing boundary，selection contract 只维护在 [`interest_sweep_design.md`](interest_sweep_design.md)，此处不重述；Library Catalog 是从全部 sidecar 重建的 navigation artifact。这些产物共享 output 和 Markdown publishing boundary，但不共享 selection 语义。
 
 ## Observable behavior
 
@@ -32,6 +33,8 @@ local sidecars → query/filter → select/render → preview
 
 Daily Signal Briefing 在 query 后额外执行 role、freshness、dedupe、ranking、quota 和 coverage 计算；具体 contract 见 [`daily_discovery_design.md`](daily_discovery_design.md)。
 
+Interest Sweep Reading List 不经 Library query，直接使用本次 sweep 命中的 item 列表；selection contract 见 [`interest_sweep_design.md`](interest_sweep_design.md)。
+
 ## 关键 decision
 
 - Briefing 是 derived reading artifact，不是新的 primary research item。
@@ -43,5 +46,5 @@ Daily Signal Briefing 在 query 后额外执行 role、freshness、dedupe、rank
 ## 入口与 evidence
 
 - Runtime：`src/ai_intel_station/briefing/service.py`（generic build/save）、`src/ai_intel_station/briefing/reports.py`（render）、`src/ai_intel_station/briefing/signals.py`、`src/ai_intel_station/briefing/signal_rendering.py`、`src/ai_intel_station/briefing/markdown.py`
-- CLI：`research briefing ...`、`research briefing --list`
+- CLI：`research briefing ...`、`research briefing --list`、`research seek`
 - Tests：`tests/test_briefing_reports.py`、`tests/test_briefing_path_and_run_log.py`、`tests/test_briefing_markdown.py`、`tests/test_signal_rendering.py`

@@ -14,6 +14,7 @@
 | `/brainstorm`、`/build-docs`、`/maintain-docs` | `.cursor/skills/<name>/SKILL.md` |
 | `/ralph-loop`、`/skill-creator` | `.cursor/skills/<name>/SKILL.md` |
 | Daily intelligence | `.agents/skills/daily-discovery/SKILL.md` |
+| Interest Sweep（`research seek` 按主题一次性拉取） | `.agents/skills/interest-sweep/SKILL.md` |
 | 无关的一次性 source fetch | `.agents/playbooks/wechat/SKILL.md`、`.agents/playbooks/github/SKILL.md` 或 `.agents/playbooks/papers/SKILL.md` |
 
 明确调用或语义命中 Workflow 时，完整读取对应 `SKILL.md`。所有 product operation 通过唯一 `research` CLI 执行；不要恢复旧 context hierarchy、platform-specific full Skill copy 或 standalone source entrypoint。

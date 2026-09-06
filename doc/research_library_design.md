@@ -1,10 +1,10 @@
 # Research Library
 
-Research Library 把不同来源的内容保存为 source-segregated Markdown archive，并用统一的 `ResearchItem` sidecar 提供本地查询。它让收集和阅读解耦：remote fetch 只发生在 collect/discovery，query、briefing 和 Web Library 只读本地数据。
+Research Library 把不同来源的内容保存为 source-segregated Markdown archive，并用统一的 `ResearchItem` sidecar 提供本地查询。它让收集和阅读解耦：remote fetch 只发生在 collect、Daily Discovery 与 Interest Sweep（`research seek`），query、briefing 和 Web Library 只读本地数据。
 
 ```text
 GitHub / arXiv / WeChat / realtime sources
-                    ↓ collect
+                    ↓ collect / discover / seek
          output/<source>/*.md
                     +
           ResearchItem sidecar
@@ -30,7 +30,7 @@ GitHub / arXiv / WeChat / realtime sources
 
 | Artifact | Ownership | 说明 |
 |:---------|:----------|:-----|
-| `output/github/`、`papers/`、`wechat/`、`hackernews/`、`x/` | collect / discovery | 原始或 source-normalized research material |
+| `output/github/`、`papers/`、`wechat/`、`hackernews/`、`x/` | collect / discovery / seek | 原始或 source-normalized research material |
 | `ResearchItem` sidecar | Library contract | 跨 source 的结构化索引 |
 | `output/briefing/` | briefing | 可重建的 derived reading artifact |
 
@@ -53,7 +53,7 @@ Physical path 与 browse dimension 分离：
 | Hacker News / X | story/post ID | feed、query、rank 与 discovered date |
 | Briefing | artifact type + generation date | Library Catalog 使用固定可重建 path |
 
-Physical archive 已按上表迁移：collector 与 discovery writer 直接写 target layout，历史 archive 通过共享的 `library.migration` service（`research migrate archive`）迁移，duplicate copy 只在 canonical identity 与 content equivalence 都可证明时合并并保留 category / feed / query provenance，`output_path` 与 WeChat relative image 保持可解析。
+Physical archive 已按上表迁移：collector 与 discovery writer 直接写 target layout，历史 archive 通过共享的 `src/ai_intel_station/library/migration.py` service（`research migrate archive`）迁移，duplicate copy 只在 canonical identity 与 content equivalence 都可证明时合并并保留 category / feed / query provenance，`output_path` 与 WeChat relative image 保持可解析。
 
 `research organize` 把可重建 index 写入 `output/briefing/library/`：
 
@@ -80,6 +80,7 @@ Physical archive 已按上表迁移：collector 与 discovery writer 直接写 t
 - 使用 sidecar 而不是中央 database，保持 local-first、可检查和易迁移。
 - 保留 source-specific archive，避免不同来源的 metadata 和原文语义被过早抹平。
 - GitHub repository/search 与 arXiv paper 在 daily discovery 中默认是 `evidence`；它们仍可通过 standalone collect 和 Library 独立使用。
+- standalone `research collect papers` 保持 arXiv category 抓取；按 topic string 跨 source 的 keyword 拉取属于 Interest Sweep，见 [`interest_sweep_design.md`](interest_sweep_design.md)。
 - output path 尽量保存为 repository-relative POSIX path，使 Markdown link 和不同 cwd 下的 runtime 保持稳定。
 
 ## 入口与 evidence
@@ -102,5 +103,5 @@ uv sync --extra wechat
 uv run research collect wechat "https://mp.weixin.qq.com/s/example"
 ```
 
-- Runtime：`src/ai_intel_station/cli/commands.py`、`src/ai_intel_station/collect/`、`src/ai_intel_station/library/items.py`（model/write）、`src/ai_intel_station/library/backfill.py`（legacy parser/backfill）、`src/ai_intel_station/library/query.py`、`src/ai_intel_station/library/catalog.py`
-- Contract tests：`tests/test_research_item.py`、`tests/test_e2e_archive.py`、`tests/test_cli_e2e.py`、`tests/test_library_query_datetime.py`、`tests/test_library_catalog.py`
+- Runtime：`src/ai_intel_station/cli/commands.py`、`src/ai_intel_station/collect/`、`src/ai_intel_station/library/items.py`（model/write）、`src/ai_intel_station/library/backfill.py`（legacy parser/backfill）、`src/ai_intel_station/library/query.py`、`src/ai_intel_station/library/catalog.py`、`src/ai_intel_station/library/migration.py`
+- Contract tests：`tests/test_research_item.py`、`tests/test_e2e_archive.py`、`tests/test_cli_e2e.py`、`tests/test_library_query_datetime.py`、`tests/test_library_catalog.py`、`tests/test_archive_migration.py`、`tests/test_collector_layout.py`

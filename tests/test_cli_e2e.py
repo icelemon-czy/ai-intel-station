@@ -45,8 +45,16 @@ class CliEndToEndTests(unittest.TestCase):
     def test_help_lists_all_subcommands(self) -> None:
         result = _run_cli("--help")
         self.assertEqual(result.returncode, 0, msg=result.stderr)
-        for cmd in ("collect", "query", "briefing", "backfill", "web", "discover", "schedule", "init-config"):
+        for cmd in ("collect", "query", "briefing", "backfill", "web", "discover", "seek", "schedule", "init-config"):
             self.assertIn(cmd, result.stdout, f"missing subcommand {cmd!r} in help")
+
+
+    def test_seek_dry_run_is_network_free(self) -> None:
+        result = _run_cli("seek", "--dry-run", "agent memory")
+        self.assertEqual(result.returncode, 0, msg=result.stderr + result.stdout)
+        self.assertIn("dry-run", result.stdout)
+        self.assertIn("GitHub", result.stdout)
+        self.assertIn("arXiv", result.stdout)
 
     def test_init_config_writes_template(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

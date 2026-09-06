@@ -58,6 +58,7 @@ Installed-wheel smoke 使用 `release/smoke_installed_wheel.py`。HTTP socket te
 ## Evidence map
 
 - Library / collect：`tests/test_research_item.py`、`tests/test_e2e_archive.py`、`tests/test_cli_e2e.py`、`tests/test_library_catalog.py`、`tests/test_archive_migration.py`、`tests/test_collector_layout.py`
+- Interest Sweep：`tests/test_seek.py`（topic sweep 编排、`--dry-run` 不触网/不写、canonical_url skip、per-source failure 隔离与 reading list）
 - System / HTTP boundary：`tests/test_system_contracts.py`、`tests/test_http_*_e2e.py`、`tests/test_source_contract_e2e.py`
 - Daily Discovery：`tests/test_signal_config.py`、`tests/test_signal_collection.py`、`tests/test_signal_selection.py`、`tests/test_signal_rendering.py`、`tests/test_discovery_runner.py`、`tests/test_discovery_cli.py`、`tests/test_discovery_config.py`、`tests/test_schedule_install.py`
 - Briefing：`tests/test_briefing_reports.py`、`tests/test_briefing_markdown.py`

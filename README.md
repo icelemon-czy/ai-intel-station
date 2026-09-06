@@ -5,7 +5,7 @@ AI Intel Station（AI 情报站）是一个 local-first AI 研究工作区。它
 ```text
 Agent / CLI / optional Web
            ↓
- collect or discover ──→ source archive + ResearchItem sidecar
+ collect / discover / seek ──→ source archive + ResearchItem sidecar
                                       ↓
                               query / briefing
 ```
@@ -17,6 +17,7 @@ Agent / CLI / optional Web
 | [`doc/system_design.md`](doc/system_design.md) | architecture source of truth、layer ownership、dependency direction 与 repository map | 先理解项目结构或判断改动归属时 |
 | [`doc/research_library_design.md`](doc/research_library_design.md) | source collection、`ResearchItem` sidecar、本地查询与历史 backfill | 修改 collector、Library contract 或 archive 时 |
 | [`doc/daily_discovery_design.md`](doc/daily_discovery_design.md) | 每日 signal sweep、source role、quota、coverage、config 与 schedule | 运行或修改 Daily Discovery 时 |
+| [`doc/interest_sweep_design.md`](doc/interest_sweep_design.md) | topic string 一次性 keyword sweep、skip/failure 与 this-run reading list | 按主题临时拉取相关内容时 |
 | [`doc/briefing_design.md`](doc/briefing_design.md) | digest、reading list 与 daily signal briefing | 修改派生阅读产物时 |
 | [`doc/web_workspace_design.md`](doc/web_workspace_design.md) | optional Web viewer、HTTP boundary 与 background job | 修改 Web workspace 时 |
 | [`doc/validation_design.md`](doc/validation_design.md) | test layer、真实 boundary 与 release validation | 设计 test 或执行 release check 时 |

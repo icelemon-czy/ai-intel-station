@@ -27,6 +27,9 @@ description: "Operate AI Intel Station as an Agent-first daily intelligence loop
 - 不启动 Web；Web 是 optional viewer，不是完成本 Workflow 的前置条件。
 - 单独抓取一个 repo、paper category 或 WeChat URL 时，使用对应 source workflow，
   不把它扩张成 daily sweep。
+- 用户说“我对 X 感兴趣，现在把相关内容拉下来”这类一次性 topic 拉取时，交给
+  Interest Sweep Skill（`research seek`），不当成 Preferences；Preferences 只用于
+  “以后每天跟踪”某来源或主题。
 - 修改产品代码、测试或 Spec 时不触发本 Skill。
 
 ## Intent routing
@@ -34,10 +37,11 @@ description: "Operate AI Intel Station as an Agent-first daily intelligence loop
 | 用户 intent | Action |
 |:------------|:-------|
 | “今天有什么值得看 / 跑一下今日情报 / daily briefing” | Today |
-| “只看 papers / 开始跟踪 agent memory / 调整每日来源” | Preferences |
+| “以后每天都跟踪 agent memory / 只看 papers / 调整每日来源” | Preferences |
 | “昨天跑得怎么样 / 为什么失败 / 最近几次状态” | Status |
 | “每天 9 点自动跑 / 安装 schedule” | Schedule |
 | “只收集，不生成 briefing” | Today + `--no-briefing` |
+| “我对 X 感兴趣，现在把相关内容拉下来（一次性）” | 转 Interest Sweep Skill，不是 Preferences |
 
 ## Flow
 

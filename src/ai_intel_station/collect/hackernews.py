@@ -128,3 +128,82 @@ def _accumulate_feed_provenance(item, sidecar_path: Path) -> None:
         feeds.append(str(current))
     if feeds:
         item.metadata["feeds"] = feeds
+
+
+def collect_topic(
+    topic: str,
+    *,
+    feeds: list[str],
+    limit: int,
+    output_dir: Path,
+    known_urls: set[str] | None = None,
+    request_json: Callable[..., object] = request_json,
+    discovered_at: str | None = None,
+) -> tuple[list, list]:
+    """Scan ``feeds`` in order for stories whose title/url match ``topic``.
+
+    Interest Sweep uses this instead of Algolia: it reuses the existing Firebase
+    feed + ``_matches_keywords`` filter already in ``collect_feed``. Matches are
+    unique by story id and capped at ``limit`` total matches across the feeds.
+    Returns ``(new_items, existing_items)`` — a story whose ``canonical_url`` (the
+    same URL ``build_hackernews_item`` assigns) is already in ``known_urls`` is a
+    Library hit: reported but not re-persisted. Only new stories write the
+    Markdown + sidecar unit, using the same per-story identity ``collect_feed``
+    uses. ``request_json`` is injectable so a sweep can be tested offline.
+    """
+    known_urls = known_urls or set()
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    seen_ids: set = set()
+    matched = 0
+    new_items: list = []
+    existing_items: list = []
+
+    for feed in feeds:
+        if feed not in SUPPORTED_FEEDS:
+            raise HackerNewsFetchError(f"unsupported Hacker News feed: {feed}")
+        if matched >= limit:
+            break
+        try:
+            ids = request_json(f"{API_ROOT}/{feed}.json")
+        except Exception as exc:
+            if isinstance(exc, HackerNewsFetchError):
+                raise
+            raise HackerNewsFetchError(f"{feed} request failed: {exc}") from exc
+        if not isinstance(ids, list) or any(not isinstance(item_id, int) for item_id in ids):
+            raise HackerNewsFetchError(f"{feed} returned malformed item id list")
+
+        for item_id in ids[:MAX_SCANNED_ITEMS]:
+            if matched >= limit:
+                break
+            if item_id in seen_ids:
+                continue
+            try:
+                story = request_json(f"{API_ROOT}/item/{item_id}.json")
+            except Exception as exc:
+                if isinstance(exc, HackerNewsFetchError):
+                    raise
+                raise HackerNewsFetchError(f"{feed} item {item_id} request failed: {exc}") from exc
+            if not isinstance(story, dict):
+                raise HackerNewsFetchError(f"{feed} item {item_id} returned malformed payload")
+            if story.get("deleted") or story.get("dead") or story.get("type") != "story":
+                continue
+            if not _matches_keywords(story, [topic]):
+                continue
+
+            seen_ids.add(item_id)
+            matched += 1
+            markdown_path = output_dir / hackernews_leaf(item_id)
+            item = build_hackernews_item(story, markdown_path, feed=feed, discovered_at=discovered_at)
+            if item.canonical_url and item.canonical_url in known_urls:
+                existing_items.append(item)
+                continue
+            _accumulate_feed_provenance(
+                item, output_dir / hackernews_leaf(item_id, suffix=".research-item.json")
+            )
+            markdown_path.write_text(hackernews_story_markdown(item), encoding="utf-8")
+            write_research_item(item, output_dir / hackernews_leaf(item_id, suffix=".research-item.json"))
+            new_items.append(item)
+
+    return new_items, existing_items

@@ -22,6 +22,7 @@ from ai_intel_station.cli.commands import (
     run_migrate,
     run_organize,
     run_schedule,
+    run_seek_command,
     run_web_workspace,
 )
 
@@ -143,6 +144,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     discover_parser.add_argument("-o", "--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
 
+    seek_parser = subparsers.add_parser("seek", help="Pull related GitHub, arXiv, and HN items for a topic")
+    seek_parser.add_argument("topic")
+    seek_parser.add_argument("--dry-run", action="store_true")
+    seek_parser.add_argument("--no-briefing", action="store_true")
+    seek_parser.add_argument("--limit", type=int, default=10)
+    seek_parser.add_argument("-o", "--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+
     schedule_parser = subparsers.add_parser(
         "schedule", help="Print install instructions for daily launchd/cron scheduling"
     )
@@ -251,6 +259,15 @@ def _dispatch(args) -> int:
             enable_briefing=not args.no_briefing,
             status_only=args.status,
             log_list=args.log_list,
+        )
+
+    if args.command == "seek":
+        return run_seek_command(
+            args.topic,
+            args.output_root,
+            dry_run=args.dry_run,
+            no_briefing=args.no_briefing,
+            limit=args.limit,
         )
 
     if args.command == "schedule":

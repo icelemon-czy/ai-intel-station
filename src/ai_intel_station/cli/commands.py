@@ -1,7 +1,11 @@
 import asyncio
 from pathlib import Path
 
-from ai_intel_station.briefing.service import build_generic_briefing, save_generic_briefing
+from ai_intel_station.briefing.service import (
+    build_generic_briefing,
+    build_generic_briefing_from_items,
+    save_generic_briefing,
+)
 from ai_intel_station.collect.papers import CATEGORIES_HELP
 from ai_intel_station.collect.service import collect_github, collect_papers, collect_wechat
 from ai_intel_station.collect.wechat import (
@@ -52,6 +56,50 @@ async def collect_wechat_article(url: str, output_root: Path) -> None:
     result = await collect_wechat(url, output_root)
     if result.status == "error":
         raise ValueError(result.message)
+
+
+def save_seek_reading_list(result, output_root: Path):
+    """Compose the Interest Sweep this-run reading list from ``SeekResult`` items.
+
+    Reading-list membership is exactly the items this run hit: newly collected
+    plus already-in-library (skip) items. Dry-run and zero-hit sweeps return
+    unchanged without writing any briefing file.
+    """
+    from ai_intel_station.collect.seek import format_seek_report
+
+    if result.dry_run or not (result.new_items or result.existing_items):
+        return result
+    items = list(result.new_items) + list(result.existing_items)
+    briefing = build_generic_briefing_from_items(
+        mode="reading-list",
+        title=f"Seek: {result.topic}",
+        items=items,
+    )
+    saved = save_generic_briefing(briefing, output_root)
+    result.briefing_path = saved.path
+    result.message = format_seek_report(result)
+    return result
+
+
+def run_seek_command(
+    topic: str,
+    output_root: Path,
+    *,
+    dry_run: bool,
+    no_briefing: bool,
+    limit: int,
+) -> int:
+    from ai_intel_station.collect.seek import run_seek
+
+    try:
+        result = run_seek(topic, output_root, dry_run=dry_run, limit=limit)
+    except ValueError as exc:
+        print(f"❌ {exc}")
+        return 2
+    if not no_briefing:
+        save_seek_reading_list(result, output_root)
+    print(result.message)
+    return 0
 
 
 def render_query_results(output_root: Path, keyword: str, sources: list[str] | None, since: str | None, until: str | None) -> str:

@@ -218,6 +218,82 @@ def fetch_papers_by_category(
     return papers
 
 
+def fetch_papers_by_query(
+    query: str,
+    max_results: int = 10,
+    *,
+    raise_on_error: bool = False,
+) -> list[dict]:
+    """Fetch arXiv papers matching a keyword query (``search_query=all:"<query>"``).
+
+    Shares the request headers, retry loop, response-cap guard and Atom parser
+    with :func:`fetch_papers_by_category`; only the query string differs and the
+    ``sort`` is relevance rather than ``submittedDate``. There is deliberately no
+    per-category daily Atom fallback here — that feed is category-scoped, so a
+    keyword sweep relies on the search API alone and surfaces a failure to the
+    caller. Used by Interest Sweep; it never changes the ``collect papers`` CLI.
+    """
+    query = (query or "").strip()
+    if not query:
+        message = "arXiv query fetch requires a non-empty query"
+        print(f"⚠️  {message}")
+        if raise_on_error:
+            raise PapersFetchError(message)
+        return []
+
+    params = urlencode(
+        {
+            "search_query": f'all:"{query}"',
+            "sortBy": "relevance",
+            "sortOrder": "descending",
+            "max_results": max_results,
+        }
+    )
+    url = f"{ARXIV_API}?{params}"
+    print(f"🔎 Fetching arXiv query {query!r}...")
+
+    try:
+        request = Request(url, headers=_request_headers())
+        raw, content_length = _read_arxiv_response(
+            request,
+            category=f"query:{query}",
+            max_attempts=ARXIV_MAX_ATTEMPTS,
+        )
+        too_big_from_header = False
+        if content_length is not None:
+            try:
+                too_big_from_header = int(content_length) > ARXIV_RESPONSE_CAP_BYTES
+            except ValueError:
+                pass
+        if too_big_from_header or len(raw) >= ARXIV_RESPONSE_CAP_BYTES:
+            message = (
+                f"arXiv query response for {query!r} exceeds "
+                f"{ARXIV_RESPONSE_CAP_BYTES}-byte cap"
+            )
+            print(f"⚠️  {message}; skipping")
+            if raise_on_error:
+                raise PapersFetchError(message)
+            return []
+        root = ET.fromstring(raw.decode("utf-8"))
+        ns = {"atom": "http://www.w3.org/2005/Atom"}
+        papers: list[dict] = []
+        for entry in root.findall("atom:entry", ns)[:max_results]:
+            paper = parse_atom_entry(entry, ns)
+            if not (paper["title"] or paper["arxiv_id"]):
+                continue
+            papers.append(paper)
+            print(f"  ✅ {paper['title'][:60]}...")
+        return papers
+    except PapersFetchError:
+        raise
+    except Exception as exc:
+        message = f"Failed to fetch arXiv query {query!r}: {exc}"
+        print(f"  ❌ {message}")
+        if raise_on_error:
+            raise PapersFetchError(message) from exc
+        return []
+
+
 def parse_atom_entry(entry, ns=None) -> dict:
     """Convert an arxiv Atom <entry> into the dict shape consumed by
     ``save_papers``.

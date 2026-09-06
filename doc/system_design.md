@@ -6,7 +6,7 @@ AI Intel Station 只有一条 product pipeline：source data 进入本地 archiv
 project Agent ─→ research CLI ───────┐
 direct CLI ──────────────────────────┼─→ shared services
 optional Web ─→ adapters/web ────────┘          │
-                                               ├─ remote source → collect / discover
+                                               ├─ remote source → collect / discover / seek
                                                │                         │
                                                │                         ↓
                                                └─ query / briefing ← archive + sidecar
@@ -33,7 +33,7 @@ optional Web ─→ adapters/web ────────┘          │
 Refactor 必须保持以下 invariant：
 
 1. `research` 是唯一 product CLI；Agent Skill、platform adapter 和 Web surface 不建立第二套 runtime。CLI command 名称保持 `research`，不随 Python package path 收拢到 `src/ai_intel_station/` 而改变。
-2. remote fetch 只发生在 collect 或 discovery boundary；Library query、generic briefing 和 Web Library 只读取 local archive。
+2. remote fetch 只发生在 collect（含 Interest Sweep `seek`）或 discovery boundary；Library query、generic briefing 和 Web Library 只读取 local archive。
 3. `ResearchItem` sidecar 是 collector、Library、briefing 和 Web 共享的数据 contract；source-specific metadata 不要求抹平成中央 database。
 4. `output/<source>/` 保存 primary material，`output/briefing/` 保存可重建的 derived artifact，两者不互相冒充。
 5. `adapters/web` 只组合 shared service 并维护 HTTP/job boundary；React UI（`frontend/`）不复制 Python business rule。
@@ -73,7 +73,7 @@ Repository 按 ownership 分区，而不是按每个 command 建一套 vertical 
 
 | Path | Role |
 |:-----|:-----|
-| `.agents/skills/` | canonical project Workflow 与 Daily Discovery Skill |
+| `.agents/skills/` | canonical project Workflow（Daily Discovery、Interest Sweep） |
 | `.agents/playbooks/` | one-off source fetch playbook；调用 `research` runtime |
 | `CLAUDE.md`、`.claude/skills/`、`.github/*instructions*`、`.github/skills/` | platform adapter |
 
@@ -97,10 +97,10 @@ Repository 按 ownership 分区，而不是按每个 command 建一套 vertical 
 | `src/ai_intel_station/discovery/discovery.yaml.example` | packaged | canonical discovery config example |
 | `src/ai_intel_station/discovery/schedule/` | packaged | `research schedule` 的 launchd/cron template |
 | `config/discovery.yaml` | local、ignored | operator preference |
-| `output/<source>/` | local archive | collect / discovery primary material |
+| `output/<source>/` | local archive | collect / discovery / seek primary material |
 | `output/briefing/` | local derived artifact | briefing，可重建 |
 | `output/briefing/library/` | local derived index | Library catalog；按 date/tag 浏览并审计 duplicate，不移动 archive |
 | `.state/discovery/` | local runtime state | discovery run log |
 | `src/ai_intel_station/adapters/web/static/` | packaged build artifact | Web runtime，由 release validation 检查 |
 
-Feature-specific behavior 不在本页重复：collection 与 Library 见 [`research_library_design.md`](research_library_design.md)，每日 discovery 见 [`daily_discovery_design.md`](daily_discovery_design.md)，派生产物见 [`briefing_design.md`](briefing_design.md)，Web boundary 见 [`web_workspace_design.md`](web_workspace_design.md)，验证策略见 [`validation_design.md`](validation_design.md)。
+Feature-specific behavior 不在本页重复：collection 与 Library 见 [`research_library_design.md`](research_library_design.md)，每日 discovery 见 [`daily_discovery_design.md`](daily_discovery_design.md)，topic 一次性 sweep 见 [`interest_sweep_design.md`](interest_sweep_design.md)，派生产物见 [`briefing_design.md`](briefing_design.md)，Web boundary 见 [`web_workspace_design.md`](web_workspace_design.md)，验证策略见 [`validation_design.md`](validation_design.md)。

@@ -53,7 +53,7 @@ class ContractRunnableDocumentedEntrypointsTests(unittest.TestCase):
         result = _run_cli("--help")
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         for cmd in ("collect", "query", "briefing", "backfill", "organize",
-                    "web", "discover", "schedule", "init-config"):
+                    "web", "discover", "seek", "schedule", "init-config"):
             self.assertIn(cmd, result.stdout, f"missing documented subcommand {cmd!r}")
 
     def test_research_collect_help_references_required_fields(self):

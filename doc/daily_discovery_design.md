@@ -1,6 +1,6 @@
 # Daily Discovery
 
-Daily Discovery 是 Agent-first 的每日 AI 情报 loop。project Agent 解释自然语言 intent，`daily-discovery` Skill 调用 deterministic `research` CLI；runtime 收集 realtime signal 和 supporting evidence，生成带 coverage 状态的 briefing，Agent 再把重点返回 conversation。
+Daily Discovery 是 Agent-first 的每日 AI 情报 loop。project Agent 解释自然语言 intent，`daily-discovery` Skill 调用 deterministic `research` CLI；runtime 收集 realtime signal 和 supporting evidence，生成带 coverage 状态的 briefing，Agent 再把重点返回 conversation。临时按某个主题一次性拉取相关内容不属于本 design：那是 `research seek` 的 Interest Sweep，见 [`interest_sweep_design.md`](interest_sweep_design.md)。
 
 ```text
 Agent intent
@@ -69,4 +69,4 @@ WeChat 默认 optional：只要其他 viable News source 完成，单独的 WeCh
 - Runtime：`src/ai_intel_station/discovery/sources.py`、`src/ai_intel_station/discovery/runner.py`、`src/ai_intel_station/briefing/signals.py`、`src/ai_intel_station/briefing/signal_rendering.py`
 - Config：`src/ai_intel_station/discovery/config.py` 负责 YAML/resource plumbing，`config_schema.py` 与 `config_validation.py` 负责 schema 和 line-aware validation
 - Example：`src/ai_intel_station/discovery/discovery.yaml.example`
-- Tests：`tests/test_signal_config.py`、`tests/test_signal_collection.py`、`tests/test_signal_selection.py`、`tests/test_signal_rendering.py`、`tests/test_discovery_runner.py`
+- Tests：`tests/test_signal_config.py`、`tests/test_signal_collection.py`、`tests/test_signal_selection.py`、`tests/test_signal_rendering.py`、`tests/test_discovery_runner.py`、`tests/test_discovery_cli.py`、`tests/test_discovery_config.py`、`tests/test_schedule_install.py`、`tests/test_discovery_web.py`
